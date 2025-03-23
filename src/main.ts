@@ -1,9 +1,15 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import * as dotenv from 'dotenv';
+dotenv.config();
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  app.enableCors({
+    origin: '*', // 또는 특정 프론트 URL만 허용 가능
+    credentials: true,
+  });
 
   // Swagger 설정 빌더
   const config = new DocumentBuilder()
@@ -11,7 +17,16 @@ async function bootstrap() {
     .setDescription('Moneymap 백엔드 API 문서')
     .setVersion('1.0')
     // 인증이 필요한 경우 Bearer 토큰 인증 추가 (옵션)
-    .addBearerAuth()
+    .addBearerAuth(
+      {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+        name: 'Authorization',
+        in: 'header',
+      },
+      'access_token', // <- 이름 (밑에서 사용됨)
+    )
     .build();
 
   // Swagger 문서 생성

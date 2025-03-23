@@ -19,6 +19,8 @@ model User {
   password  String
   createdAt DateTime @default(now())
   transactions Transaction[]
+  categories  Category[]
+  budgets     Budget[]
 }
 
 model Transaction {
@@ -31,6 +33,37 @@ model Transaction {
   note       String?
   createdAt  DateTime @default(now())
 
-  // category   Category @relation(fields: [categoryId], references: [id])
+  category   Category @relation(fields: [categoryId], references: [id])
   user       User     @relation(fields: [userId], references: [id])
+}
+
+model Category {
+  id         String        @id @default(uuid())
+  name       String
+  icon       String
+  userId     String
+  transactions Transaction[]
+  budgets    BudgetCategory[]
+  user       User @relation(fields: [userId], references: [id])
+}
+
+model Budget {
+  id         String             @id @default(uuid())
+  userId     String
+  total      Int
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+
+  user       User               @relation(fields: [userId], references: [id])
+  categories BudgetCategory[]   // N:M 관계 (카테고리별 예산)
+}
+
+model BudgetCategory {
+  id         String   @id @default(uuid())
+  budgetId   String
+  categoryId String
+  amount     Int
+
+  budget     Budget   @relation(fields: [budgetId], references: [id])
+  category   Category @relation(fields: [categoryId], references: [id])
 }

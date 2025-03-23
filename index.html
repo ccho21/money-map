@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Socket.io Test with Login</title>
+    <style>
+      body {
+        font-family: sans-serif;
+        padding: 20px;
+      }
+      #log {
+        white-space: pre-line;
+        margin-top: 1em;
+        background: #f5f5f5;
+        padding: 1em;
+        border-radius: 8px;
+      }
+      button {
+        margin-right: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <h2>💻 Socket.io 실시간 예산 초과 테스트</h2>
+    <p>유저 로그인 후 소켓 연결 및 거래 생성 가능</p>
+
+    <button onclick="loginAndConnect()">🔐 로그인 & 소켓 연결</button>
+    <button onclick="createTransaction()">💸 거래 생성</button>
+
+    <div id="log">로그 없음...</div>
+
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script>
+      let token = '';
+      let socket = null;
+
+      const log = (msg) => {
+        const logDiv = document.getElementById('log');
+        logDiv.innerText += `\n${msg}`;
+      };
+
+      async function loginAndConnect() {
+        log('🔐 로그인 중...');
+
+        const res = await fetch('http://localhost:3000/auth/signin', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: 'seeduser@example.com',
+            password: 'secure123',
+          }),
+        });
+
+        if (!res.ok) {
+          log('❌ 로그인 실패');
+          return;
+        }
+
+        const data = await res.json();
+        token = data.access_token;
+
+        log('✅ 로그인 성공, 토큰 받음');
+
+        socket = io('http://localhost:3000', {
+          auth: { token },
+        });
+
+        socket.on('connect', () => {
+          log('✅ 소켓 연결됨: ' + socket.id);
+        });
+
+        socket.on('budget_alert', (data) => {
+          log(`🚨 예산 초과 알림: ${JSON.stringify(data)}`);
+        });
+      }
+
+      async function createTransaction() {
+        if (!token) {
+          log('❗ 먼저 로그인하세요.');
+          return;
+        }
+
+        // 예산을 초과하게 만들고 싶은 카테고리 ID로 수정 필요!
+        const categoryId = prompt('카테고리 UUID 입력:', '');
+
+        if (!categoryId) {
+          log('❌ categoryId 없음');
+          return;
+        }
+
+        const res = await fetch('http://localhost:3000/transactions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            type: 'expense',
+            amount: 150000, // 예산보다 높은 값 입력!
+            categoryId,
+            date: new Date().toISOString(),
+            note: '테스트 거래',
+          }),
+        });
+
+        if (!res.ok) {
+          log('❌ 거래 생성 실패');
+          return;
+        }
+
+        const result = await res.json();
+        log(`✅ 거래 생성 완료: ${result.id}`);
+      }
+    </script>
+  </body>
+</html>

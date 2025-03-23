@@ -4,15 +4,15 @@ import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
 
 @Injectable()
-export class JwtStrategy extends PassportStrategy(Strategy) {
+export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   constructor(config: ConfigService) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
-      secretOrKey: config.get<string>('JWT_SECRET', { infer: true })!,
+      secretOrKey: config.get<string>('JWT_SECRET')!,
     });
   }
 
   validate(payload: any) {
-    return payload; // req.user
+    return payload; // req.user에 들어감
   }
 }
