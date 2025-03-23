@@ -3,6 +3,7 @@ import { AnalysisService } from './analysis.service';
 import { JwtGuard } from '../common/guards/jwt.guard';
 import { GetUser } from '../common/decorators/get-user.decorator';
 import { ApiBearerAuth, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { UserPayload } from 'src/auth/types/user-payload.type';
 
 @ApiTags('Analysis')
 @ApiBearerAuth('access-token')
@@ -14,7 +15,7 @@ export class AnalysisController {
   @Get('summary')
   @ApiQuery({ name: 'range', enum: ['weekly', 'monthly', 'yearly'] })
   getSummary(
-    @GetUser() user,
+    @GetUser() user: UserPayload,
     @Query('range') range: 'weekly' | 'monthly' | 'yearly' = 'monthly',
   ) {
     return this.analysisService.getSummary(user.sub, range);
@@ -22,22 +23,25 @@ export class AnalysisController {
 
   @Get('by-category')
   @ApiQuery({ name: 'categoryId', required: true })
-  getByCategory(@GetUser() user, @Query('categoryId') categoryId: string) {
+  getByCategory(
+    @GetUser() user: UserPayload,
+    @Query('categoryId') categoryId: string,
+  ) {
     return this.analysisService.getByCategory(user.sub, categoryId);
   }
 
   @Get('ranking')
-  getTopSpendingPeriods(@GetUser() user) {
+  getTopSpendingPeriods(@GetUser() user: UserPayload) {
     return this.analysisService.getTopSpendingPeriods(user.sub);
   }
 
   @Get('yoy')
-  getYoY(@GetUser() user) {
+  getYoY(@GetUser() user: UserPayload) {
     return this.analysisService.getYoYComparison(user.sub);
   }
 
   @Get('mom')
-  getMoM(@GetUser() user) {
+  getMoM(@GetUser() user: UserPayload) {
     return this.analysisService.getMoMComparison(user.sub);
   }
 }

@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateBudgetDto } from './dto/create-budget.dto';
+import { BudgetAlert } from './types/budgets.types';
 
 @Injectable()
 export class BudgetsService {
@@ -41,7 +42,7 @@ export class BudgetsService {
     });
   }
 
-  async getBudgetAlerts(userId: string) {
+  async getBudgetAlerts(userId: string): Promise<BudgetAlert[]> {
     const budgets = await this.prisma.budgetCategory.findMany({
       where: {
         budget: {
@@ -54,7 +55,7 @@ export class BudgetsService {
       },
     });
 
-    const alerts: any = [];
+    const alerts: BudgetAlert[] = [];
 
     for (const item of budgets) {
       const spent = await this.prisma.transaction.aggregate({

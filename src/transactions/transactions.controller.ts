@@ -4,6 +4,7 @@ import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { JwtGuard } from '../common/guards/jwt.guard';
 import { GetUser } from '../common/decorators/get-user.decorator';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { UserPayload } from 'src/auth/types/user-payload.type';
 
 @ApiTags('Transactions')
 @UseGuards(JwtGuard)
@@ -13,12 +14,12 @@ export class TransactionsController {
   constructor(private readonly transactionsService: TransactionsService) {}
 
   @Post()
-  create(@GetUser() user, @Body() dto: CreateTransactionDto) {
+  create(@GetUser() user: UserPayload, @Body() dto: CreateTransactionDto) {
     return this.transactionsService.create(user.sub, dto);
   }
 
   @Get()
-  findAll(@GetUser() user) {
+  findAll(@GetUser() user: UserPayload) {
     console.log('### user', user);
     return this.transactionsService.findAllByUser(user.sub);
   }

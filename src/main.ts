@@ -41,4 +41,6 @@ async function bootstrap() {
   console.log(`Application is running on: http://localhost:${port}`);
 }
 
-bootstrap();
+bootstrap().catch((err) => {
+  console.error('앱 시작 중 오류 발생:', err);
+});

@@ -4,6 +4,7 @@ import * as bcrypt from 'bcrypt';
 import { SigninDto } from './dto/signin.dto';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
+import { UserPayload } from './types/user-payload.type';
 
 @Injectable()
 export class AuthService {
@@ -44,7 +45,7 @@ export class AuthService {
     return { access_token: token };
   }
 
-  async googleSignin(user: any) {
+  async googleSignin(user: UserPayload) {
     let existingUser = await this.prisma.user.findUnique({
       where: { email: user.email },
     });

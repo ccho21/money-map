@@ -12,6 +12,7 @@ import { JwtGuard } from 'src/common/guards/jwt.guard';
 import { CategoriesService } from './categories.service';
 import { GetUser } from 'src/common/decorators/get-user.decorator';
 import { CreateCategoryDto } from './dto/create-category.dto';
+import { UserPayload } from 'src/auth/types/user-payload.type';
 
 @ApiTags('Categories')
 @ApiBearerAuth('access-token')
@@ -21,17 +22,17 @@ export class CategoriesController {
   constructor(private readonly categoriesService: CategoriesService) {}
 
   @Post()
-  create(@GetUser() user, @Body() dto: CreateCategoryDto) {
+  create(@GetUser() user: UserPayload, @Body() dto: CreateCategoryDto) {
     return this.categoriesService.create(user.sub, dto);
   }
 
   @Get()
-  findAll(@GetUser() user) {
+  findAll(@GetUser() user: UserPayload) {
     return this.categoriesService.findAllByUser(user.sub);
   }
 
   @Delete(':id')
-  remove(@GetUser() user, @Param('id') id: string) {
+  remove(@GetUser() user: UserPayload, @Param('id') id: string) {
     return this.categoriesService.delete(user.sub, id);
   }
 }

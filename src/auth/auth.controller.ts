@@ -3,6 +3,7 @@ import { AuthService } from './auth.service';
 import { SignupDto } from './dto/signup.dto';
 import { SigninDto } from './dto/signin.dto';
 import { AuthGuard } from '@nestjs/passport';
+import { UserPayload } from './types/user-payload.type';
 
 @Controller('auth')
 export class AuthController {
@@ -26,7 +27,7 @@ export class AuthController {
 
   @Get('google/redirect')
   @UseGuards(AuthGuard('google'))
-  async googleRedirect(@Req() req) {
-    return this.authService.googleSignin(req.user); // 여기서 토큰 발급
+  async googleRedirect(@Req() req: Request & { user: UserPayload }) {
+    return this.authService.googleSignin(req.user);
   }
 }

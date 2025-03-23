@@ -1,6 +1,7 @@
 import { WebSocketGateway, WebSocketServer } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
+import { UserPayload } from 'src/auth/types/user-payload.type';
 
 @WebSocketGateway({
   cors: {
@@ -15,15 +16,18 @@ export class EventsGateway {
 
   async handleConnection(client: Socket) {
     try {
-      const token = client.handshake.auth.token;
-      console.log('token', token);
-      const payload = this.jwt.verify(token);
-      const userId = payload.sub;
+      const token: string = client.handshake.auth.token as string;
+      const payload: UserPayload = this.jwt.verify<UserPayload>(token);
+      const userId: string = payload.sub;
 
-      client.join(userId); // 👈 userId 방에 조인
+      await client.join(userId); // 🟢 타입 안전
       console.log(`✅ User ${userId} connected to socket`);
-    } catch (err) {
-      console.warn('❌ 소켓 인증 실패', err.message);
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        console.warn('❌ 소켓 인증 실패', err.message);
+      } else {
+        console.warn('❌ 소켓 인증 실패: Unknown error');
+      }
       client.disconnect();
     }
   }
