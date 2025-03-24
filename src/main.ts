@@ -1,14 +1,16 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import * as cookieParser from 'cookie-parser';
 import * as dotenv from 'dotenv';
 dotenv.config();
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  app.use(cookieParser());
   app.enableCors({
-    origin: '*', // 또는 특정 프론트 URL만 허용 가능
-    credentials: true,
+    origin: 'http://localhost:3001', // ✅ 프론트엔드 주소 명시!
+    credentials: true, // ✅ 쿠키 허용 필수
   });
 
   // Swagger 설정 빌더
@@ -27,6 +29,7 @@ async function bootstrap() {
       },
       'access_token', // <- 이름 (밑에서 사용됨)
     )
+    .addCookieAuth('access_token') // 이건 단순 Swagger 문서용
     .build();
 
   // Swagger 문서 생성
