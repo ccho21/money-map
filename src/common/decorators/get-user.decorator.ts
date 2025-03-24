@@ -6,7 +6,6 @@ export const GetUser = createParamDecorator(
     const request = ctx
       .switchToHttp()
       .getRequest<Request & { user: UserPayload }>();
-
     return request.user;
   },
 );
