@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   startOfMonth,
@@ -11,6 +11,8 @@ import {
 
 @Injectable()
 export class AnalysisService {
+  private readonly logger = new Logger(AnalysisService.name);
+
   constructor(private prisma: PrismaService) {}
 
   async getSummary(userId: string, range: 'weekly' | 'monthly' | 'yearly') {
@@ -29,6 +31,10 @@ export class AnalysisService {
         startDate = startOfMonth(now);
     }
 
+    this.logger.debug(
+      `📊 getSummary() → range: ${range}, startDate: ${startDate.toISOString()}, userId: ${userId}`,
+    );
+
     const transactions = await this.prisma.transaction.findMany({
       where: {
         userId,
@@ -40,7 +46,10 @@ export class AnalysisService {
       },
     });
 
+    this.logger.debug(`🔍 총 거래 수: ${transactions.length}`);
+
     const totalSpent = transactions.reduce((sum, tx) => sum + tx.amount, 0);
+    this.logger.debug(`💸 총 지출: ₩${totalSpent}`);
 
     const byCategoryMap = new Map<string, number>();
     const byDateMap = new Map<string, number>();
@@ -64,6 +73,10 @@ export class AnalysisService {
       { category: '', amount: 0 },
     );
 
+    this.logger.debug(
+      `🏆 가장 많이 쓴 카테고리: ${topCategory.category}, ₩${topCategory.amount}`,
+    );
+
     return {
       totalSpent,
       byCategory,
@@ -73,6 +86,10 @@ export class AnalysisService {
   }
 
   async getByCategory(userId: string, categoryId: string) {
+    this.logger.debug(
+      `📊 getByCategory() → userId: ${userId}, categoryId: ${categoryId}`,
+    );
+
     const transactions = await this.prisma.transaction.findMany({
       where: {
         userId,
@@ -83,6 +100,10 @@ export class AnalysisService {
     });
 
     const totalSpent = transactions.reduce((sum, tx) => sum + tx.amount, 0);
+    this.logger.debug(
+      `💸 총 지출 (카테고리): ₩${totalSpent}, 거래 수: ${transactions.length}`,
+    );
+
     const byDate = Object.fromEntries(
       transactions.map((tx) => [format(tx.date, 'yyyy-MM-dd'), tx.amount]),
     );
@@ -96,6 +117,8 @@ export class AnalysisService {
   }
 
   async getTopSpendingPeriods(userId: string) {
+    this.logger.debug(`📊 getTopSpendingPeriods() → userId: ${userId}`);
+
     const transactions = await this.prisma.transaction.findMany({
       where: {
         userId,
@@ -118,6 +141,7 @@ export class AnalysisService {
       .sort((a, b) => b.amount - a.amount)
       .slice(0, 3);
 
+    this.logger.debug(`🏅 월별 소비 TOP3: ${JSON.stringify(ranked)}`);
     return ranked;
   }
 
@@ -125,6 +149,8 @@ export class AnalysisService {
     const now = new Date();
     const thisYear = startOfYear(now);
     const lastYear = startOfYear(subYears(now, 1));
+
+    this.logger.debug(`📊 getYoYComparison() → userId: ${userId}`);
 
     const [thisYearTx, lastYearTx] = await Promise.all([
       this.prisma.transaction.findMany({
@@ -149,6 +175,10 @@ export class AnalysisService {
     const growth =
       lastTotal === 0 ? null : ((thisTotal - lastTotal) / lastTotal) * 100;
 
+    this.logger.debug(
+      `📈 올해 총지출: ₩${thisTotal}, 작년: ₩${lastTotal}, YoY 증가율: ${growth?.toFixed(2) ?? 'N/A'}%`,
+    );
+
     return {
       thisYear: thisTotal,
       lastYear: lastTotal,
@@ -160,6 +190,8 @@ export class AnalysisService {
     const now = new Date();
     const thisMonth = startOfMonth(now);
     const lastMonth = startOfMonth(subMonths(now, 1));
+
+    this.logger.debug(`📊 getMoMComparison() → userId: ${userId}`);
 
     const [thisMonthTx, lastMonthTx] = await Promise.all([
       this.prisma.transaction.findMany({
@@ -183,6 +215,10 @@ export class AnalysisService {
 
     const growth =
       lastTotal === 0 ? null : ((thisTotal - lastTotal) / lastTotal) * 100;
+
+    this.logger.debug(
+      `📉 이번달 총지출: ₩${thisTotal}, 지난달: ₩${lastTotal}, MoM 증가율: ${growth?.toFixed(2) ?? 'N/A'}%`,
+    );
 
     return {
       thisMonth: thisTotal,
