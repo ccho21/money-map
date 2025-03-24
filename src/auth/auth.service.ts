@@ -1,10 +1,17 @@
-import { ForbiddenException, Injectable, Logger } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  Logger,
+  Res,
+} from '@nestjs/common';
 import { SignupDto } from './dto/signup.dto';
 import * as bcrypt from 'bcrypt';
 import { SigninDto } from './dto/signin.dto';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
 import { UserPayload } from './types/user-payload.type';
+import { Response } from 'express';
 
 @Injectable()
 export class AuthService {
@@ -15,35 +22,48 @@ export class AuthService {
     private jwt: JwtService,
   ) {}
 
-  async signup(dto: SignupDto) {
+  async signup(dto: SignupDto, @Res({ passthrough: true }) res: Response) {
     this.logger.debug(`📥 Signup attempt: ${dto.email}`);
 
     const exists = await this.prisma.user.findUnique({
       where: { email: dto.email },
     });
+
     if (exists) {
       this.logger.warn(`❌ Email already exists: ${dto.email}`);
-      throw new ForbiddenException('Email already registered');
+      throw new ConflictException('이미 등록된 이메일입니다.');
     }
 
     const hashed = await bcrypt.hash(dto.password, 10);
-    await this.prisma.user.create({
+    const user = await this.prisma.user.create({
       data: {
         email: dto.email,
         password: hashed,
       },
     });
 
-    this.logger.log(`✅ Signup success: ${dto.email}`);
-    return { message: 'Signup success' };
+    const payload = { sub: user.id, email: user.email };
+    const token = await this.jwt.signAsync(payload);
+
+    res.cookie('access_token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 1000 * 60 * 60 * 24 * 7, // 7일
+    });
+
+    this.logger.log(`✅ Signup success (auto-signin): ${dto.email}`);
+
+    return { message: 'Signup successful' };
   }
 
-  async signin(dto: SigninDto) {
+  async signin(dto: SigninDto, @Res({ passthrough: true }) res: Response) {
     this.logger.debug(`🔐 Signin attempt: ${dto.email}`);
 
     const user = await this.prisma.user.findUnique({
       where: { email: dto.email },
     });
+
     if (!user) {
       this.logger.warn(`❌ User not found: ${dto.email}`);
       throw new ForbiddenException('Invalid credentials');
@@ -57,12 +77,24 @@ export class AuthService {
 
     const payload = { sub: user.id, email: user.email };
     const token = await this.jwt.signAsync(payload);
+
+    // ✅ access_token 쿠키로 설정
+    res.cookie('access_token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 1000 * 60 * 60 * 24 * 7, // 7일
+    });
+
     this.logger.log(`✅ Signin success: ${dto.email}`);
 
-    return { access_token: token };
+    return { message: 'Signin successful' };
   }
 
-  async googleSignin(user: UserPayload) {
+  async googleSignin(
+    user: UserPayload,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     this.logger.debug(`🔓 Google Signin: ${user.email}`);
 
     let existingUser = await this.prisma.user.findUnique({
@@ -74,7 +106,7 @@ export class AuthService {
       existingUser = await this.prisma.user.create({
         data: {
           email: user.email,
-          password: '',
+          password: '', // 소셜 로그인 사용자는 비밀번호 없음
         },
       });
     } else {
@@ -84,10 +116,17 @@ export class AuthService {
     const payload = { sub: existingUser.id, email: existingUser.email };
     const token = await this.jwt.signAsync(payload);
 
+    res.cookie('access_token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 1000 * 60 * 60 * 24 * 7, // 7일
+    });
+
     this.logger.log(`✅ Google login successful: ${user.email}`);
+
     return {
       message: 'Google login successful',
-      access_token: token,
     };
   }
 }
