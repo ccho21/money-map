@@ -12,6 +12,7 @@ import { BudgetsModule } from './budgets/budgets.module';
 import { EventsModule } from './events/events.module';
 import { AnalysisController } from './analysis/analysis.controller';
 import { AnalysisService } from './analysis/analysis.service';
+import { AccountsModule } from './accounts/accounts.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { AnalysisService } from './analysis/analysis.service';
     CategoriesModule,
     BudgetsModule,
     EventsModule,
+    AccountsModule,
   ],
   controllers: [AppController, AnalysisController],
   providers: [AppService, PrismaService, AnalysisService],

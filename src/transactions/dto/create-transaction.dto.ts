@@ -17,6 +17,9 @@ export class CreateTransactionDto {
   @IsUUID()
   categoryId: string;
 
+  @IsUUID()
+  accountId: string;
+
   @IsDateString()
   date: string;
 

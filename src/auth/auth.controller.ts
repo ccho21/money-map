@@ -13,14 +13,14 @@ import { SigninDto } from './dto/signin.dto';
 import { AuthGuard } from '@nestjs/passport';
 import { UserPayload } from './types/user-payload.type';
 import { Response } from 'express';
-import { JwtGuard } from 'src/common/guards/jwt.guard';
+import { JwtAuthGuard } from 'src/common/guards/jwt.guard';
 import { GetUser } from 'src/common/decorators/get-user.decorator';
 
 @Controller('auth')
 export class AuthController {
   constructor(private authService: AuthService) {}
 
-  @UseGuards(JwtGuard)
+  @UseGuards(JwtAuthGuard)
   @Get('me')
   getMe(@GetUser() user: UserPayload) {
     console.log('### what is returned?', user);

@@ -14,6 +14,10 @@ export class UpdateTransactionDto {
   categoryId?: string;
 
   @IsOptional()
+  @IsString()
+  accountId?: string;
+
+  @IsOptional()
   @IsDateString()
   date?: string;
 

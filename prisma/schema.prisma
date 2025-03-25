@@ -13,6 +13,12 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum AccountType {
+  CASH
+  BANK
+  CARD
+}
+
 model User {
   id        String   @id @default(uuid())
   email     String   @unique
@@ -21,6 +27,7 @@ model User {
   transactions Transaction[]
   categories  Category[]
   budgets     Budget[]
+  accounts  Account[]
 }
 
 model Transaction {
@@ -29,10 +36,11 @@ model Transaction {
   amount     Int
   categoryId String
   userId     String
+  accountId  String
   date       DateTime
   note       String?
   createdAt  DateTime @default(now())
-
+  account    Account  @relation(fields: [accountId], references: [id])
   category   Category @relation(fields: [categoryId], references: [id])
   user       User     @relation(fields: [userId], references: [id])
 }
@@ -66,4 +74,18 @@ model BudgetCategory {
 
   budget     Budget   @relation(fields: [budgetId], references: [id])
   category   Category @relation(fields: [categoryId], references: [id])
+}
+
+model Account {
+  id        String   @id @default(uuid())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  name      String
+  type      AccountType
+  color     String?     // UI 색상 (선택)
+  balance   Float       @default(0) // 계좌 잔액
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  transactions Transaction[] // 1:N 관계
 }

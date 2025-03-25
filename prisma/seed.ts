@@ -1,10 +1,10 @@
-import { PrismaClient, Category, User } from '@prisma/client';
+import { PrismaClient, Category, User, AccountType } from '@prisma/client';
 import bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
 
 async function main(): Promise<void> {
-  // 1. 테스트용 사용자 생성 (암호화 포함)
+  // 1. 테스트용 사용자 생성
   const plainPassword = 'secure123';
   const hashedPassword = await bcrypt.hash(plainPassword, 10);
 
@@ -17,7 +17,18 @@ async function main(): Promise<void> {
     },
   });
 
-  // 2. 카테고리 생성 리스트
+  // 2. 테스트용 계좌 생성
+  const account = await prisma.account.create({
+    data: {
+      userId: user.id,
+      name: '현금지갑',
+      type: 'CASH',
+      color: '#4CAF50',
+      balance: 500000, // 초기 잔액
+    },
+  });
+
+  // 3. 카테고리 리스트
   const categories: { name: string; icon: string }[] = [
     { name: '식비', icon: '🍔' },
     { name: '교통', icon: '🚗' },
@@ -25,9 +36,8 @@ async function main(): Promise<void> {
     { name: '여가', icon: '🎮' },
   ];
 
-  // 3. 카테고리 생성 및 저장
+  // 4. 카테고리 생성
   const createdCategories: Category[] = [];
-
   for (const category of categories) {
     const created = await prisma.category.create({
       data: {
@@ -38,7 +48,7 @@ async function main(): Promise<void> {
     createdCategories.push(created);
   }
 
-  // 4. 예산 생성
+  // 5. 예산 생성
   const budget = await prisma.budget.create({
     data: {
       userId: user.id,
@@ -46,7 +56,7 @@ async function main(): Promise<void> {
     },
   });
 
-  // 5. 카테고리별 예산 연결
+  // 6. 카테고리별 예산 연결
   for (const cat of createdCategories) {
     await prisma.budgetCategory.create({
       data: {
@@ -57,12 +67,13 @@ async function main(): Promise<void> {
     });
   }
 
-  // 6. 트랜잭션 생성 (각 카테고리에 1건씩)
+  // 7. 트랜잭션 생성 (계좌 연결 포함)
   for (const cat of createdCategories) {
     await prisma.transaction.create({
       data: {
         userId: user.id,
         categoryId: cat.id,
+        accountId: account.id, // 계좌 연결
         type: 'expense',
         amount: 30000,
         date: new Date(),
@@ -71,7 +82,7 @@ async function main(): Promise<void> {
     });
   }
 
-  console.log('✅ 유저, 카테고리, 예산, 트랜잭션 시드 완료!');
+  console.log('✅ 유저, 계좌, 카테고리, 예산, 트랜잭션 시드 완료!');
 }
 
 main()

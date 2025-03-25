@@ -8,17 +8,20 @@ import {
   Param,
   Query,
   UseGuards,
+  DefaultValuePipe,
+  ParseBoolPipe,
 } from '@nestjs/common';
 import { TransactionsService } from './transactions.service';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
-import { JwtGuard } from '../common/guards/jwt.guard';
+import { JwtAuthGuard } from '../common/guards/jwt.guard';
 import { GetUser } from '../common/decorators/get-user.decorator';
 import { ApiBearerAuth, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { UpdateTransactionDto } from './dto/update-transaction.dto';
 import { UserPayload } from 'src/auth/types/user-payload.type';
+import { GroupedResponseDto, GroupQueryDto } from './dto/transaction.dto';
 
 @ApiTags('Transactions')
-@UseGuards(JwtGuard)
+@UseGuards(JwtAuthGuard)
 @ApiBearerAuth('access-token')
 @Controller('transactions')
 export class TransactionsController {
@@ -32,15 +35,9 @@ export class TransactionsController {
   @Get()
   @ApiQuery({ name: 'type', required: false, enum: ['income', 'expense'] })
   @ApiQuery({ name: 'categoryId', required: false })
-  @ApiQuery({ name: 'startDate', required: false, type: String })
+  @ApiQuery({ name: 'startDate', required: false, type: String }) // ✅ 명시적 필터
   @ApiQuery({ name: 'endDate', required: false, type: String })
   @ApiQuery({ name: 'search', required: false, type: String })
-  @ApiQuery({
-    name: 'range',
-    required: false,
-    enum: ['date', 'week', 'month', 'year'],
-  })
-  @ApiQuery({ name: 'date', required: false, type: String })
   findAll(
     @GetUser() user: UserPayload,
     @Query('type') type?: 'income' | 'expense',
@@ -48,68 +45,38 @@ export class TransactionsController {
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
     @Query('search') search?: string,
-    @Query('range') range?: 'date' | 'week' | 'month' | 'year',
-    @Query('date') baseDate?: string, // YYYY-MM-DD
   ) {
-    // 📌 range가 존재하면 startDate, endDate 자동 계산
-    if (range && baseDate) {
-      const dateObj = new Date(baseDate);
-      let start: Date, end: Date;
-
-      switch (range) {
-        case 'date':
-          start = new Date(baseDate + 'T00:00:00.000Z');
-          end = new Date(baseDate + 'T23:59:59.999Z');
-          break;
-        case 'week': {
-          const day = dateObj.getUTCDay(); // 일: 0 ~ 토: 6
-          const diffToSun = day;
-          const diffToSat = 6 - day;
-          start = new Date(dateObj);
-          start.setUTCDate(dateObj.getUTCDate() - diffToSun);
-          start.setUTCHours(0, 0, 0, 0);
-          end = new Date(dateObj);
-          end.setUTCDate(dateObj.getUTCDate() + diffToSat);
-          end.setUTCHours(23, 59, 59, 999);
-          break;
-        }
-        case 'month':
-          start = new Date(
-            Date.UTC(dateObj.getUTCFullYear(), dateObj.getUTCMonth(), 1),
-          );
-          end = new Date(
-            Date.UTC(
-              dateObj.getUTCFullYear(),
-              dateObj.getUTCMonth() + 1,
-              0,
-              23,
-              59,
-              59,
-              999,
-            ),
-          );
-          break;
-        case 'year':
-          start = new Date(Date.UTC(dateObj.getUTCFullYear(), 0, 1));
-          end = new Date(
-            Date.UTC(dateObj.getUTCFullYear(), 11, 31, 23, 59, 59, 999),
-          );
-          break;
-        default:
-          throw new Error('Invalid range type');
-      }
-
-      // 자동 설정된 날짜 범위를 적용
-      startDate = start.toISOString();
-      endDate = end.toISOString();
-    }
-
-    return this.transactionService.findFilteredDetail(user.id, {
+    return this.transactionService.findFiltered(user.id, {
       type,
       categoryId,
       startDate,
       endDate,
       search,
+    });
+  }
+
+  @Get('grouped')
+  @ApiQuery({
+    name: 'range',
+    enum: ['date', 'week', 'month', 'year'],
+    required: true,
+  })
+  @ApiQuery({ name: 'date', type: String, required: true })
+  @ApiQuery({
+    name: 'includeEmpty',
+    type: Boolean,
+    required: false,
+    description: '거래가 없는 날짜/월도 포함할지 여부 (기본값: false)',
+  })
+  getGroupedData(
+    @GetUser() user: UserPayload,
+    @Query() query: GroupQueryDto,
+    @Query('includeEmpty', new DefaultValuePipe(false), ParseBoolPipe)
+    includeEmpty: boolean,
+  ): Promise<GroupedResponseDto> {
+    return this.transactionService.getGroupedTransactionData(user.id, {
+      ...query,
+      includeEmpty,
     });
   }
 

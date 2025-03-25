@@ -1,13 +1,13 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { AnalysisService } from './analysis.service';
-import { JwtGuard } from '../common/guards/jwt.guard';
+import { JwtAuthGuard } from '../common/guards/jwt.guard';
 import { GetUser } from '../common/decorators/get-user.decorator';
 import { ApiBearerAuth, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { UserPayload } from 'src/auth/types/user-payload.type';
 
 @ApiTags('Analysis')
 @ApiBearerAuth('access-token')
-@UseGuards(JwtGuard)
+@UseGuards(JwtAuthGuard)
 @Controller('analysis')
 export class AnalysisController {
   constructor(private readonly analysisService: AnalysisService) {}

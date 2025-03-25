@@ -35,6 +35,7 @@ export class AnalysisService {
       `📊 getSummary() → range: ${range}, startDate: ${startDate.toISOString()}, userId: ${userId}`,
     );
 
+    // 🔍 1. 지출 거래 조회
     const transactions = await this.prisma.transaction.findMany({
       where: {
         userId,
@@ -48,6 +49,7 @@ export class AnalysisService {
 
     this.logger.debug(`🔍 총 거래 수: ${transactions.length}`);
 
+    // 🔢 2. 합계 계산
     const totalSpent = transactions.reduce((sum, tx) => sum + tx.amount, 0);
     this.logger.debug(`💸 총 지출: ₩${totalSpent}`);
 
@@ -58,7 +60,7 @@ export class AnalysisService {
       const cat = tx.category.name;
       byCategoryMap.set(cat, (byCategoryMap.get(cat) || 0) + tx.amount);
 
-      const dateKey = tx.date.toISOString().split('T')[0];
+      const dateKey = tx.date.toISOString().split('T')[0]; // YYYY-MM-DD
       byDateMap.set(dateKey, (byDateMap.get(dateKey) || 0) + tx.amount);
     }
 
@@ -77,11 +79,47 @@ export class AnalysisService {
       `🏆 가장 많이 쓴 카테고리: ${topCategory.category}, ₩${topCategory.amount}`,
     );
 
+    // 💡 3. 예산 초과 항목 계산
+    const budgetCategories = await this.prisma.budgetCategory.findMany({
+      where: {
+        budget: {
+          userId, // ✅ 이렇게 nested where로 접근
+        },
+      },
+      include: {
+        category: true,
+      },
+    });
+
+    const budgetMap = new Map<string, number>();
+    for (const bc of budgetCategories) {
+      budgetMap.set(bc.category.name, bc.amount);
+    }
+
+    const budgetAlerts = byCategory
+      .filter(({ category, amount }) => {
+        const budget = budgetMap.get(category);
+        return budget !== undefined && amount > budget;
+      })
+      .map(({ category, amount }) => {
+        const budget = budgetMap.get(category)!;
+        return {
+          category,
+          budget,
+          spent: amount,
+          exceededBy: amount - budget,
+        };
+      });
+
+    this.logger.debug(`⚠️ 예산 초과 항목 수: ${budgetAlerts.length}`);
+
+    // 📦 최종 응답
     return {
       totalSpent,
       byCategory,
       byDate,
       topCategory,
+      budgetAlerts,
     };
   }
 

@@ -5,7 +5,12 @@ import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { UpdateTransactionDto } from './dto/update-transaction.dto';
 import { TransactionFilter } from './dto/filter-transaction.dto';
 import { Prisma } from '@prisma/client';
-import { DetailDataDto, TransactionDto } from './dto/transaction-detail.dto';
+import {
+  GroupedResponseDto,
+  GroupedTransactionSummary,
+  GroupQueryDto,
+  TransactionDto,
+} from './dto/transaction.dto';
 
 export type TransactionFilterWhereInput = Prisma.TransactionWhereInput;
 
@@ -128,10 +133,10 @@ export class TransactionsService {
     return deleted;
   }
 
-  async findFilteredDetail(
+  async findFiltered(
     userId: string,
     filter: TransactionFilter,
-  ): Promise<DetailDataDto> {
+  ): Promise<TransactionDto[]> {
     this.logger.debug(
       `🔍 findFilteredDetail → user: ${userId}, filter: ${JSON.stringify(filter)}`,
     );
@@ -191,11 +196,146 @@ export class TransactionsService {
       .filter((tx) => tx.type === 'expense')
       .reduce((sum, tx) => sum + tx.amount, 0);
 
+    return transactionDtos;
+  }
+
+  async getGroupedTransactionData(
+    userId: string,
+    query: GroupQueryDto & { includeEmpty?: boolean },
+  ): Promise<GroupedResponseDto> {
+    const { range, date, includeEmpty = false } = query;
+
+    const dateObj = new Date(date);
+    let start: Date, end: Date, groupFormat: Intl.DateTimeFormatOptions;
+
+    switch (range) {
+      case 'date':
+        start = new Date(date + 'T00:00:00.000Z');
+        end = new Date(date + 'T23:59:59.999Z');
+        groupFormat = { year: 'numeric', month: '2-digit', day: '2-digit' };
+        break;
+      case 'week': {
+        const day = dateObj.getUTCDay();
+        const diffToSun = day;
+        const diffToSat = 6 - day;
+        start = new Date(dateObj);
+        start.setUTCDate(dateObj.getUTCDate() - diffToSun);
+        start.setUTCHours(0, 0, 0, 0);
+        end = new Date(dateObj);
+        end.setUTCDate(dateObj.getUTCDate() + diffToSat);
+        end.setUTCHours(23, 59, 59, 999);
+        groupFormat = { year: 'numeric', month: '2-digit', day: '2-digit' };
+        break;
+      }
+      case 'month':
+        start = new Date(
+          Date.UTC(dateObj.getUTCFullYear(), dateObj.getUTCMonth(), 1),
+        );
+        end = new Date(
+          Date.UTC(
+            dateObj.getUTCFullYear(),
+            dateObj.getUTCMonth() + 1,
+            0,
+            23,
+            59,
+            59,
+            999,
+          ),
+        );
+        groupFormat = { year: 'numeric', month: '2-digit', day: '2-digit' };
+        break;
+      case 'year':
+        start = new Date(Date.UTC(dateObj.getUTCFullYear(), 0, 1));
+        end = new Date(
+          Date.UTC(dateObj.getUTCFullYear(), 11, 31, 23, 59, 59, 999),
+        );
+        groupFormat = { year: 'numeric', month: '2-digit' }; // 월 단위 그룹핑
+        break;
+      default:
+        throw new Error('Invalid range type');
+    }
+
+    const transactions = await this.prisma.transaction.findMany({
+      where: {
+        userId,
+        date: {
+          gte: start,
+          lte: end,
+        },
+      },
+      orderBy: { date: 'asc' },
+      include: { category: true },
+    });
+
+    const formatter = new Intl.DateTimeFormat('en-CA', groupFormat); // YYYY-MM or YYYY-MM-DD
+    const grouped = new Map<string, TransactionDto[]>();
+
+    for (const tx of transactions) {
+      const label = formatter.format(tx.date);
+      if (!grouped.has(label)) grouped.set(label, []);
+      grouped.get(label)!.push({
+        id: tx.id,
+        type: tx.type as 'income' | 'expense',
+        amount: tx.amount,
+        note: tx.note ?? '',
+        date: tx.date.toISOString(),
+        category: {
+          id: tx.category.id,
+          name: tx.category.name,
+          icon: tx.category.icon,
+        },
+      });
+    }
+
+    const data: GroupedTransactionSummary[] = [];
+    let incomeTotal = 0;
+    let expenseTotal = 0;
+    const allLabels = new Set<string>();
+
+    if (includeEmpty) {
+      const current = new Date(start);
+      while (current <= end) {
+        const label = formatter.format(current);
+        allLabels.add(label);
+        if (range === 'year') {
+          current.setUTCMonth(current.getUTCMonth() + 1);
+        } else {
+          current.setUTCDate(current.getUTCDate() + 1);
+        }
+      }
+    } else {
+      for (const label of grouped.keys()) {
+        allLabels.add(label);
+      }
+    }
+
+    for (const label of Array.from(allLabels).sort()) {
+      const txs = grouped.get(label) ?? [];
+      const groupIncome = txs
+        .filter((tx) => tx.type === 'income')
+        .reduce((sum, tx) => sum + tx.amount, 0);
+      const groupExpense = txs
+        .filter((tx) => tx.type === 'expense')
+        .reduce((sum, tx) => sum + tx.amount, 0);
+
+      incomeTotal += groupIncome;
+      expenseTotal += groupExpense;
+
+      data.push({
+        label,
+        incomeTotal: groupIncome,
+        expenseTotal: groupExpense,
+        transactions: txs,
+      });
+    }
+
     return {
+      range,
+      baseDate: date,
       incomeTotal,
       expenseTotal,
-      transactions: transactionDtos,
-    } as DetailDataDto;
+      data,
+    };
   }
 
   async getMonthlySummary(userId: string, month: string) {
