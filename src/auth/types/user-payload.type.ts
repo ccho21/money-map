@@ -1,4 +1,4 @@
 export type UserPayload = {
-  sub: string;
+  id: string;
   email: string;
 };

@@ -23,16 +23,16 @@ export class CategoriesController {
 
   @Post()
   create(@GetUser() user: UserPayload, @Body() dto: CreateCategoryDto) {
-    return this.categoriesService.create(user.sub, dto);
+    return this.categoriesService.create(user.id, dto);
   }
 
   @Get()
   findAll(@GetUser() user: UserPayload) {
-    return this.categoriesService.findAllByUser(user.sub);
+    return this.categoriesService.findAllByUser(user.id);
   }
 
   @Delete(':id')
   remove(@GetUser() user: UserPayload, @Param('id') id: string) {
-    return this.categoriesService.delete(user.sub, id);
+    return this.categoriesService.delete(user.id, id);
   }
 }

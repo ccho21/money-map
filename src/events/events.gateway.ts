@@ -18,7 +18,7 @@ export class EventsGateway {
     try {
       const token: string = client.handshake.auth.token as string;
       const payload: UserPayload = this.jwt.verify<UserPayload>(token);
-      const userId: string = payload.sub;
+      const userId: string = payload.id;
 
       await client.join(userId); // 🟢 타입 안전
       console.log(`✅ User ${userId} connected to socket`);

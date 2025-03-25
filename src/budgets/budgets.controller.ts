@@ -16,16 +16,16 @@ export class BudgetsController {
 
   @Post()
   create(@GetUser() user: UserPayload, @Body() dto: CreateBudgetDto) {
-    return this.budgetsService.create(user.sub, dto);
+    return this.budgetsService.create(user.id, dto);
   }
 
   @Get()
   findAll(@GetUser() user: UserPayload) {
-    return this.budgetsService.findAllByUser(user.sub);
+    return this.budgetsService.findAllByUser(user.id);
   }
 
   @Get('alerts')
   alerts(@GetUser() user: UserPayload): Promise<BudgetAlert[]> {
-    return this.budgetsService.getBudgetAlerts(user.sub);
+    return this.budgetsService.getBudgetAlerts(user.id);
   }
 }

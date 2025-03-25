@@ -42,7 +42,7 @@ export class AuthService {
       },
     });
 
-    const payload = { sub: user.id, email: user.email };
+    const payload = { id: user.id, email: user.email };
     const token = await this.jwt.signAsync(payload);
 
     res.cookie('access_token', token, {
@@ -75,7 +75,7 @@ export class AuthService {
       throw new ForbiddenException('Invalid credentials');
     }
 
-    const payload = { sub: user.id, email: user.email };
+    const payload = { id: user.id, email: user.email };
     const token = await this.jwt.signAsync(payload);
 
     // ✅ access_token 쿠키로 설정
@@ -113,7 +113,7 @@ export class AuthService {
       this.logger.log(`📌 Existing Google user found: ${user.email}`);
     }
 
-    const payload = { sub: existingUser.id, email: existingUser.email };
+    const payload = { id: existingUser.id, email: existingUser.email };
     const token = await this.jwt.signAsync(payload);
 
     res.cookie('access_token', token, {

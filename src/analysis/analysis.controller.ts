@@ -18,7 +18,7 @@ export class AnalysisController {
     @GetUser() user: UserPayload,
     @Query('range') range: 'weekly' | 'monthly' | 'yearly' = 'monthly',
   ) {
-    return this.analysisService.getSummary(user.sub, range);
+    return this.analysisService.getSummary(user.id, range);
   }
 
   @Get('by-category')
@@ -27,21 +27,21 @@ export class AnalysisController {
     @GetUser() user: UserPayload,
     @Query('categoryId') categoryId: string,
   ) {
-    return this.analysisService.getByCategory(user.sub, categoryId);
+    return this.analysisService.getByCategory(user.id, categoryId);
   }
 
   @Get('ranking')
   getTopSpendingPeriods(@GetUser() user: UserPayload) {
-    return this.analysisService.getTopSpendingPeriods(user.sub);
+    return this.analysisService.getTopSpendingPeriods(user.id);
   }
 
   @Get('yoy')
   getYoY(@GetUser() user: UserPayload) {
-    return this.analysisService.getYoYComparison(user.sub);
+    return this.analysisService.getYoYComparison(user.id);
   }
 
   @Get('mom')
   getMoM(@GetUser() user: UserPayload) {
-    return this.analysisService.getMoMComparison(user.sub);
+    return this.analysisService.getMoMComparison(user.id);
   }
 }
