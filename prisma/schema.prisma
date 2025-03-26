@@ -20,19 +20,19 @@ enum AccountType {
 }
 
 model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  password  String
-  createdAt DateTime @default(now())
+  id           String        @id @default(uuid())
+  email        String        @unique
+  password     String
+  createdAt    DateTime      @default(now())
   transactions Transaction[]
-  categories  Category[]
-  budgets     Budget[]
-  accounts  Account[]
+  categories   Category[]
+  budgets      Budget[]
+  accounts     Account[]
 }
 
 model Transaction {
   id         String   @id @default(uuid())
-  type       String   // "income" 또는 "expense"
+  type       String // "income" 또는 "expense"
   amount     Int
   categoryId String
   userId     String
@@ -46,43 +46,43 @@ model Transaction {
 }
 
 model Category {
-  id         String        @id @default(uuid())
-  name       String
-  icon       String
-  userId     String
+  id           String           @id @default(uuid())
+  name         String
+  icon         String
+  userId       String
   transactions Transaction[]
-  budgets    BudgetCategory[]
-  user       User @relation(fields: [userId], references: [id])
+  budgets      BudgetCategory[]
+  user         User             @relation(fields: [userId], references: [id])
 }
 
 model Budget {
-  id         String             @id @default(uuid())
-  userId     String
-  total      Int
-  createdAt  DateTime           @default(now())
-  updatedAt  DateTime           @updatedAt
+  id        String   @id @default(uuid())
+  userId    String
+  total     Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  user       User               @relation(fields: [userId], references: [id])
-  categories BudgetCategory[]   // N:M 관계 (카테고리별 예산)
+  user       User             @relation(fields: [userId], references: [id])
+  categories BudgetCategory[] // N:M 관계 (카테고리별 예산)
 }
 
 model BudgetCategory {
-  id         String   @id @default(uuid())
+  id         String @id @default(uuid())
   budgetId   String
   categoryId String
   amount     Int
 
-  budget     Budget   @relation(fields: [budgetId], references: [id])
-  category   Category @relation(fields: [categoryId], references: [id])
+  budget   Budget   @relation(fields: [budgetId], references: [id])
+  category Category @relation(fields: [categoryId], references: [id])
 }
 
 model Account {
-  id        String   @id @default(uuid())
-  user      User     @relation(fields: [userId], references: [id])
+  id        String      @id @default(uuid())
+  user      User        @relation(fields: [userId], references: [id])
   userId    String
   name      String
   type      AccountType
-  color     String?     // UI 색상 (선택)
+  color     String? // UI 색상 (선택)
   balance   Float       @default(0) // 계좌 잔액
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt

@@ -4,6 +4,9 @@ import { JwtAuthGuard } from '../common/guards/jwt.guard';
 import { GetUser } from '../common/decorators/get-user.decorator';
 import { ApiBearerAuth, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { UserPayload } from 'src/auth/types/user-payload.type';
+import { GetByCategoryDto } from './dto/get-by-category.dto';
+import { GetBudgetSummaryDto } from './dto/get-budget-summary.dto';
+import { GetNoteSummaryDto } from './dto/get-note-summary.dto';
 
 @ApiTags('Analysis')
 @ApiBearerAuth('access-token')
@@ -21,27 +24,18 @@ export class AnalysisController {
     return this.analysisService.getSummary(user.id, range);
   }
 
-  @Get('by-category')
-  @ApiQuery({ name: 'categoryId', required: true })
-  getByCategory(
-    @GetUser() user: UserPayload,
-    @Query('categoryId') categoryId: string,
-  ) {
-    return this.analysisService.getByCategory(user.id, categoryId);
+  @Get('transactions/by-category')
+  getCategorySummary(@Query() dto: GetByCategoryDto) {
+    return this.analysisService.getCategorySummary(dto);
   }
 
-  @Get('ranking')
-  getTopSpendingPeriods(@GetUser() user: UserPayload) {
-    return this.analysisService.getTopSpendingPeriods(user.id);
+  @Get('budgets')
+  getBudgetSummary(@Query() dto: GetBudgetSummaryDto) {
+    return this.analysisService.getBudgetSummary(dto);
   }
 
-  @Get('yoy')
-  getYoY(@GetUser() user: UserPayload) {
-    return this.analysisService.getYoYComparison(user.id);
-  }
-
-  @Get('mom')
-  getMoM(@GetUser() user: UserPayload) {
-    return this.analysisService.getMoMComparison(user.id);
+  @Get('notes')
+  getNoteSummary(@Query() dto: GetNoteSummaryDto) {
+    return this.analysisService.getNoteSummary(dto);
   }
 }

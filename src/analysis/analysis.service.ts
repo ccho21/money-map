@@ -1,13 +1,18 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import {
-  startOfMonth,
-  startOfWeek,
-  startOfYear,
-  subMonths,
-  format,
-  subYears,
-} from 'date-fns';
+import { startOfMonth, startOfWeek, startOfYear } from 'date-fns';
+import { GetByCategoryDto } from './dto/get-by-category.dto';
+import { GetBudgetSummaryDto } from './dto/get-budget-summary.dto';
+import { GetNoteSummaryDto } from './dto/get-note-summary.dto';
+
+type BudgetItem = {
+  categoryId: string;
+  categoryName: string;
+  budget: number;
+  spent: number;
+  remaining: number;
+  rate: number;
+};
 
 @Injectable()
 export class AnalysisService {
@@ -123,145 +128,177 @@ export class AnalysisService {
     };
   }
 
-  async getByCategory(userId: string, categoryId: string) {
-    this.logger.debug(
-      `📊 getByCategory() → userId: ${userId}, categoryId: ${categoryId}`,
-    );
+  async getCategorySummary(dto: GetByCategoryDto) {
+    const { type, year, month } = dto;
 
-    const transactions = await this.prisma.transaction.findMany({
+    const startDate = new Date(`${year}-${month}-01`);
+    const endDate = new Date(startDate);
+    endDate.setMonth(startDate.getMonth() + 1);
+
+    const transactions = await this.prisma.transaction.groupBy({
+      by: ['categoryId'],
       where: {
-        userId,
-        categoryId,
-        type: 'expense',
+        type,
+        date: {
+          gte: startDate,
+          lt: endDate,
+        },
       },
-      orderBy: { date: 'asc' },
+      _sum: {
+        amount: true,
+      },
     });
 
-    const totalSpent = transactions.reduce((sum, tx) => sum + tx.amount, 0);
-    this.logger.debug(
-      `💸 총 지출 (카테고리): ₩${totalSpent}, 거래 수: ${transactions.length}`,
+    const categoryIds = transactions.map((t) => t.categoryId);
+    const categories = await this.prisma.category.findMany({
+      where: { id: { in: categoryIds } },
+    });
+
+    const totalAmount = transactions.reduce(
+      (sum, t) => sum + (t._sum.amount || 0),
+      0,
     );
 
-    const byDate = Object.fromEntries(
-      transactions.map((tx) => [format(tx.date, 'yyyy-MM-dd'), tx.amount]),
-    );
+    const result = transactions.map((t) => {
+      const cat = categories.find((c) => c.id === t.categoryId);
+      const amount = t._sum.amount || 0;
+      return {
+        categoryId: t.categoryId,
+        categoryName: cat?.name || 'Unknown',
+        amount,
+        percentage:
+          totalAmount > 0 ? Math.round((amount / totalAmount) * 100) : 0,
+      };
+    });
 
     return {
-      categoryId,
-      totalSpent,
-      byDate,
-      transactions,
+      type,
+      totalAmount,
+      categories: result,
     };
   }
 
-  async getTopSpendingPeriods(userId: string) {
-    this.logger.debug(`📊 getTopSpendingPeriods() → userId: ${userId}`);
+  async getBudgetSummary(dto: GetBudgetSummaryDto) {
+    const { year, month } = dto;
 
-    const transactions = await this.prisma.transaction.findMany({
+    const startDate = new Date(`${year}-${month}-01`);
+    const endDate = new Date(startDate);
+    endDate.setMonth(startDate.getMonth() + 1);
+
+    // 전체 예산 (이 달에 유효한 budget)
+    const budgets = await this.prisma.budget.findMany({
       where: {
-        userId,
-        type: 'expense',
+        startDate: { lte: endDate },
+        endDate: { gte: startDate },
+      },
+      include: {
+        categories: {
+          include: {
+            category: true,
+          },
+        },
       },
     });
 
-    const monthlyTotals = new Map<string, number>();
+    const categoryIds: string[] = budgets.reduce<string[]>((acc, budget) => {
+      for (const bc of budget.categories as { categoryId: string }[]) {
+        acc.push(bc.categoryId);
+      }
+      return acc;
+    }, []);
 
-    for (const tx of transactions) {
-      const monthKey = format(tx.date, 'yyyy-MM');
-      monthlyTotals.set(
-        monthKey,
-        (monthlyTotals.get(monthKey) || 0) + tx.amount,
-      );
+    // 카테고리별 실제 지출 금액
+    const expenses = await this.prisma.transaction.groupBy({
+      by: ['categoryId'],
+      where: {
+        type: 'expense',
+        categoryId: { in: categoryIds },
+        date: {
+          gte: startDate,
+          lt: endDate,
+        },
+      },
+      _sum: {
+        amount: true,
+      },
+    });
+
+    // 카테고리별 지출 매핑
+    const expenseMap = new Map<string, number>();
+    for (const exp of expenses) {
+      if (exp.categoryId) {
+        expenseMap.set(exp.categoryId, exp._sum.amount ?? 0);
+      }
     }
 
-    const ranked = Array.from(monthlyTotals.entries())
-      .map(([month, amount]) => ({ month, amount }))
-      .sort((a, b) => b.amount - a.amount)
-      .slice(0, 3);
+    const items: BudgetItem[] = budgets.flatMap((budget) =>
+      (
+        budget.categories as {
+          amount: number;
+          category: { id: string; name: string };
+        }[]
+      ).map((bc) => {
+        const category = bc.category;
+        const spent = expenseMap.get(category.id) ?? 0;
+        const remaining = bc.amount - spent;
+        const rate = bc.amount > 0 ? Math.round((spent / bc.amount) * 100) : 0;
 
-    this.logger.debug(`🏅 월별 소비 TOP3: ${JSON.stringify(ranked)}`);
-    return ranked;
-  }
-
-  async getYoYComparison(userId: string) {
-    const now = new Date();
-    const thisYear = startOfYear(now);
-    const lastYear = startOfYear(subYears(now, 1));
-
-    this.logger.debug(`📊 getYoYComparison() → userId: ${userId}`);
-
-    const [thisYearTx, lastYearTx] = await Promise.all([
-      this.prisma.transaction.findMany({
-        where: {
-          userId,
-          type: 'expense',
-          date: { gte: thisYear },
-        },
+        return {
+          categoryId: category.id,
+          categoryName: category.name,
+          budget: bc.amount,
+          spent,
+          remaining,
+          rate,
+        };
       }),
-      this.prisma.transaction.findMany({
-        where: {
-          userId,
-          type: 'expense',
-          date: { gte: lastYear, lt: thisYear },
-        },
-      }),
-    ]);
-
-    const thisTotal = thisYearTx.reduce((sum, tx) => sum + tx.amount, 0);
-    const lastTotal = lastYearTx.reduce((sum, tx) => sum + tx.amount, 0);
-
-    const growth =
-      lastTotal === 0 ? null : ((thisTotal - lastTotal) / lastTotal) * 100;
-
-    this.logger.debug(
-      `📈 올해 총지출: ₩${thisTotal}, 작년: ₩${lastTotal}, YoY 증가율: ${growth?.toFixed(2) ?? 'N/A'}%`,
     );
 
+    const totalBudget: number = items.reduce((sum, i) => sum + i.budget, 0);
+    const totalSpent: number = items.reduce((sum, i) => sum + i.spent, 0);
+    const totalRemaining = totalBudget - totalSpent;
+
     return {
-      thisYear: thisTotal,
-      lastYear: lastTotal,
-      growthRate: growth !== null ? Number(growth.toFixed(2)) : null,
+      totalBudget,
+      totalSpent,
+      totalRemaining,
+      items,
     };
   }
 
-  async getMoMComparison(userId: string) {
-    const now = new Date();
-    const thisMonth = startOfMonth(now);
-    const lastMonth = startOfMonth(subMonths(now, 1));
+  async getNoteSummary(dto: GetNoteSummaryDto) {
+    const { year, month } = dto;
 
-    this.logger.debug(`📊 getMoMComparison() → userId: ${userId}`);
+    const startDate = new Date(`${year}-${month}-01`);
+    const endDate = new Date(startDate);
+    endDate.setMonth(startDate.getMonth() + 1);
 
-    const [thisMonthTx, lastMonthTx] = await Promise.all([
-      this.prisma.transaction.findMany({
-        where: {
-          userId,
-          type: 'expense',
-          date: { gte: thisMonth },
+    // 📌 note가 있는 지출만 groupBy
+    const groupedNotes = await this.prisma.transaction.groupBy({
+      by: ['note'],
+      where: {
+        type: 'expense',
+        note: { not: null },
+        date: {
+          gte: startDate,
+          lt: endDate,
         },
-      }),
-      this.prisma.transaction.findMany({
-        where: {
-          userId,
-          type: 'expense',
-          date: { gte: lastMonth, lt: thisMonth },
-        },
-      }),
-    ]);
+      },
+      _count: {
+        note: true,
+      },
+      _sum: {
+        amount: true,
+      },
+    });
 
-    const thisTotal = thisMonthTx.reduce((sum, tx) => sum + tx.amount, 0);
-    const lastTotal = lastMonthTx.reduce((sum, tx) => sum + tx.amount, 0);
+    // 📌 결과 형식 변환
+    const result = groupedNotes.map((g) => ({
+      note: g.note ?? '기타',
+      count: g._count.note ?? 0,
+      totalAmount: g._sum.amount ?? 0,
+    }));
 
-    const growth =
-      lastTotal === 0 ? null : ((thisTotal - lastTotal) / lastTotal) * 100;
-
-    this.logger.debug(
-      `📉 이번달 총지출: ₩${thisTotal}, 지난달: ₩${lastTotal}, MoM 증가율: ${growth?.toFixed(2) ?? 'N/A'}%`,
-    );
-
-    return {
-      thisMonth: thisTotal,
-      lastMonth: lastTotal,
-      growthRate: growth !== null ? Number(growth.toFixed(2)) : null,
-    };
+    return result;
   }
 }

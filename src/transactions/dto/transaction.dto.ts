@@ -23,7 +23,7 @@ export class GroupQueryDto {
   @Transform(({ value }) => value.trim())
   date: string; // '2025' or '2025-03' or '2025-03-25'
 
-  @IsOptional() includeEmpty: boolean
+  @IsOptional() includeEmpty: boolean;
 }
 
 export class GroupedTransactionSummary {
