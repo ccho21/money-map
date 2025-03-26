@@ -6,7 +6,6 @@ import {
   Param,
   Delete,
   UseGuards,
-  Request,
   Query,
 } from '@nestjs/common';
 import { AccountsService } from './accounts.service';
@@ -14,7 +13,9 @@ import { CreateAccountDto } from './dto/create-account.dto';
 import { JwtAuthGuard } from 'src/common/guards/jwt.guard';
 import { UserPayload } from 'src/auth/types/user-payload.type';
 import { GetUser } from 'src/common/decorators/get-user.decorator';
+import { ApiTags } from '@nestjs/swagger';
 
+@ApiTags('Accounts')
 @UseGuards(JwtAuthGuard)
 @Controller('accounts')
 export class AccountsController {

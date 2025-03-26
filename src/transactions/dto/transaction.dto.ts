@@ -5,6 +5,7 @@ export class TransactionDto {
   id: string;
   type: 'income' | 'expense';
   amount: number;
+  accountId: string;
   category: {
     id: string;
     name: string;
@@ -20,7 +21,7 @@ export class GroupQueryDto {
   range: 'date' | 'week' | 'month' | 'year';
 
   @IsString()
-  @Transform(({ value }) => value.trim())
+  @Transform(({ value }) => (value as string).trim())
   date: string; // '2025' or '2025-03' or '2025-03-25'
 
   @IsOptional() includeEmpty: boolean;
@@ -39,4 +40,10 @@ export class GroupedResponseDto {
   incomeTotal: number;
   expenseTotal: number;
   data: GroupedTransactionSummary[]; // ✅ 날짜/월/연 단위로 그룹된 데이터 목록
+}
+
+export interface MonthlySummaryItem {
+  date: string;
+  income: number;
+  expense: number;
 }

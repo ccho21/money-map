@@ -9,8 +9,27 @@ import {
   GroupedResponseDto,
   GroupedTransactionSummary,
   GroupQueryDto,
+  MonthlySummaryItem,
   TransactionDto,
 } from './dto/transaction.dto';
+
+import {
+  startOfDay,
+  endOfDay,
+  startOfWeek,
+  endOfWeek,
+  startOfMonth,
+  endOfMonth,
+  startOfYear,
+  endOfYear,
+  addDays,
+  addMonths,
+  format,
+  isBefore,
+  parse,
+  isValid,
+} from 'date-fns';
+import { TransactionType } from 'src/analysis/dto/get-by-category.dto';
 
 export type TransactionFilterWhereInput = Prisma.TransactionWhereInput;
 
@@ -179,6 +198,7 @@ export class TransactionsService {
       type: tx.type as 'income' | 'expense',
       amount: tx.amount,
       note: tx.note as string,
+      accountId: tx.accountId,
       // paymentMethod: tx.paymentMethod,
       date: tx.date.toISOString(),
       category: {
@@ -187,14 +207,6 @@ export class TransactionsService {
         icon: tx.category.icon,
       },
     }));
-
-    const incomeTotal = transactions
-      .filter((tx) => tx.type === 'income')
-      .reduce((sum, tx) => sum + tx.amount, 0);
-
-    const expenseTotal = transactions
-      .filter((tx) => tx.type === 'expense')
-      .reduce((sum, tx) => sum + tx.amount, 0);
 
     return transactionDtos;
   }
@@ -206,50 +218,28 @@ export class TransactionsService {
     const { range, date, includeEmpty = false } = query;
 
     const dateObj = new Date(date);
-    let start: Date, end: Date, groupFormat: Intl.DateTimeFormatOptions;
+    let start: Date, end: Date, groupFormat: string;
 
     switch (range) {
       case 'date':
-        start = new Date(date + 'T00:00:00.000Z');
-        end = new Date(date + 'T23:59:59.999Z');
-        groupFormat = { year: 'numeric', month: '2-digit', day: '2-digit' };
+        start = startOfDay(dateObj);
+        end = endOfDay(dateObj);
+        groupFormat = 'yyyy-MM-dd';
         break;
-      case 'week': {
-        const day = dateObj.getUTCDay();
-        const diffToSun = day;
-        const diffToSat = 6 - day;
-        start = new Date(dateObj);
-        start.setUTCDate(dateObj.getUTCDate() - diffToSun);
-        start.setUTCHours(0, 0, 0, 0);
-        end = new Date(dateObj);
-        end.setUTCDate(dateObj.getUTCDate() + diffToSat);
-        end.setUTCHours(23, 59, 59, 999);
-        groupFormat = { year: 'numeric', month: '2-digit', day: '2-digit' };
+      case 'week':
+        start = startOfWeek(dateObj, { weekStartsOn: 0 });
+        end = endOfWeek(dateObj, { weekStartsOn: 0 });
+        groupFormat = 'yyyy-MM-dd';
         break;
-      }
       case 'month':
-        start = new Date(
-          Date.UTC(dateObj.getUTCFullYear(), dateObj.getUTCMonth(), 1),
-        );
-        end = new Date(
-          Date.UTC(
-            dateObj.getUTCFullYear(),
-            dateObj.getUTCMonth() + 1,
-            0,
-            23,
-            59,
-            59,
-            999,
-          ),
-        );
-        groupFormat = { year: 'numeric', month: '2-digit', day: '2-digit' };
+        start = startOfMonth(dateObj);
+        end = endOfMonth(dateObj);
+        groupFormat = 'yyyy-MM-dd';
         break;
       case 'year':
-        start = new Date(Date.UTC(dateObj.getUTCFullYear(), 0, 1));
-        end = new Date(
-          Date.UTC(dateObj.getUTCFullYear(), 11, 31, 23, 59, 59, 999),
-        );
-        groupFormat = { year: 'numeric', month: '2-digit' }; // 월 단위 그룹핑
+        start = startOfYear(dateObj);
+        end = endOfYear(dateObj);
+        groupFormat = 'yyyy-MM';
         break;
       default:
         throw new Error('Invalid range type');
@@ -267,16 +257,16 @@ export class TransactionsService {
       include: { category: true },
     });
 
-    const formatter = new Intl.DateTimeFormat('en-CA', groupFormat); // YYYY-MM or YYYY-MM-DD
     const grouped = new Map<string, TransactionDto[]>();
 
     for (const tx of transactions) {
-      const label = formatter.format(tx.date);
+      const label = format(tx.date, groupFormat);
       if (!grouped.has(label)) grouped.set(label, []);
       grouped.get(label)!.push({
         id: tx.id,
         type: tx.type as 'income' | 'expense',
         amount: tx.amount,
+        accountId: tx.accountId,
         note: tx.note ?? '',
         date: tx.date.toISOString(),
         category: {
@@ -293,15 +283,12 @@ export class TransactionsService {
     const allLabels = new Set<string>();
 
     if (includeEmpty) {
-      const current = new Date(start);
-      while (current <= end) {
-        const label = formatter.format(current);
+      let current = start;
+      while (!isBefore(end, current)) {
+        const label = format(current, groupFormat);
         allLabels.add(label);
-        if (range === 'year') {
-          current.setUTCMonth(current.getUTCMonth() + 1);
-        } else {
-          current.setUTCDate(current.getUTCDate() + 1);
-        }
+        current =
+          range === 'year' ? addMonths(current, 1) : addDays(current, 1);
       }
     } else {
       for (const label of grouped.keys()) {
@@ -338,9 +325,18 @@ export class TransactionsService {
     };
   }
 
-  async getMonthlySummary(userId: string, month: string) {
-    const startDate = new Date(`${month}-01T00:00:00.000Z`);
-    const endDate = new Date(`${month}-31T23:59:59.999Z`);
+  async getMonthlySummary(
+    userId: string,
+    month: string,
+  ): Promise<MonthlySummaryItem[]> {
+    const parsed: Date = parse(`${month}-01`, 'yyyy-MM-dd', new Date());
+
+    if (!isValid(parsed)) {
+      throw new Error('Invalid month format. Expected "YYYY-MM"');
+    }
+
+    const startDate: Date = startOfMonth(parsed);
+    const endDate: Date = endOfMonth(parsed);
 
     const grouped = await this.prisma.transaction.groupBy({
       by: ['date', 'type'],
@@ -356,26 +352,36 @@ export class TransactionsService {
       },
     });
 
-    // 날짜별 income / expense 나누기
-    const summaryMap = new Map<string, { income: number; expense: number }>();
+    const summaryMap: Map<string, { income: number; expense: number }> =
+      new Map();
 
-    grouped.forEach((g) => {
-      const date = g.date.toISOString().split('T')[0];
-      if (!summaryMap.has(date)) {
-        summaryMap.set(date, { income: 0, expense: 0 });
-      }
+    grouped.forEach(
+      (g: {
+        date: Date;
+        type: TransactionType;
+        _sum: { amount: number | null };
+      }) => {
+        const date: string = format(g.date, 'yyyy-MM-dd');
+        if (!summaryMap.has(date)) {
+          summaryMap.set(date, { income: 0, expense: 0 });
+        }
 
-      const target = summaryMap.get(date)!;
-      if (g.type === 'income') {
-        target.income += g._sum.amount || 0;
-      } else if (g.type === 'expense') {
-        target.expense += g._sum.amount || 0;
-      }
-    });
+        const target = summaryMap.get(date)!;
+        if (g.type === TransactionType.INCOME) {
+          target.income += g._sum.amount || 0;
+        } else if (g.type === TransactionType.EXPENSE) {
+          target.expense += g._sum.amount || 0;
+        }
+      },
+    );
 
-    return Array.from(summaryMap.entries()).map(([date, summary]) => ({
-      date,
-      ...summary,
-    }));
+    const result: MonthlySummaryItem[] = Array.from(summaryMap.entries()).map(
+      ([date, summary]) => ({
+        date,
+        ...summary,
+      }),
+    );
+
+    return result;
   }
 }

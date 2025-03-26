@@ -30,12 +30,18 @@ export class AnalysisController {
   }
 
   @Get('budgets')
-  getBudgetSummary(@Query() dto: GetBudgetSummaryDto) {
-    return this.analysisService.getBudgetSummary(dto);
+  getBudgetSummary(
+    @GetUser() user: UserPayload,
+    @Query() dto: GetBudgetSummaryDto,
+  ) {
+    return this.analysisService.getBudgetSummary(user.id, dto);
   }
 
   @Get('notes')
-  getNoteSummary(@Query() dto: GetNoteSummaryDto) {
-    return this.analysisService.getNoteSummary(dto);
+  getNoteSummary(
+    @GetUser() user: UserPayload,
+    @Query() dto: GetNoteSummaryDto,
+  ) {
+    return this.analysisService.getNoteSummary(user.id, dto);
   }
 }

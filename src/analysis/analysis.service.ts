@@ -178,19 +178,17 @@ export class AnalysisService {
     };
   }
 
-  async getBudgetSummary(dto: GetBudgetSummaryDto) {
+  async getBudgetSummary(userId: string, dto: GetBudgetSummaryDto) {
     const { year, month } = dto;
 
+    // 🔄 기준 날짜 범위 계산
     const startDate = new Date(`${year}-${month}-01`);
     const endDate = new Date(startDate);
     endDate.setMonth(startDate.getMonth() + 1);
 
-    // 전체 예산 (이 달에 유효한 budget)
+    // ✅ 해당 유저의 전체 budget 불러오기
     const budgets = await this.prisma.budget.findMany({
-      where: {
-        startDate: { lte: endDate },
-        endDate: { gte: startDate },
-      },
+      where: { userId: userId }, // 🔁 필요 시 userId도 dto에 포함해야 함
       include: {
         categories: {
           include: {
@@ -200,14 +198,12 @@ export class AnalysisService {
       },
     });
 
-    const categoryIds: string[] = budgets.reduce<string[]>((acc, budget) => {
-      for (const bc of budget.categories as { categoryId: string }[]) {
-        acc.push(bc.categoryId);
-      }
-      return acc;
-    }, []);
+    // 카테고리 ID 수집
+    const categoryIds: string[] = budgets.flatMap((budget) =>
+      budget.categories.map((bc) => bc.categoryId),
+    );
 
-    // 카테고리별 실제 지출 금액
+    // ✅ 월 기준 지출 총합 계산
     const expenses = await this.prisma.transaction.groupBy({
       by: ['categoryId'],
       where: {
@@ -223,7 +219,6 @@ export class AnalysisService {
       },
     });
 
-    // 카테고리별 지출 매핑
     const expenseMap = new Map<string, number>();
     for (const exp of expenses) {
       if (exp.categoryId) {
@@ -232,12 +227,7 @@ export class AnalysisService {
     }
 
     const items: BudgetItem[] = budgets.flatMap((budget) =>
-      (
-        budget.categories as {
-          amount: number;
-          category: { id: string; name: string };
-        }[]
-      ).map((bc) => {
+      budget.categories.map((bc) => {
         const category = bc.category;
         const spent = expenseMap.get(category.id) ?? 0;
         const remaining = bc.amount - spent;
@@ -254,8 +244,8 @@ export class AnalysisService {
       }),
     );
 
-    const totalBudget: number = items.reduce((sum, i) => sum + i.budget, 0);
-    const totalSpent: number = items.reduce((sum, i) => sum + i.spent, 0);
+    const totalBudget = items.reduce((sum, i) => sum + i.budget, 0);
+    const totalSpent = items.reduce((sum, i) => sum + i.spent, 0);
     const totalRemaining = totalBudget - totalSpent;
 
     return {
@@ -266,7 +256,7 @@ export class AnalysisService {
     };
   }
 
-  async getNoteSummary(dto: GetNoteSummaryDto) {
+  async getNoteSummary(userId: string, dto: GetNoteSummaryDto) {
     const { year, month } = dto;
 
     const startDate = new Date(`${year}-${month}-01`);

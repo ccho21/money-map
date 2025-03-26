@@ -19,16 +19,6 @@ async function bootstrap() {
     .setDescription('Moneymap 백엔드 API 문서')
     .setVersion('1.0')
     // 인증이 필요한 경우 Bearer 토큰 인증 추가 (옵션)
-    .addBearerAuth(
-      {
-        type: 'http',
-        scheme: 'bearer',
-        bearerFormat: 'JWT',
-        name: 'Authorization',
-        in: 'header',
-      },
-      'access_token', // <- 이름 (밑에서 사용됨)
-    )
     .addCookieAuth('access_token') // 이건 단순 Swagger 문서용
     .build();
 
