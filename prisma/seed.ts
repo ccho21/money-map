@@ -1,5 +1,3 @@
-// ✅ 파일명: prisma/seed.ts
-
 import { PrismaClient, Category, User, Account } from '@prisma/client';
 import bcrypt from 'bcrypt';
 
@@ -17,7 +15,6 @@ async function main(): Promise<void> {
     },
   });
 
-  // 2. 계좌 여러 개 생성
   const accounts: Account[] = await Promise.all([
     prisma.account.create({
       data: {
@@ -48,7 +45,13 @@ async function main(): Promise<void> {
     }),
   ]);
 
-  const categoriesData = [
+  const incomeCategoriesData = [
+    { name: '급여', icon: '💰' },
+    { name: '이자소득', icon: '🏦' },
+    { name: '프리랜스', icon: '🧑‍💻' },
+  ];
+
+  const expenseCategoriesData = [
     { name: '식비', icon: '🍔' },
     { name: '교통', icon: '🚗' },
     { name: '쇼핑', icon: '🛍️' },
@@ -59,7 +62,10 @@ async function main(): Promise<void> {
 
   const createdCategories: Category[] = [];
 
-  for (const { name, icon } of categoriesData) {
+  for (const { name, icon } of [
+    ...incomeCategoriesData,
+    ...expenseCategoriesData,
+  ]) {
     const category = await prisma.category.create({
       data: { name, icon, userId: user.id },
     });
@@ -85,24 +91,82 @@ async function main(): Promise<void> {
     ),
   );
 
-  // 5. 여러 계좌에 트랜잭션 생성
-  for (const cat of createdCategories) {
+  // 🔧 UTC 날짜 유틸
+  const getRandomUTCDateInMonth = (year: number, month: number): Date => {
+    const day = Math.floor(Math.random() * 28) + 1;
+    return new Date(Date.UTC(year, month - 1, day));
+  };
+
+  const targetMonths = [
+    { year: 2025, month: 2 },
+    { year: 2025, month: 3 },
+  ];
+
+  // ✅ 지출 트랜잭션 (랜덤, UTC)
+  for (const cat of createdCategories.filter((c) =>
+    expenseCategoriesData.map((e) => e.name).includes(c.name),
+  )) {
     for (const account of accounts) {
+      for (const { year, month } of targetMonths) {
+        const txCount = Math.floor(Math.random() * 3) + 2;
+        for (let i = 0; i < txCount; i++) {
+          await prisma.transaction.create({
+            data: {
+              userId: user.id,
+              categoryId: cat.id,
+              accountId: account.id,
+              type: 'expense',
+              amount: Math.floor(Math.random() * 50_000) + 10_000,
+              date: getRandomUTCDateInMonth(year, month),
+              note: `${cat.name} - ${account.name} 테스트 지출`,
+            },
+          });
+        }
+      }
+    }
+  }
+
+  // ✅ 수입 트랜잭션 (고정 + 랜덤, 모두 UTC)
+  const incomeMeta = {
+    급여: {
+      amount: 3_000_000,
+      isFixed: true,
+    },
+    이자소득: {
+      amount: 200_000,
+      isFixed: false,
+    },
+    프리랜스: {
+      amount: 500_000,
+      isFixed: false,
+    },
+  };
+
+  for (const cat of createdCategories.filter((c) =>
+    incomeCategoriesData.map((i) => i.name).includes(c.name),
+  )) {
+    const meta = incomeMeta[cat.name];
+
+    for (const { year, month } of targetMonths) {
+      const date = meta.isFixed
+        ? new Date(Date.UTC(year, month - 1, 25)) // 고정 날짜도 UTC로 생성
+        : getRandomUTCDateInMonth(year, month);
+
       await prisma.transaction.create({
         data: {
           userId: user.id,
           categoryId: cat.id,
-          accountId: account.id,
-          type: 'expense',
-          amount: Math.floor(Math.random() * 50_000) + 10_000,
-          date: new Date(),
-          note: `${cat.name} - ${account.name} 테스트 거래`,
+          accountId: accounts[2].id, // 신한은행
+          type: 'income',
+          amount: meta.amount,
+          date,
+          note: `${cat.name} 수입`,
         },
       });
     }
   }
 
-  console.log('✅ 여러 계좌, 카테고리, 트랜잭션 시드 완료');
+  console.log('✅ 전체 시드 데이터 생성 완료 (UTC 기준 수입 + 지출)');
 }
 
 main()
