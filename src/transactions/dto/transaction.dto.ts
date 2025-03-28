@@ -1,5 +1,5 @@
-import { IsEnum, IsOptional, IsString } from 'class-validator';
-import { Transform } from 'class-transformer';
+import { IsEnum, IsInt, IsOptional, Max, Min } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class TransactionDto {
   id: string;
@@ -16,17 +16,6 @@ export class TransactionDto {
   date: string; // ISO 문자열로 반환
 }
 
-export class GroupQueryDto {
-  @IsEnum(['date', 'week', 'month', 'year'])
-  range: 'date' | 'week' | 'month' | 'year';
-
-  @IsString()
-  @Transform(({ value }) => (value as string).trim())
-  date: string; // '2025' or '2025-03' or '2025-03-25'
-
-  @IsOptional() includeEmpty: boolean;
-}
-
 export class GroupedTransactionSummary {
   label: string; // 예: '2025-03-25', '2025-03', '2025'
   incomeTotal: number;
@@ -35,15 +24,34 @@ export class GroupedTransactionSummary {
 }
 
 export class GroupedResponseDto {
-  range: 'date' | 'week' | 'month' | 'year';
-  baseDate: string;
+  type: 'weekly' | 'monthly' | 'yearly';
+  date: string;
   incomeTotal: number;
   expenseTotal: number;
   data: GroupedTransactionSummary[]; // ✅ 날짜/월/연 단위로 그룹된 데이터 목록
 }
 
-export interface MonthlySummaryItem {
+export interface TransactionCalendarItem {
   date: string;
   income: number;
   expense: number;
+}
+
+export class BaseDateQueryDto {
+  @Type(() => Number)
+  @IsInt()
+  year: number;
+
+  @Type(() => Number)
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(12)
+  month?: number;
+}
+export class DateQueryDto extends BaseDateQueryDto {}
+
+export class GroupQueryDto extends BaseDateQueryDto {
+  @IsEnum(['weekly', 'monthly', 'yearly'])
+  type: 'weekly' | 'monthly' | 'yearly';
 }

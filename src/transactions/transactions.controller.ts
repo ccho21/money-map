@@ -18,7 +18,11 @@ import { GetUser } from '../common/decorators/get-user.decorator';
 import { ApiBearerAuth, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { UpdateTransactionDto } from './dto/update-transaction.dto';
 import { UserPayload } from 'src/auth/types/user-payload.type';
-import { GroupedResponseDto, GroupQueryDto } from './dto/transaction.dto';
+import {
+  DateQueryDto,
+  GroupedResponseDto,
+  GroupQueryDto,
+} from './dto/transaction.dto';
 
 @ApiTags('Transactions')
 @UseGuards(JwtAuthGuard)
@@ -57,11 +61,12 @@ export class TransactionsController {
 
   @Get('grouped')
   @ApiQuery({
-    name: 'range',
-    enum: ['date', 'week', 'month', 'year'],
+    name: 'type',
+    enum: ['date', 'week', 'monthly', 'yearly'],
     required: true,
   })
-  @ApiQuery({ name: 'date', type: String, required: true })
+  @ApiQuery({ name: 'year', type: Number, required: true })
+  @ApiQuery({ name: 'month', type: Number, required: false })
   @ApiQuery({
     name: 'includeEmpty',
     type: Boolean,
@@ -81,11 +86,11 @@ export class TransactionsController {
   }
 
   @Get('calendar')
-  getCalendarSummary(
+  getCalendarView(
     @GetUser('id') user: UserPayload,
-    @Query('month') month: string, // e.g., '2025-03'
+    @Query() query: DateQueryDto,
   ) {
-    return this.transactionService.getMonthlySummary(user.id, month);
+    return this.transactionService.getTransactionCalendarView(user.id, query);
   }
 
   @Patch(':id')

@@ -6,16 +6,15 @@ import { UpdateTransactionDto } from './dto/update-transaction.dto';
 import { TransactionFilter } from './dto/filter-transaction.dto';
 import { Prisma } from '@prisma/client';
 import {
+  DateQueryDto,
   GroupedResponseDto,
   GroupedTransactionSummary,
   GroupQueryDto,
-  MonthlySummaryItem,
+  TransactionCalendarItem,
   TransactionDto,
 } from './dto/transaction.dto';
 
 import {
-  startOfDay,
-  endOfDay,
   startOfWeek,
   endOfWeek,
   startOfMonth,
@@ -26,8 +25,6 @@ import {
   addMonths,
   format,
   isBefore,
-  parse,
-  isValid,
 } from 'date-fns';
 import { TransactionType } from 'src/analysis/dto/get-by-category.dto';
 
@@ -215,34 +212,34 @@ export class TransactionsService {
     userId: string,
     query: GroupQueryDto & { includeEmpty?: boolean },
   ): Promise<GroupedResponseDto> {
-    const { range, date, includeEmpty = false } = query;
-
-    const dateObj = new Date(date);
+    const { type, year, month, includeEmpty = false } = query;
     let start: Date, end: Date, groupFormat: string;
-
-    switch (range) {
-      case 'date':
-        start = startOfDay(dateObj);
-        end = endOfDay(dateObj);
+    switch (type) {
+      case 'weekly': {
+        const date = new Date(year, (month ?? 1) - 1, 1); // 임의 날짜 설정
+        start = startOfWeek(date, { weekStartsOn: 0 });
+        end = endOfWeek(date, { weekStartsOn: 0 });
         groupFormat = 'yyyy-MM-dd';
         break;
-      case 'week':
-        start = startOfWeek(dateObj, { weekStartsOn: 0 });
-        end = endOfWeek(dateObj, { weekStartsOn: 0 });
+      }
+      case 'monthly': {
+        if (month == null)
+          throw new Error('month is required for monthly type');
+        const date = new Date(year, month - 1, 1);
+        start = startOfMonth(date);
+        end = endOfMonth(date);
         groupFormat = 'yyyy-MM-dd';
         break;
-      case 'month':
-        start = startOfMonth(dateObj);
-        end = endOfMonth(dateObj);
-        groupFormat = 'yyyy-MM-dd';
-        break;
-      case 'year':
-        start = startOfYear(dateObj);
-        end = endOfYear(dateObj);
+      }
+      case 'yearly': {
+        const date = new Date(year, 0, 1);
+        start = startOfYear(date);
+        end = endOfYear(date);
         groupFormat = 'yyyy-MM';
         break;
+      }
       default:
-        throw new Error('Invalid range type');
+        throw new Error('Invalid type');
     }
 
     const transactions = await this.prisma.transaction.findMany({
@@ -284,11 +281,11 @@ export class TransactionsService {
 
     if (includeEmpty) {
       let current = start;
-      while (!isBefore(end, current)) {
+      while (!isBefore(current, end)) {
         const label = format(current, groupFormat);
         allLabels.add(label);
         current =
-          range === 'year' ? addMonths(current, 1) : addDays(current, 1);
+          type === 'yearly' ? addMonths(current, 1) : addDays(current, 1);
       }
     } else {
       for (const label of grouped.keys()) {
@@ -317,26 +314,28 @@ export class TransactionsService {
     }
 
     return {
-      range,
-      baseDate: date,
+      type: type,
+      date: `${year}${month ? `-${month.toString().padStart(2, '0')}` : ''}`,
       incomeTotal,
       expenseTotal,
       data,
     };
   }
 
-  async getMonthlySummary(
+  async getTransactionCalendarView(
     userId: string,
-    month: string,
-  ): Promise<MonthlySummaryItem[]> {
-    const parsed: Date = parse(`${month}-01`, 'yyyy-MM-dd', new Date());
+    query: DateQueryDto,
+  ): Promise<TransactionCalendarItem[]> {
+    const yearNum = Number(query.year);
+    const monthNum = Number(query.month);
 
-    if (!isValid(parsed)) {
-      throw new Error('Invalid month format. Expected "YYYY-MM"');
+    if (isNaN(yearNum) || isNaN(monthNum) || monthNum < 1 || monthNum > 12) {
+      throw new Error('Invalid year or month. Expected numeric "YYYY", "MM"');
     }
 
-    const startDate: Date = startOfMonth(parsed);
-    const endDate: Date = endOfMonth(parsed);
+    const baseDate = new Date(yearNum, monthNum - 1); // 0-based month
+    const startDate = startOfMonth(baseDate);
+    const endDate = endOfMonth(baseDate);
 
     const grouped = await this.prisma.transaction.groupBy({
       by: ['date', 'type'],
@@ -375,13 +374,9 @@ export class TransactionsService {
       },
     );
 
-    const result: MonthlySummaryItem[] = Array.from(summaryMap.entries()).map(
-      ([date, summary]) => ({
-        date,
-        ...summary,
-      }),
-    );
-
-    return result;
+    return Array.from(summaryMap.entries()).map(([date, summary]) => ({
+      date,
+      ...summary,
+    }));
   }
 }
