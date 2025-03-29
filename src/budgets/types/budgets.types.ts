@@ -4,3 +4,11 @@ export interface BudgetAlert {
   spent: number;
   exceededBy: number;
 }
+
+export class BudgetUsageItem {
+  categoryId: string;
+  categoryName: string;
+  budgetAmount: number;
+  usedAmount: number;
+  usedPercent: number;
+}

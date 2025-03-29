@@ -6,4 +6,5 @@ export class SigninDto {
 
   @IsString()
   password: string;
+  timezone?: string;
 }

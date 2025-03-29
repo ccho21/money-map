@@ -18,11 +18,12 @@ import { GetUser } from '../common/decorators/get-user.decorator';
 import { ApiBearerAuth, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { UpdateTransactionDto } from './dto/update-transaction.dto';
 import { UserPayload } from 'src/auth/types/user-payload.type';
+import { TransactionSummaryDTO } from './dto/transaction.dto';
 import {
   DateQueryDto,
-  GroupedResponseDto,
-  GroupQueryDto,
-} from './dto/transaction.dto';
+  FindTransactionQueryDto,
+  SummaryRangeQueryDto,
+} from './dto/filter-transaction.dto';
 
 @ApiTags('Transactions')
 @UseGuards(JwtAuthGuard)
@@ -37,52 +38,27 @@ export class TransactionsController {
   }
 
   @Get()
-  @ApiQuery({ name: 'type', required: false, enum: ['income', 'expense'] })
-  @ApiQuery({ name: 'categoryId', required: false })
-  @ApiQuery({ name: 'startDate', required: false, type: String }) // ✅ 명시적 필터
-  @ApiQuery({ name: 'endDate', required: false, type: String })
-  @ApiQuery({ name: 'search', required: false, type: String })
+  @ApiQuery({ type: FindTransactionQueryDto })
   findAll(
     @GetUser() user: UserPayload,
-    @Query('type') type?: 'income' | 'expense',
-    @Query('categoryId') categoryId?: string,
-    @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string,
-    @Query('search') search?: string,
+    @Query() query: FindTransactionQueryDto,
   ) {
-    return this.transactionService.findFiltered(user.id, {
-      type,
-      categoryId,
-      startDate,
-      endDate,
-      search,
-    });
+    return this.transactionService.findFiltered(user.id, query);
   }
 
-  @Get('grouped')
+  @Get('summary')
   @ApiQuery({
-    name: 'type',
-    enum: ['date', 'week', 'monthly', 'yearly'],
+    name: 'groupBy',
+    enum: ['daily', 'weekly', 'monthly', 'yearly'],
     required: true,
   })
-  @ApiQuery({ name: 'year', type: Number, required: true })
-  @ApiQuery({ name: 'month', type: Number, required: false })
-  @ApiQuery({
-    name: 'includeEmpty',
-    type: Boolean,
-    required: false,
-    description: '거래가 없는 날짜/월도 포함할지 여부 (기본값: false)',
-  })
-  getGroupedData(
+  @ApiQuery({ name: 'startDate', type: String, required: true })
+  @ApiQuery({ name: 'endDate', type: String, required: true })
+  getTransactionSummary(
     @GetUser() user: UserPayload,
-    @Query() query: GroupQueryDto,
-    @Query('includeEmpty', new DefaultValuePipe(false), ParseBoolPipe)
-    includeEmpty: boolean,
-  ): Promise<GroupedResponseDto> {
-    return this.transactionService.getGroupedTransactionData(user.id, {
-      ...query,
-      includeEmpty,
-    });
+    @Query() query: SummaryRangeQueryDto,
+  ): Promise<TransactionSummaryDTO> {
+    return this.transactionService.getTransactionSummary(user.id, query);
   }
 
   @Get('calendar')
@@ -93,17 +69,17 @@ export class TransactionsController {
     return this.transactionService.getTransactionCalendarView(user.id, query);
   }
 
-  @Patch(':id')
-  update(
-    @GetUser() user: UserPayload,
-    @Param('id') id: string,
-    @Body() dto: UpdateTransactionDto,
-  ) {
-    return this.transactionService.update(user.id, id, dto);
-  }
+  // @Patch(':id')
+  // update(
+  //   @GetUser() user: UserPayload,
+  //   @Param('id') id: string,
+  //   @Body() dto: UpdateTransactionDto,
+  // ) {
+  //   return this.transactionService.update(user.id, id, dto);
+  // }
 
-  @Delete(':id')
-  remove(@GetUser() user: UserPayload, @Param('id') id: string) {
-    return this.transactionService.remove(user.id, id);
-  }
+  // @Delete(':id')
+  // remove(@GetUser() user: UserPayload, @Param('id') id: string) {
+  //   return this.transactionService.remove(user.id, id);
+  // }
 }

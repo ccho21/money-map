@@ -5,7 +5,17 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateAccountDto } from './dto/create-account.dto';
-import { endOfMonth, startOfMonth } from 'date-fns';
+import {
+  endOfDay,
+  endOfMonth,
+  parse,
+  startOfDay,
+  startOfMonth,
+} from 'date-fns';
+import { fromZonedTime, toZonedTime } from 'date-fns-tz';
+import { TransactionDto } from 'src/transactions/dto/transaction.dto';
+import { User } from '@prisma/client';
+import { AccountTransactionSummaryDTO } from './dto/account-grouped-transactions';
 
 @Injectable()
 export class AccountsService {
@@ -112,5 +122,95 @@ export class AccountsService {
     );
 
     return summaries;
+  }
+
+  async getGroupedTransactions(
+    userId: string,
+    query: { startDate?: string; endDate?: string },
+  ): Promise<AccountTransactionSummaryDTO[]> {
+    const { startDate, endDate } = query;
+
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new Error('User not found');
+
+    const timeZone = this.getUserTimezone(user);
+
+    // 날짜 파싱
+    const parsedStart = startDate
+      ? parse(startDate, 'yyyy-MM-dd', new Date())
+      : null;
+    const parsedEnd = endDate ? parse(endDate, 'yyyy-MM-dd', new Date()) : null;
+
+    const startZoned = parsedStart ? toZonedTime(parsedStart, timeZone) : null;
+    const endZoned = parsedEnd ? toZonedTime(parsedEnd, timeZone) : null;
+
+    const startUTC = startZoned
+      ? fromZonedTime(startOfDay(startZoned), timeZone)
+      : undefined;
+    const endUTC = endZoned
+      ? fromZonedTime(endOfDay(endZoned), timeZone)
+      : undefined;
+
+    // 계좌 목록 조회
+    const accounts = await this.prisma.account.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    const results: AccountTransactionSummaryDTO[] = [];
+
+    for (const account of accounts) {
+      const transactions = await this.prisma.transaction.findMany({
+        where: {
+          userId,
+          accountId: account.id,
+          ...(startUTC && { date: { gte: startUTC } }),
+          ...(endUTC && {
+            date: { ...(startUTC ? { gte: startUTC } : {}), lte: endUTC },
+          }),
+        },
+        orderBy: { date: 'asc' },
+        include: {
+          category: true,
+        },
+      });
+
+      const txDtos: TransactionDto[] = transactions.map((tx) => ({
+        id: tx.id,
+        type: tx.type as 'income' | 'expense',
+        amount: tx.amount,
+        note: tx.note ?? '',
+        accountId: tx.accountId,
+        date: tx.date.toISOString(),
+        category: {
+          id: tx.category.id,
+          name: tx.category.name,
+          icon: tx.category.icon,
+        },
+      }));
+
+      const incomeTotal = txDtos
+        .filter((t) => t.type === 'income')
+        .reduce((sum, t) => sum + t.amount, 0);
+
+      const expenseTotal = txDtos
+        .filter((t) => t.type === 'expense')
+        .reduce((sum, t) => sum + t.amount, 0);
+
+      results.push({
+        accountId: account.id,
+        accountName: account.name,
+        balance: account.balance,
+        incomeTotal,
+        expenseTotal,
+        transactions: txDtos,
+      });
+    }
+
+    return results;
+  }
+
+  private getUserTimezone(user: User): string {
+    return user.timezone || 'America/Toronto';
   }
 }

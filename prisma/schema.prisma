@@ -23,6 +23,7 @@ model User {
   id           String        @id @default(uuid())
   email        String        @unique
   password     String
+  timezone     String?       // 사용자의 타임존 (예: America/Toronto)
   createdAt    DateTime      @default(now())
   transactions Transaction[]
   categories   Category[]

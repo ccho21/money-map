@@ -2,16 +2,12 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventsGateway } from 'src/events/events.gateway';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
-import { UpdateTransactionDto } from './dto/update-transaction.dto';
-import { TransactionFilter } from './dto/filter-transaction.dto';
 import { Prisma } from '@prisma/client';
 import {
-  DateQueryDto,
-  GroupedResponseDto,
-  GroupedTransactionSummary,
-  GroupQueryDto,
   TransactionCalendarItem,
   TransactionDto,
+  TransactionSummary,
+  TransactionSummaryDTO,
 } from './dto/transaction.dto';
 
 import {
@@ -21,12 +17,19 @@ import {
   endOfMonth,
   startOfYear,
   endOfYear,
-  addDays,
-  addMonths,
   format,
-  isBefore,
+  startOfDay,
+  endOfDay,
+  parse,
 } from 'date-fns';
+import { toZonedTime, fromZonedTime } from 'date-fns-tz';
 import { TransactionType } from 'src/analysis/dto/get-by-category.dto';
+import {
+  DateQueryDto,
+  FindTransactionQueryDto,
+  SummaryRangeQueryDto,
+} from './dto/filter-transaction.dto';
+import { User } from '@prisma/client';
 
 export type TransactionFilterWhereInput = Prisma.TransactionWhereInput;
 
@@ -39,11 +42,11 @@ export class TransactionsService {
     private eventsGateway: EventsGateway,
   ) {}
 
-  async create(userId: string, dto: CreateTransactionDto) {
-    this.logger.debug(
-      `💸 Creating transaction for user: ${userId}, amount: ₩${dto.amount}`,
-    );
+  private getUserTimezone(user: User): string {
+    return user.timezone || 'America/Toronto';
+  }
 
+  async create(userId: string, dto: CreateTransactionDto) {
     const transaction = await this.prisma.transaction.create({
       data: {
         ...dto,
@@ -55,11 +58,7 @@ export class TransactionsService {
     const category = await this.prisma.category.findUnique({
       where: { id: dto.categoryId },
     });
-
-    if (!category) {
-      this.logger.warn(`❌ 카테고리 없음: ${dto.categoryId}`);
-      throw new Error('카테고리를 찾을 수 없습니다.');
-    }
+    if (!category) throw new Error('카테고리를 찾을 수 없습니다.');
 
     const budgetItem = await this.prisma.budgetCategory.findFirst({
       where: {
@@ -70,22 +69,13 @@ export class TransactionsService {
 
     if (budgetItem) {
       const spent = await this.prisma.transaction.aggregate({
-        where: {
-          categoryId: dto.categoryId,
-          userId,
-        },
+        where: { categoryId: dto.categoryId, userId },
         _sum: { amount: true },
       });
 
-      const totalSpent: number = spent._sum.amount || 0;
-      this.logger.debug(
-        `📊 예산 체크 - 사용: ₩${totalSpent}, 제한: ₩${budgetItem.amount}`,
-      );
-
+      const totalSpent = spent._sum.amount || 0;
       if (totalSpent > budgetItem.amount) {
         const exceed = totalSpent - budgetItem.amount;
-        this.logger.warn(`🚨 예산 초과! ${category.name} - ₩${exceed}`);
-
         this.eventsGateway.emitBudgetAlert(userId, {
           category: category.name,
           message: `예산 초과! ₩${exceed}`,
@@ -93,110 +83,61 @@ export class TransactionsService {
       }
     }
 
-    this.logger.log(`✅ 거래 생성 완료: ${transaction.id}`);
     return transaction;
-  }
-
-  async findAllByUser(userId: string) {
-    this.logger.debug(`🔍 findAllByUser → user: ${userId}`);
-    return this.prisma.transaction.findMany({
-      where: { userId },
-      orderBy: { date: 'desc' },
-    });
-  }
-
-  async update(userId: string, id: string, dto: UpdateTransactionDto) {
-    this.logger.debug(`✏️ update transaction ${id} for user ${userId}`);
-
-    const found = await this.prisma.transaction.findUnique({
-      where: { id },
-    });
-
-    if (!found || found.userId !== userId) {
-      this.logger.warn(`❌ 수정 권한 없음: ${id} by ${userId}`);
-      throw new Error('수정 권한이 없습니다');
-    }
-
-    const updated = await this.prisma.transaction.update({
-      where: { id },
-      data: {
-        ...dto,
-        date: dto.date ? new Date(dto.date) : undefined,
-      },
-    });
-
-    this.logger.log(`✅ 거래 수정 완료: ${id}`);
-    return updated;
-  }
-
-  async remove(userId: string, id: string) {
-    this.logger.debug(`🗑️ remove transaction ${id} for user ${userId}`);
-
-    const found = await this.prisma.transaction.findUnique({
-      where: { id },
-    });
-
-    if (!found || found.userId !== userId) {
-      this.logger.warn(`❌ 삭제 권한 없음: ${id} by ${userId}`);
-      throw new Error('삭제 권한이 없습니다');
-    }
-
-    const deleted = await this.prisma.transaction.delete({
-      where: { id },
-    });
-
-    this.logger.log(`✅ 거래 삭제 완료: ${id}`);
-    return deleted;
   }
 
   async findFiltered(
     userId: string,
-    filter: TransactionFilter,
+    filter: FindTransactionQueryDto,
   ): Promise<TransactionDto[]> {
-    this.logger.debug(
-      `🔍 findFilteredDetail → user: ${userId}, filter: ${JSON.stringify(filter)}`,
-    );
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      throw new Error('User not found');
+    }
 
+    const timeZone = this.getUserTimezone(user);
     const where: TransactionFilterWhereInput = { userId };
 
     if (filter.type) where.type = filter.type;
     if (filter.categoryId) where.categoryId = filter.categoryId;
 
-    if (filter.startDate || filter.endDate) {
-      const start =
-        filter.startDate && !filter.startDate.endsWith('Z')
-          ? `${filter.startDate}T00:00:00.000Z`
-          : filter.startDate;
-      const end =
-        filter.endDate && !filter.endDate.endsWith('Z')
-          ? `${filter.endDate}T23:59:59.999Z`
-          : filter.endDate;
-
+    if (filter.startDate && !filter.endDate) {
+      where.date = {
+        gte: new Date(`${filter.startDate}T00:00:00.000Z`),
+        lte: new Date(`${filter.startDate}T23:59:59.999Z`),
+      };
+    } else if (filter.startDate || filter.endDate) {
       where.date = {};
-      if (start) where.date.gte = new Date(start);
-      if (end) where.date.lte = new Date(end);
+      if (filter.startDate)
+        where.date.gte = new Date(`${filter.startDate}T00:00:00.000Z`);
+      if (filter.endDate)
+        where.date.lte = new Date(`${filter.endDate}T23:59:59.999Z`);
     }
 
     if (filter.search) {
-      where.note = {
-        contains: filter.search,
-        mode: 'insensitive',
-      };
+      where.note = { contains: filter.search, mode: 'insensitive' };
     }
+
+    const sortField = filter.sort ?? 'date';
+    const sortOrder = filter.order ?? 'desc';
+    const page = filter.page ?? 1;
+    const limit = filter.limit ?? 20;
+    const skip = (page - 1) * limit;
 
     const transactions = await this.prisma.transaction.findMany({
       where,
-      orderBy: { date: 'desc' },
+      orderBy: { [sortField]: sortOrder },
+      skip,
+      take: limit,
       include: { category: true },
     });
 
-    const transactionDtos: TransactionDto[] = transactions.map((tx) => ({
+    return transactions.map((tx) => ({
       id: tx.id,
       type: tx.type as 'income' | 'expense',
       amount: tx.amount,
-      note: tx.note as string,
+      note: tx.note ?? '',
       accountId: tx.accountId,
-      // paymentMethod: tx.paymentMethod,
       date: tx.date.toISOString(),
       category: {
         id: tx.category.id,
@@ -204,67 +145,93 @@ export class TransactionsService {
         icon: tx.category.icon,
       },
     }));
-
-    return transactionDtos;
   }
 
-  async getGroupedTransactionData(
+  async getTransactionSummary(
     userId: string,
-    query: GroupQueryDto & { includeEmpty?: boolean },
-  ): Promise<GroupedResponseDto> {
-    const { type, year, month, includeEmpty = false } = query;
-    let start: Date, end: Date, groupFormat: string;
-    switch (type) {
-      case 'weekly': {
-        const date = new Date(year, (month ?? 1) - 1, 1); // 임의 날짜 설정
-        start = startOfWeek(date, { weekStartsOn: 0 });
-        end = endOfWeek(date, { weekStartsOn: 0 });
-        groupFormat = 'yyyy-MM-dd';
-        break;
-      }
-      case 'monthly': {
-        if (month == null)
-          throw new Error('month is required for monthly type');
-        const date = new Date(year, month - 1, 1);
-        start = startOfMonth(date);
-        end = endOfMonth(date);
-        groupFormat = 'yyyy-MM-dd';
-        break;
-      }
-      case 'yearly': {
-        const date = new Date(year, 0, 1);
-        start = startOfYear(date);
-        end = endOfYear(date);
-        groupFormat = 'yyyy-MM';
-        break;
-      }
-      default:
-        throw new Error('Invalid type');
-    }
+    query: SummaryRangeQueryDto,
+  ): Promise<TransactionSummaryDTO> {
+    const { groupBy, startDate, endDate } = query;
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new Error('User not found');
+    const timeZone = this.getUserTimezone(user);
+
+    // 입력 문자열을 "yyyy-MM-dd" 형식으로 파싱
+    const parsedStart = parse(startDate, 'yyyy-MM-dd', new Date());
+    const parsedEnd = parse(endDate, 'yyyy-MM-dd', new Date());
+
+    // 사용자의 타임존 기준 날짜로 변환 후, 일의 시작과 끝을 구함
+    const startZoned = toZonedTime(parsedStart, timeZone);
+    const endZoned = toZonedTime(parsedEnd, timeZone);
+
+    // 사용자 타임존 기준의 시작/끝을 UTC로 변환
+    const startUTC = fromZonedTime(startOfDay(startZoned), timeZone);
+    const endUTC = fromZonedTime(endOfDay(endZoned), timeZone);
 
     const transactions = await this.prisma.transaction.findMany({
       where: {
         userId,
-        date: {
-          gte: start,
-          lte: end,
-        },
+        date: { gte: startUTC, lte: endUTC },
       },
       orderBy: { date: 'asc' },
       include: { category: true },
     });
 
-    const grouped = new Map<string, TransactionDto[]>();
+    const grouped = new Map<
+      string,
+      { rangeStart: string; rangeEnd: string; transactions: TransactionDto[] }
+    >();
 
     for (const tx of transactions) {
-      const label = format(tx.date, groupFormat);
-      if (!grouped.has(label)) grouped.set(label, []);
-      grouped.get(label)!.push({
+      // 거래일자를 사용자의 타임존으로 변환
+      const zonedTx = toZonedTime(tx.date, timeZone);
+      let label: string;
+      let rangeStart: Date;
+      let rangeEnd: Date;
+
+      switch (groupBy) {
+        case 'daily': {
+          rangeStart = startOfDay(zonedTx);
+          rangeEnd = endOfDay(zonedTx);
+          label = format(rangeStart, 'yyyy-MM-dd');
+          break;
+        }
+        case 'weekly': {
+          rangeStart = startOfWeek(zonedTx, { weekStartsOn: 0 });
+          rangeEnd = endOfWeek(zonedTx, { weekStartsOn: 0 });
+          label = format(rangeStart, 'yyyy-MM-dd');
+          break;
+        }
+        case 'monthly': {
+          rangeStart = startOfMonth(zonedTx);
+          rangeEnd = endOfMonth(zonedTx);
+          label = format(rangeStart, 'yyyy-MM');
+          break;
+        }
+        case 'yearly': {
+          rangeStart = startOfYear(zonedTx);
+          rangeEnd = endOfYear(zonedTx);
+          label = format(rangeStart, 'yyyy');
+          break;
+        }
+        default:
+          throw new Error('Invalid groupBy');
+      }
+
+      if (!grouped.has(label)) {
+        grouped.set(label, {
+          rangeStart: format(rangeStart, 'yyyy-MM-dd'),
+          rangeEnd: format(rangeEnd, 'yyyy-MM-dd'),
+          transactions: [],
+        });
+      }
+
+      grouped.get(label)!.transactions.push({
         id: tx.id,
         type: tx.type as 'income' | 'expense',
         amount: tx.amount,
-        accountId: tx.accountId,
         note: tx.note ?? '',
+        accountId: tx.accountId,
         date: tx.date.toISOString(),
         category: {
           id: tx.category.id,
@@ -274,48 +241,35 @@ export class TransactionsService {
       });
     }
 
-    const data: GroupedTransactionSummary[] = [];
+    const data: TransactionSummary[] = [];
     let incomeTotal = 0;
     let expenseTotal = 0;
-    const allLabels = new Set<string>();
 
-    if (includeEmpty) {
-      let current = start;
-      while (!isBefore(current, end)) {
-        const label = format(current, groupFormat);
-        allLabels.add(label);
-        current =
-          type === 'yearly' ? addMonths(current, 1) : addDays(current, 1);
-      }
-    } else {
-      for (const label of grouped.keys()) {
-        allLabels.add(label);
-      }
-    }
+    for (const [label, { rangeStart, rangeEnd, transactions }] of grouped) {
+      const income = transactions
+        .filter((t) => t.type === 'income')
+        .reduce((sum, t) => sum + t.amount, 0);
+      const expense = transactions
+        .filter((t) => t.type === 'expense')
+        .reduce((sum, t) => sum + t.amount, 0);
 
-    for (const label of Array.from(allLabels).sort()) {
-      const txs = grouped.get(label) ?? [];
-      const groupIncome = txs
-        .filter((tx) => tx.type === 'income')
-        .reduce((sum, tx) => sum + tx.amount, 0);
-      const groupExpense = txs
-        .filter((tx) => tx.type === 'expense')
-        .reduce((sum, tx) => sum + tx.amount, 0);
-
-      incomeTotal += groupIncome;
-      expenseTotal += groupExpense;
+      incomeTotal += income;
+      expenseTotal += expense;
 
       data.push({
         label,
-        incomeTotal: groupIncome,
-        expenseTotal: groupExpense,
-        transactions: txs,
+        rangeStart,
+        rangeEnd,
+        incomeTotal: income,
+        expenseTotal: expense,
+        transactions,
       });
     }
 
     return {
-      type: type,
-      date: `${year}${month ? `-${month.toString().padStart(2, '0')}` : ''}`,
+      type: groupBy,
+      startDate,
+      endDate,
       incomeTotal,
       expenseTotal,
       data,
@@ -326,57 +280,37 @@ export class TransactionsService {
     userId: string,
     query: DateQueryDto,
   ): Promise<TransactionCalendarItem[]> {
-    const yearNum = Number(query.year);
-    const monthNum = Number(query.month);
-
-    if (isNaN(yearNum) || isNaN(monthNum) || monthNum < 1 || monthNum > 12) {
-      throw new Error('Invalid year or month. Expected numeric "YYYY", "MM"');
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      throw new Error('User not found');
     }
+    const timeZone = this.getUserTimezone(user);
 
-    const baseDate = new Date(yearNum, monthNum - 1); // 0-based month
-    const startDate = startOfMonth(baseDate);
-    const endDate = endOfMonth(baseDate);
+    const { year, month } = query;
+    const base = new Date(Number(year), Number(month) - 1);
+    const startDate = startOfMonth(base);
+    const endDate = endOfMonth(base);
 
     const grouped = await this.prisma.transaction.groupBy({
       by: ['date', 'type'],
-      where: {
-        userId,
-        date: {
-          gte: startDate,
-          lte: endDate,
-        },
-      },
-      _sum: {
-        amount: true,
-      },
+      where: { userId, date: { gte: startDate, lte: endDate } },
+      _sum: { amount: true },
     });
 
-    const summaryMap: Map<string, { income: number; expense: number }> =
-      new Map();
+    const map = new Map<string, { income: number; expense: number }>();
+    for (const g of grouped) {
+      const local = toZonedTime(g.date, timeZone);
+      const key = format(local, 'yyyy-MM-dd');
+      if (!map.has(key)) map.set(key, { income: 0, expense: 0 });
+      const item = map.get(key)!;
+      if (g.type === 'income') item.income += g._sum.amount ?? 0;
+      if (g.type === 'expense') item.expense += g._sum.amount ?? 0;
+    }
 
-    grouped.forEach(
-      (g: {
-        date: Date;
-        type: TransactionType;
-        _sum: { amount: number | null };
-      }) => {
-        const date: string = format(g.date, 'yyyy-MM-dd');
-        if (!summaryMap.has(date)) {
-          summaryMap.set(date, { income: 0, expense: 0 });
-        }
-
-        const target = summaryMap.get(date)!;
-        if (g.type === TransactionType.INCOME) {
-          target.income += g._sum.amount || 0;
-        } else if (g.type === TransactionType.EXPENSE) {
-          target.expense += g._sum.amount || 0;
-        }
-      },
-    );
-
-    return Array.from(summaryMap.entries()).map(([date, summary]) => ({
+    return Array.from(map.entries()).map(([date, value]) => ({
       date,
-      ...summary,
+      income: value.income,
+      expense: value.expense,
     }));
   }
 }

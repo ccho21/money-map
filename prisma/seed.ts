@@ -12,6 +12,7 @@ async function main(): Promise<void> {
     create: {
       email: 'seeduser@example.com',
       password: hashedPassword,
+      timezone: 'America/Toronto'
     },
   });
 

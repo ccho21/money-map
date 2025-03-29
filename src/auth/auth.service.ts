@@ -1,13 +1,7 @@
-import {
-  ConflictException,
-  ForbiddenException,
-  Injectable,
-  Logger,
-  Res,
-} from '@nestjs/common';
+import { Injectable, Logger, ConflictException, ForbiddenException, Res } from '@nestjs/common';
 import { SignupDto } from './dto/signup.dto';
-import * as bcrypt from 'bcrypt';
 import { SigninDto } from './dto/signin.dto';
+import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
 import { UserPayload } from './types/user-payload.type';
@@ -39,10 +33,11 @@ export class AuthService {
       data: {
         email: dto.email,
         password: hashed,
+        timezone: dto.timezone || 'UTC', // 기본값 'UTC'를 설정
       },
     });
 
-    const payload = { id: user.id, email: user.email };
+    const payload = { id: user.id, email: user.email, timezone: user.timezone };
     const token = await this.jwt.signAsync(payload);
 
     res.cookie('access_token', token, {
@@ -75,7 +70,7 @@ export class AuthService {
       throw new ForbiddenException('Invalid credentials');
     }
 
-    const payload = { id: user.id, email: user.email };
+    const payload = { id: user.id, email: user.email, timezone: user.timezone };
     const token = await this.jwt.signAsync(payload);
 
     // ✅ access_token 쿠키로 설정
@@ -107,13 +102,14 @@ export class AuthService {
         data: {
           email: user.email,
           password: '', // 소셜 로그인 사용자는 비밀번호 없음
+          timezone: user.timezone || 'UTC', // 기본값 'UTC'를 설정
         },
       });
     } else {
       this.logger.log(`📌 Existing Google user found: ${user.email}`);
     }
 
-    const payload = { id: existingUser.id, email: existingUser.email };
+    const payload = { id: user.id, email: user.email, timezone: user.timezone };
     const token = await this.jwt.signAsync(payload);
 
     res.cookie('access_token', token, {
