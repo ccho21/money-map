@@ -3,20 +3,16 @@ import {
   Post,
   Body,
   Get,
-  Patch,
-  Delete,
-  Param,
   Query,
   UseGuards,
-  DefaultValuePipe,
-  ParseBoolPipe,
+  Param,
+  Patch,
 } from '@nestjs/common';
 import { TransactionsService } from './transactions.service';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { JwtAuthGuard } from '../common/guards/jwt.guard';
 import { GetUser } from '../common/decorators/get-user.decorator';
 import { ApiBearerAuth, ApiQuery, ApiTags } from '@nestjs/swagger';
-import { UpdateTransactionDto } from './dto/update-transaction.dto';
 import { UserPayload } from 'src/auth/types/user-payload.type';
 import { TransactionSummaryDTO } from './dto/transaction.dto';
 import {
@@ -24,6 +20,7 @@ import {
   FindTransactionQueryDto,
   SummaryRangeQueryDto,
 } from './dto/filter-transaction.dto';
+import { UpdateTransactionDto } from './dto/update-transaction.dto';
 
 @ApiTags('Transactions')
 @UseGuards(JwtAuthGuard)
@@ -35,15 +32,6 @@ export class TransactionsController {
   @Post()
   create(@GetUser() user: UserPayload, @Body() dto: CreateTransactionDto) {
     return this.transactionService.create(user.id, dto);
-  }
-
-  @Get()
-  @ApiQuery({ type: FindTransactionQueryDto })
-  findAll(
-    @GetUser() user: UserPayload,
-    @Query() query: FindTransactionQueryDto,
-  ) {
-    return this.transactionService.findFiltered(user.id, query);
   }
 
   @Get('summary')
@@ -69,14 +57,28 @@ export class TransactionsController {
     return this.transactionService.getTransactionCalendarView(user.id, query);
   }
 
-  // @Patch(':id')
-  // update(
-  //   @GetUser() user: UserPayload,
-  //   @Param('id') id: string,
-  //   @Body() dto: UpdateTransactionDto,
-  // ) {
-  //   return this.transactionService.update(user.id, id, dto);
-  // }
+  @Get()
+  @ApiQuery({ type: FindTransactionQueryDto })
+  findAll(
+    @GetUser() user: UserPayload,
+    @Query() query: FindTransactionQueryDto,
+  ) {
+    return this.transactionService.findFiltered(user.id, query);
+  }
+
+  @Get(':id')
+  findOne(@GetUser() user: UserPayload, @Param('id') id: string) {
+    return this.transactionService.getTransactionById(user.id, id);
+  }
+
+  @Patch(':id')
+  update(
+    @GetUser() user: UserPayload,
+    @Param('id') id: string,
+    @Body() dto: UpdateTransactionDto,
+  ) {
+    return this.transactionService.update(user.id, id, dto);
+  }
 
   // @Delete(':id')
   // remove(@GetUser() user: UserPayload, @Param('id') id: string) {

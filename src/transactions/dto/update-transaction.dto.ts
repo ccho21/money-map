@@ -24,4 +24,8 @@ export class UpdateTransactionDto {
   @IsOptional()
   @IsString()
   note?: string;
+
+  @IsOptional()
+  @IsString()
+  description?: string;
 }

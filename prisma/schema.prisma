@@ -53,6 +53,7 @@ model Transaction {
   accountId  String
   date       DateTime
   note       String?
+  description String?
   createdAt  DateTime @default(now())
   category   Category @relation(fields: [categoryId], references: [id])
   user       User     @relation(fields: [userId], references: [id])
@@ -63,6 +64,7 @@ model Category {
   id           String           @id @default(uuid())
   name         String
   icon         String
+  type         CategoryType  
   userId       String
   transactions Transaction[]
   budgets      BudgetCategory[]
@@ -88,4 +90,9 @@ model BudgetCategory {
 
   budget   Budget   @relation(fields: [budgetId], references: [id])
   category Category @relation(fields: [categoryId], references: [id])
+}
+
+enum CategoryType {
+  income
+  expense
 }

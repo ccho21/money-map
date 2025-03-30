@@ -172,6 +172,7 @@ export class AccountsService {
         orderBy: { date: 'asc' },
         include: {
           category: true,
+          account: true,
         },
       });
 
@@ -186,6 +187,13 @@ export class AccountsService {
           id: tx.category.id,
           name: tx.category.name,
           icon: tx.category.icon,
+          type: tx.category.type,
+        },
+        account: {
+          id: tx.account.id,
+          name: tx.account.name,
+          type: tx.account.type,
+          color: tx.account.color,
         },
       }));
 

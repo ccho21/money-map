@@ -29,6 +29,21 @@ export class TransactionDto {
     description: '거래 날짜 (ISO 8601)',
   })
   date: string;
+
+  @ApiProperty({
+    description: '계좌 정보 (이름, 유형, 색상)',
+    example: {
+      name: 'KB 국민카드',
+      type: 'card',
+      color: '#FFAA00',
+    },
+  })
+  account?: {
+    id: string;
+    name: string;
+    type: string;
+    color?: string | null;
+  };
 }
 
 export class TransactionSummary {

@@ -12,7 +12,7 @@ async function main(): Promise<void> {
     create: {
       email: 'seeduser@example.com',
       password: hashedPassword,
-      timezone: 'America/Toronto'
+      timezone: 'America/Toronto',
     },
   });
 
@@ -46,29 +46,35 @@ async function main(): Promise<void> {
     }),
   ]);
 
-  const incomeCategoriesData = [
-    { name: '급여', icon: '💰' },
-    { name: '이자소득', icon: '🏦' },
-    { name: '프리랜스', icon: '🧑‍💻' },
-  ];
+  const categorySeedData: {
+    name: string;
+    icon: string;
+    type: 'income' | 'expense';
+  }[] = [
+    // ✅ 수입 카테고리
+    { name: '급여', icon: 'BadgeDollarSign', type: 'income' }, // 실제 수입 느낌
+    { name: '이자소득', icon: 'PiggyBank', type: 'income' }, // 저축/이자 이미지
+    { name: '프리랜스', icon: 'Briefcase', type: 'income' }, // 일/업무
 
-  const expenseCategoriesData = [
-    { name: '식비', icon: '🍔' },
-    { name: '교통', icon: '🚗' },
-    { name: '쇼핑', icon: '🛍️' },
-    { name: '여가', icon: '🎮' },
-    { name: '의료', icon: '💊' },
-    { name: '카페', icon: '☕️' },
+    // ✅ 지출 카테고리
+    { name: '식비', icon: 'UtensilsCrossed', type: 'expense' }, // 식사용
+    { name: '교통', icon: 'Bus', type: 'expense' }, // 교통수단
+    { name: '쇼핑', icon: 'ShoppingCart', type: 'expense' }, // 장바구니
+    { name: '여가', icon: 'Gamepad2', type: 'expense' }, // 게임/취미
+    { name: '의료', icon: 'Stethoscope', type: 'expense' }, // 의료용
+    { name: '카페', icon: 'Coffee', type: 'expense' }, // 커피 아이콘
   ];
 
   const createdCategories: Category[] = [];
 
-  for (const { name, icon } of [
-    ...incomeCategoriesData,
-    ...expenseCategoriesData,
-  ]) {
+  for (const { name, icon, type } of categorySeedData) {
     const category = await prisma.category.create({
-      data: { name, icon, userId: user.id },
+      data: {
+        name,
+        icon,
+        type,
+        userId: user.id,
+      },
     });
     createdCategories.push(category);
   }
@@ -92,7 +98,6 @@ async function main(): Promise<void> {
     ),
   );
 
-  // 🔧 UTC 날짜 유틸
   const getRandomUTCDateInMonth = (year: number, month: number): Date => {
     const day = Math.floor(Math.random() * 28) + 1;
     return new Date(Date.UTC(year, month - 1, day));
@@ -103,10 +108,8 @@ async function main(): Promise<void> {
     { year: 2025, month: 3 },
   ];
 
-  // ✅ 지출 트랜잭션 (랜덤, UTC)
-  for (const cat of createdCategories.filter((c) =>
-    expenseCategoriesData.map((e) => e.name).includes(c.name),
-  )) {
+  // ✅ 지출 트랜잭션 생성
+  for (const cat of createdCategories.filter((c) => c.type === 'expense')) {
     for (const account of accounts) {
       for (const { year, month } of targetMonths) {
         const txCount = Math.floor(Math.random() * 3) + 2;
@@ -127,37 +130,26 @@ async function main(): Promise<void> {
     }
   }
 
-  // ✅ 수입 트랜잭션 (고정 + 랜덤, 모두 UTC)
+  // ✅ 수입 트랜잭션 생성
   const incomeMeta = {
-    급여: {
-      amount: 3_000_000,
-      isFixed: true,
-    },
-    이자소득: {
-      amount: 200_000,
-      isFixed: false,
-    },
-    프리랜스: {
-      amount: 500_000,
-      isFixed: false,
-    },
+    급여: { amount: 3_000_000, isFixed: true },
+    이자소득: { amount: 200_000, isFixed: false },
+    프리랜스: { amount: 500_000, isFixed: false },
   };
 
-  for (const cat of createdCategories.filter((c) =>
-    incomeCategoriesData.map((i) => i.name).includes(c.name),
-  )) {
+  for (const cat of createdCategories.filter((c) => c.type === 'income')) {
     const meta = incomeMeta[cat.name];
 
     for (const { year, month } of targetMonths) {
       const date = meta.isFixed
-        ? new Date(Date.UTC(year, month - 1, 25)) // 고정 날짜도 UTC로 생성
+        ? new Date(Date.UTC(year, month - 1, 25))
         : getRandomUTCDateInMonth(year, month);
 
       await prisma.transaction.create({
         data: {
           userId: user.id,
           categoryId: cat.id,
-          accountId: accounts[2].id, // 신한은행
+          accountId: accounts[2].id,
           type: 'income',
           amount: meta.amount,
           date,
@@ -167,7 +159,9 @@ async function main(): Promise<void> {
     }
   }
 
-  console.log('✅ 전체 시드 데이터 생성 완료 (UTC 기준 수입 + 지출)');
+  console.log(
+    '✅ 전체 시드 데이터 생성 완료 (lucide 아이콘 + 카테고리 타입 포함)',
+  );
 }
 
 main()

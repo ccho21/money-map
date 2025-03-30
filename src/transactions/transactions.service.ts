@@ -1,4 +1,9 @@
-import { Injectable, Logger } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventsGateway } from 'src/events/events.gateway';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
@@ -23,13 +28,13 @@ import {
   parse,
 } from 'date-fns';
 import { toZonedTime, fromZonedTime } from 'date-fns-tz';
-import { TransactionType } from 'src/analysis/dto/get-by-category.dto';
 import {
   DateQueryDto,
   FindTransactionQueryDto,
   SummaryRangeQueryDto,
 } from './dto/filter-transaction.dto';
 import { User } from '@prisma/client';
+import { UpdateTransactionDto } from './dto/update-transaction.dto';
 
 export type TransactionFilterWhereInput = Prisma.TransactionWhereInput;
 
@@ -47,6 +52,7 @@ export class TransactionsService {
   }
 
   async create(userId: string, dto: CreateTransactionDto) {
+    console.log('###', dto);
     const transaction = await this.prisma.transaction.create({
       data: {
         ...dto,
@@ -85,6 +91,59 @@ export class TransactionsService {
 
     return transaction;
   }
+  async update(userId: string, id: string, dto: UpdateTransactionDto) {
+    // 1. 기존 거래 찾기 + 소유자 확인
+    const existing = await this.prisma.transaction.findFirst({
+      where: {
+        id,
+        userId,
+      },
+    });
+
+    if (!existing) {
+      throw new NotFoundException('거래를 찾을 수 없습니다.');
+    }
+
+    // 2. 업데이트할 데이터 구성 (불필요한 null/undefined 방지)
+    const { type, amount, categoryId, accountId, date, note, description } =
+      dto;
+
+    const updateData: Partial<typeof existing> = {};
+
+    if (type) updateData.type = type;
+    if (amount !== undefined) updateData.amount = amount;
+    if (categoryId) updateData.categoryId = categoryId;
+    if (accountId) updateData.accountId = accountId;
+    if (date) updateData.date = new Date(date);
+    if (note !== undefined) updateData.note = note;
+    if (description !== undefined) updateData.description = description;
+
+    // 3. 업데이트 실행
+    const updated = await this.prisma.transaction.update({
+      where: { id },
+      data: updateData,
+    });
+
+    return updated;
+  }
+
+  async getTransactionById(userId: string, transactionId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    const transaction = await this.prisma.transaction.findUnique({
+      where: { id: transactionId },
+      include: { category: true, account: true },
+    });
+
+    if (!transaction) throw new NotFoundException('Account not found');
+    if (transaction.userId !== userId)
+      throw new ForbiddenException('Access denied');
+
+    return transaction;
+  }
 
   async findFiltered(
     userId: string,
@@ -95,7 +154,6 @@ export class TransactionsService {
       throw new Error('User not found');
     }
 
-    const timeZone = this.getUserTimezone(user);
     const where: TransactionFilterWhereInput = { userId };
 
     if (filter.type) where.type = filter.type;
@@ -129,7 +187,7 @@ export class TransactionsService {
       orderBy: { [sortField]: sortOrder },
       skip,
       take: limit,
-      include: { category: true },
+      include: { category: true, account: true },
     });
 
     return transactions.map((tx) => ({
@@ -143,6 +201,13 @@ export class TransactionsService {
         id: tx.category.id,
         name: tx.category.name,
         icon: tx.category.icon,
+        type: tx.category.type,
+      },
+      account: {
+        id: tx.account.id,
+        name: tx.account.name,
+        type: tx.account.type,
+        color: tx.account.color,
       },
     }));
   }
@@ -174,7 +239,7 @@ export class TransactionsService {
         date: { gte: startUTC, lte: endUTC },
       },
       orderBy: { date: 'asc' },
-      include: { category: true },
+      include: { category: true, account: true },
     });
 
     const grouped = new Map<
@@ -237,6 +302,13 @@ export class TransactionsService {
           id: tx.category.id,
           name: tx.category.name,
           icon: tx.category.icon,
+          type: tx.category.type,
+        },
+        account: {
+          id: tx.account.id,
+          name: tx.account.name,
+          type: tx.account.type,
+          color: tx.account.color,
         },
       });
     }
