@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateAccountDto } from './dto/create-account.dto';
+import { UpdateAccountDto } from './dto/update-account.dto';
 import {
   endOfDay,
   endOfMonth,
@@ -14,8 +15,8 @@ import {
 } from 'date-fns';
 import { fromZonedTime, toZonedTime } from 'date-fns-tz';
 import { TransactionDto } from 'src/transactions/dto/transaction.dto';
-import { User } from '@prisma/client';
 import { AccountTransactionSummaryDTO } from './dto/account-grouped-transactions';
+import { getUserTimezone } from '@/common/util/timezone';
 
 @Injectable()
 export class AccountsService {
@@ -27,10 +28,40 @@ export class AccountsService {
       data: {
         userId,
         name: dto.name,
+        balance: Number(dto.balance),
+        description: dto.description ?? null,
         type: dto.type,
         color: dto.color ?? '#2196F3', // 기본 색상
       },
     });
+  }
+
+  async update(userId: string, id: string, dto: UpdateAccountDto) {
+    const existing = await this.prisma.account.findUnique({
+      where: {
+        id,
+        userId,
+      },
+    });
+
+    if (!existing) {
+      throw new NotFoundException('계좌를 찾을 수 없습니다.');
+    }
+
+    const updateData: Partial<typeof existing> = {};
+
+    if (dto.name) updateData.name = dto.name;
+    if (dto.balance) updateData.balance = dto.balance;
+    if (dto.type) updateData.type = dto.type;
+    if (dto.color !== undefined) updateData.color = dto.color;
+    if (dto.description !== undefined) updateData.description = dto.description;
+
+    const updated = await this.prisma.account.update({
+      where: { id },
+      data: updateData,
+    });
+
+    return updated;
   }
 
   // 유저의 모든 계좌 조회
@@ -133,7 +164,7 @@ export class AccountsService {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new Error('User not found');
 
-    const timeZone = this.getUserTimezone(user);
+    const timezone = getUserTimezone(user);
 
     // 날짜 파싱
     const parsedStart = startDate
@@ -141,14 +172,14 @@ export class AccountsService {
       : null;
     const parsedEnd = endDate ? parse(endDate, 'yyyy-MM-dd', new Date()) : null;
 
-    const startZoned = parsedStart ? toZonedTime(parsedStart, timeZone) : null;
-    const endZoned = parsedEnd ? toZonedTime(parsedEnd, timeZone) : null;
+    const startZoned = parsedStart ? toZonedTime(parsedStart, timezone) : null;
+    const endZoned = parsedEnd ? toZonedTime(parsedEnd, timezone) : null;
 
     const startUTC = startZoned
-      ? fromZonedTime(startOfDay(startZoned), timeZone)
+      ? fromZonedTime(startOfDay(startZoned), timezone)
       : undefined;
     const endUTC = endZoned
-      ? fromZonedTime(endOfDay(endZoned), timeZone)
+      ? fromZonedTime(endOfDay(endZoned), timezone)
       : undefined;
 
     // 계좌 목록 조회
@@ -216,9 +247,5 @@ export class AccountsService {
     }
 
     return results;
-  }
-
-  private getUserTimezone(user: User): string {
-    return user.timezone || 'America/Toronto';
   }
 }

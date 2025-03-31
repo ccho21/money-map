@@ -16,6 +16,7 @@ import { Response } from 'express';
 import { JwtAuthGuard } from 'src/common/guards/jwt.guard';
 import { GetUser } from 'src/common/decorators/get-user.decorator';
 import { ApiTags } from '@nestjs/swagger';
+import { RefreshTokenGuard } from '@/common/guards/refresh-token.guard';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -25,8 +26,17 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @Get('me')
   getMe(@GetUser() user: UserPayload) {
-    console.log('### what is returned?', user);
     return user;
+  }
+
+  @UseGuards(RefreshTokenGuard)
+  @Post('refresh')
+  refreshAccessToken(
+    @GetUser() user: UserPayload,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    console.log('### user', user.id);
+    return this.authService.refreshAccessToken(user.id, res);
   }
 
   @Post('signup')

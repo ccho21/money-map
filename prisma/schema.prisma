@@ -29,6 +29,7 @@ model User {
   categories   Category[]
   budgets      Budget[]
   accounts     Account[]
+  hashedRefreshToken  String?  // ✅ 이 필드가 없으면 추가!
 }
 
 model Account {
@@ -38,6 +39,7 @@ model Account {
   name         String
   type         AccountType
   color        String? // UI 색상 (선택)
+  description String?
   balance      Float         @default(0) // 계좌 잔액
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt

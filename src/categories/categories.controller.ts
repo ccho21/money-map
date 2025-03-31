@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  Patch,
   Post,
   UseGuards,
 } from '@nestjs/common';
@@ -11,8 +12,9 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from 'src/common/guards/jwt.guard';
 import { CategoriesService } from './categories.service';
 import { GetUser } from 'src/common/decorators/get-user.decorator';
-import { CreateCategoryDto } from './dto/create-category.dto';
 import { UserPayload } from 'src/auth/types/user-payload.type';
+import { UpdateCategoryDto } from './dto/update-category.dto';
+import { CreateCategoryDto } from './dto/create-category.dto';
 
 @ApiTags('Categories')
 @ApiBearerAuth('access-token')
@@ -29,6 +31,20 @@ export class CategoriesController {
   @Get()
   findAll(@GetUser() user: UserPayload) {
     return this.categoriesService.findAllByUser(user.id);
+  }
+
+  @Get(':id')
+  findOne(@GetUser() user: UserPayload, @Param('id') id: string) {
+    return this.categoriesService.findOne(user.id, id);
+  }
+
+  @Patch(':id')
+  update(
+    @GetUser() user: UserPayload,
+    @Param('id') id: string,
+    @Body() dto: UpdateCategoryDto,
+  ) {
+    return this.categoriesService.update(user.id, id, dto);
   }
 
   @Delete(':id')

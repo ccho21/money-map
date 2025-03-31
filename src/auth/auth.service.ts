@@ -1,4 +1,10 @@
-import { Injectable, Logger, ConflictException, ForbiddenException, Res } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  ConflictException,
+  ForbiddenException,
+  Res,
+} from '@nestjs/common';
 import { SignupDto } from './dto/signup.dto';
 import { SigninDto } from './dto/signin.dto';
 import * as bcrypt from 'bcrypt';
@@ -6,6 +12,10 @@ import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
 import { UserPayload } from './types/user-payload.type';
 import { Response } from 'express';
+import { getUserTimezone } from '@/common/util/timezone';
+import { setAuthCookies } from './helpers/set-cookie.helper';
+import { generateTokens } from './helpers/token.helper';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class AuthService {
@@ -14,6 +24,7 @@ export class AuthService {
   constructor(
     private prisma: PrismaService,
     private jwt: JwtService,
+    private configService: ConfigService,
   ) {}
 
   async signup(dto: SignupDto, @Res({ passthrough: true }) res: Response) {
@@ -22,7 +33,6 @@ export class AuthService {
     const exists = await this.prisma.user.findUnique({
       where: { email: dto.email },
     });
-
     if (exists) {
       this.logger.warn(`❌ Email already exists: ${dto.email}`);
       throw new ConflictException('이미 등록된 이메일입니다.');
@@ -33,22 +43,33 @@ export class AuthService {
       data: {
         email: dto.email,
         password: hashed,
-        timezone: dto.timezone || 'UTC', // 기본값 'UTC'를 설정
+        timezone: dto.timezone || 'UTC',
       },
     });
 
-    const payload = { id: user.id, email: user.email, timezone: user.timezone };
-    const token = await this.jwt.signAsync(payload);
+    const payload: UserPayload = {
+      id: user.id,
+      email: user.email,
+      timezone: user.timezone,
+    };
 
-    res.cookie('access_token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 1000 * 60 * 60 * 24 * 7, // 7일
+    const { accessToken, refreshToken } = await generateTokens(
+      this.jwt,
+      payload,
+      this.configService,
+    );
+
+    // ✅ refresh_token 해싱 후 저장
+    const hashedRefreshToken = await bcrypt.hash(refreshToken, 10);
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { hashedRefreshToken },
     });
 
-    this.logger.log(`✅ Signup success (auto-signin): ${dto.email}`);
+    // ✅ 쿠키로 전송
+    setAuthCookies(res, accessToken, refreshToken);
 
+    this.logger.log(`✅ Signup success (auto-signin): ${dto.email}`);
     return { message: 'Signup successful' };
   }
 
@@ -70,19 +91,30 @@ export class AuthService {
       throw new ForbiddenException('Invalid credentials');
     }
 
-    const payload = { id: user.id, email: user.email, timezone: user.timezone };
-    const token = await this.jwt.signAsync(payload);
+    // ✅ 토큰 생성
+    const payload = {
+      id: user.id,
+      email: user.email,
+      timezone: user.timezone,
+    };
 
-    // ✅ access_token 쿠키로 설정
-    res.cookie('access_token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 1000 * 60 * 60 * 24 * 7, // 7일
+    const { accessToken, refreshToken } = await generateTokens(
+      this.jwt,
+      payload,
+      this.configService,
+    );
+
+    // ✅ refresh_token 해싱 후 저장
+    const hashedRefreshToken = await bcrypt.hash(refreshToken, 10);
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { hashedRefreshToken },
     });
 
-    this.logger.log(`✅ Signin success: ${dto.email}`);
+    // ✅ 쿠키 설정
+    setAuthCookies(res, accessToken, refreshToken);
 
+    this.logger.log(`✅ Signin success: ${dto.email}`);
     return { message: 'Signin successful' };
   }
 
@@ -96,33 +128,100 @@ export class AuthService {
       where: { email: user.email },
     });
 
+    // ✅ 사용자 없으면 새로 생성
     if (!existingUser) {
       this.logger.log(`🆕 Creating new Google user: ${user.email}`);
       existingUser = await this.prisma.user.create({
         data: {
           email: user.email,
           password: '', // 소셜 로그인 사용자는 비밀번호 없음
-          timezone: user.timezone || 'UTC', // 기본값 'UTC'를 설정
+          timezone: user.timezone || 'UTC',
         },
       });
     } else {
       this.logger.log(`📌 Existing Google user found: ${user.email}`);
     }
 
-    const payload = { id: user.id, email: user.email, timezone: user.timezone };
-    const token = await this.jwt.signAsync(payload);
+    const payload = {
+      id: existingUser.id,
+      email: existingUser.email,
+      timezone: existingUser.timezone,
+    };
 
-    res.cookie('access_token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 1000 * 60 * 60 * 24 * 7, // 7일
+    const { accessToken, refreshToken } = await generateTokens(
+      this.jwt,
+      payload,
+      this.configService,
+    );
+
+    // ✅ refresh_token 해싱 후 DB에 저장
+    const hashedRefreshToken = await bcrypt.hash(refreshToken, 10);
+    await this.prisma.user.update({
+      where: { id: existingUser.id },
+      data: { hashedRefreshToken },
     });
+
+    // ✅ 쿠키 설정
+    setAuthCookies(res, accessToken, refreshToken);
 
     this.logger.log(`✅ Google login successful: ${user.email}`);
 
     return {
       message: 'Google login successful',
     };
+  }
+
+  async refreshAccessToken(
+    userId: string,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    this.logger.debug(`🔄 Refresh token 요청: userId=${userId}`);
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user || !user.email) {
+      this.logger.warn(`❌ 존재하지 않는 유저입니다: ${userId}`);
+      throw new ForbiddenException('유효하지 않은 사용자입니다');
+    }
+    const timezone = getUserTimezone(user);
+    const payload = {
+      id: user.id,
+      email: user.email,
+      timezone: user.timezone || timezone,
+    };
+    // ✅ 새로운 access / refresh token 생성
+    const { accessToken, refreshToken } = await generateTokens(
+      this.jwt,
+      payload,
+      this.configService,
+    );
+
+    // ✅ refresh token 저장 (hash 처리 후 DB 저장)
+    const hashedRefreshToken = await bcrypt.hash(refreshToken, 10);
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { hashedRefreshToken },
+    });
+
+    // ✅ 쿠키로 전송
+    res.cookie('access_token', accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 1000 * 60 * 15, // 15분
+    });
+
+    res.cookie('refresh_token', refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 1000 * 60 * 60 * 24 * 7, // 7일
+    });
+
+    this.logger.log(`✅ access_token 재발급 완료: ${user.email}`);
+
+    return { message: 'Access token refreshed' };
   }
 }

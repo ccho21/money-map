@@ -2,14 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateBudgetDto } from './dto/create-budget.dto';
 import { BudgetAlert, BudgetUsageItem } from './types/budgets.types';
-import {
-  endOfDay,
-  endOfMonth,
-  format,
-  parse,
-  startOfDay,
-  startOfMonth,
-} from 'date-fns';
+import { endOfDay, format, parse, startOfDay } from 'date-fns';
 import { BudgetUsageQueryDto } from './types/budget-usage-query.dto';
 import { fromZonedTime, toZonedTime } from 'date-fns-tz';
 
@@ -119,21 +112,21 @@ export class BudgetsService {
   ): Promise<BudgetUsageItem[]> {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new Error('User not found');
-  
-    const timeZone = user.timezone || 'Asia/Seoul';
-  
+
+    const timezone = user.timezone || 'Asia/Seoul';
+
     // 문자열 날짜 → 안전한 fallback 처리
     const startDateStr = query.startDate ?? format(new Date(), 'yyyy-MM-01');
     const endDateStr = query.endDate ?? format(new Date(), 'yyyy-MM-dd');
-  
+
     const parsedStart = parse(startDateStr, 'yyyy-MM-dd', new Date());
     const parsedEnd = parse(endDateStr, 'yyyy-MM-dd', new Date());
-  
-    const startZoned = toZonedTime(parsedStart, timeZone);
-    const endZoned = toZonedTime(parsedEnd, timeZone);
-  
-    const startUTC = fromZonedTime(startOfDay(startZoned), timeZone);
-    const endUTC = fromZonedTime(endOfDay(endZoned), timeZone);
+
+    const startZoned = toZonedTime(parsedStart, timezone);
+    const endZoned = toZonedTime(parsedEnd, timezone);
+
+    const startUTC = fromZonedTime(startOfDay(startZoned), timezone);
+    const endUTC = fromZonedTime(endOfDay(endZoned), timezone);
 
     const budgetCategories = await this.prisma.budgetCategory.findMany({
       where: {
@@ -145,9 +138,9 @@ export class BudgetsService {
         category: true,
       },
     });
-  
+
     const results: BudgetUsageItem[] = [];
-  
+
     for (const bc of budgetCategories) {
       const used = await this.prisma.transaction.aggregate({
         where: {
@@ -161,11 +154,11 @@ export class BudgetsService {
         },
         _sum: { amount: true },
       });
-  
+
       const usedAmount = used._sum.amount ?? 0;
       const percent =
         bc.amount === 0 ? 0 : Math.round((usedAmount / bc.amount) * 100);
-  
+
       results.push({
         categoryId: bc.categoryId,
         categoryName: bc.category.name,
@@ -174,7 +167,7 @@ export class BudgetsService {
         usedPercent: percent,
       });
     }
-  
+
     return results;
   }
 }

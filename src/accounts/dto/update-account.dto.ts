@@ -1,15 +1,14 @@
+import { AccountType } from '@prisma/client';
 import {
   IsEnum,
   IsNotEmpty,
+  IsNumber,
   IsOptional,
   IsString,
-  IsNumber,
   Min,
 } from 'class-validator';
-import { AccountType } from '@prisma/client';
 
-export class CreateAccountDto {
-  @IsString()
+export class UpdateAccountDto {
   @IsNotEmpty()
   name: string;
 

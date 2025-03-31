@@ -1,8 +1,10 @@
+import { CategoryDto } from '@/categories/dto/category.dto';
 import { ApiProperty } from '@nestjs/swagger';
-import { CategoryDto } from 'src/categories/dto/create-category.dto';
+import { IsNotEmpty } from 'class-validator';
 
 export class TransactionDto {
   @ApiProperty({ example: 'tx123', description: '거래 ID' })
+  @IsNotEmpty()
   id: string;
 
   @ApiProperty({ enum: ['income', 'expense'], description: '거래 타입' })
@@ -23,6 +25,13 @@ export class TransactionDto {
     required: false,
   })
   note?: string | null;
+
+  @ApiProperty({
+    example: '점심 식사',
+    description: '다시 체크해야되는 거래 (선택)',
+    required: false,
+  })
+  description?: string | null;
 
   @ApiProperty({
     example: '2025-03-25T14:48:00.000Z',

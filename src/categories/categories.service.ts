@@ -1,6 +1,12 @@
-import { ForbiddenException, Injectable, Logger } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
+import { UpdateCategoryDto } from './dto/update-category.dto';
 
 @Injectable()
 export class CategoriesService {
@@ -12,12 +18,14 @@ export class CategoriesService {
     this.logger.debug(
       `📂 Creating category for user: ${userId}, name: ${dto.name}`,
     );
+
     const category = await this.prisma.category.create({
       data: {
         ...dto,
         userId,
       },
     });
+
     this.logger.log(`✅ Category created: ${category.id}`);
     return category;
   }
@@ -27,6 +35,47 @@ export class CategoriesService {
     return this.prisma.category.findMany({
       where: { userId },
     });
+  }
+
+  async findOne(userId: string, id: string) {
+    this.logger.debug(`🔍 Finding category ${id} for user: ${userId}`);
+
+    const category = await this.prisma.category.findFirst({
+      where: {
+        id,
+        userId,
+      },
+    });
+
+    if (!category) {
+      this.logger.warn(`❌ Category not found or access denied`);
+      throw new NotFoundException('카테고리를 찾을 수 없습니다.');
+    }
+
+    return category;
+  }
+
+  async update(userId: string, id: string, dto: UpdateCategoryDto) {
+    this.logger.debug(`✏️ Updating category ${id} for user: ${userId}`);
+
+    const category = await this.prisma.category.findUnique({ where: { id } });
+
+    if (!category || category.userId !== userId) {
+      this.logger.warn(`❌ Unauthorized update attempt`);
+      throw new ForbiddenException('수정 권한 없음');
+    }
+
+    const updated = await this.prisma.category.update({
+      where: { id },
+      data: {
+        name: dto.name ?? category.name,
+        icon: dto.icon ?? category.icon,
+        type: dto.type ?? category.type,
+      },
+    });
+
+    this.logger.log(`✅ Category updated: ${id}`);
+    return updated;
   }
 
   async delete(userId: string, categoryId: string) {

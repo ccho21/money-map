@@ -50,10 +50,7 @@ export class TransactionsController {
   }
 
   @Get('calendar')
-  getCalendarView(
-    @GetUser('id') user: UserPayload,
-    @Query() query: DateQueryDto,
-  ) {
+  getCalendarView(@GetUser() user: UserPayload, @Query() query: DateQueryDto) {
     return this.transactionService.getTransactionCalendarView(user.id, query);
   }
 

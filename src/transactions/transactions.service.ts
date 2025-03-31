@@ -33,8 +33,8 @@ import {
   FindTransactionQueryDto,
   SummaryRangeQueryDto,
 } from './dto/filter-transaction.dto';
-import { User } from '@prisma/client';
 import { UpdateTransactionDto } from './dto/update-transaction.dto';
+import { getUserTimezone } from '@/common/util/timezone';
 
 export type TransactionFilterWhereInput = Prisma.TransactionWhereInput;
 
@@ -46,10 +46,6 @@ export class TransactionsService {
     private prisma: PrismaService,
     private eventsGateway: EventsGateway,
   ) {}
-
-  private getUserTimezone(user: User): string {
-    return user.timezone || 'America/Toronto';
-  }
 
   async create(userId: string, dto: CreateTransactionDto) {
     console.log('###', dto);
@@ -91,6 +87,7 @@ export class TransactionsService {
 
     return transaction;
   }
+
   async update(userId: string, id: string, dto: UpdateTransactionDto) {
     // 1. 기존 거래 찾기 + 소유자 확인
     const existing = await this.prisma.transaction.findFirst({
@@ -219,19 +216,19 @@ export class TransactionsService {
     const { groupBy, startDate, endDate } = query;
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new Error('User not found');
-    const timeZone = this.getUserTimezone(user);
+    const timezone = getUserTimezone(user);
 
     // 입력 문자열을 "yyyy-MM-dd" 형식으로 파싱
     const parsedStart = parse(startDate, 'yyyy-MM-dd', new Date());
     const parsedEnd = parse(endDate, 'yyyy-MM-dd', new Date());
 
     // 사용자의 타임존 기준 날짜로 변환 후, 일의 시작과 끝을 구함
-    const startZoned = toZonedTime(parsedStart, timeZone);
-    const endZoned = toZonedTime(parsedEnd, timeZone);
+    const startZoned = toZonedTime(parsedStart, timezone);
+    const endZoned = toZonedTime(parsedEnd, timezone);
 
     // 사용자 타임존 기준의 시작/끝을 UTC로 변환
-    const startUTC = fromZonedTime(startOfDay(startZoned), timeZone);
-    const endUTC = fromZonedTime(endOfDay(endZoned), timeZone);
+    const startUTC = fromZonedTime(startOfDay(startZoned), timezone);
+    const endUTC = fromZonedTime(endOfDay(endZoned), timezone);
 
     const transactions = await this.prisma.transaction.findMany({
       where: {
@@ -249,7 +246,7 @@ export class TransactionsService {
 
     for (const tx of transactions) {
       // 거래일자를 사용자의 타임존으로 변환
-      const zonedTx = toZonedTime(tx.date, timeZone);
+      const zonedTx = toZonedTime(tx.date, timezone);
       let label: string;
       let rangeStart: Date;
       let rangeEnd: Date;
@@ -297,6 +294,7 @@ export class TransactionsService {
         amount: tx.amount,
         note: tx.note ?? '',
         accountId: tx.accountId,
+        description: tx.description ?? '',
         date: tx.date.toISOString(),
         category: {
           id: tx.category.id,
@@ -356,7 +354,7 @@ export class TransactionsService {
     if (!user) {
       throw new Error('User not found');
     }
-    const timeZone = this.getUserTimezone(user);
+    const timezone = getUserTimezone(user);
 
     const { year, month } = query;
     const base = new Date(Number(year), Number(month) - 1);
@@ -371,7 +369,7 @@ export class TransactionsService {
 
     const map = new Map<string, { income: number; expense: number }>();
     for (const g of grouped) {
-      const local = toZonedTime(g.date, timeZone);
+      const local = toZonedTime(g.date, timezone);
       const key = format(local, 'yyyy-MM-dd');
       if (!map.has(key)) map.set(key, { income: 0, expense: 0 });
       const item = map.get(key)!;

@@ -7,9 +7,9 @@ import {
   Delete,
   UseGuards,
   Query,
+  Patch,
 } from '@nestjs/common';
 import { AccountsService } from './accounts.service';
-import { CreateAccountDto } from './dto/create-account.dto';
 import { JwtAuthGuard } from 'src/common/guards/jwt.guard';
 import { UserPayload } from 'src/auth/types/user-payload.type';
 import { GetUser } from 'src/common/decorators/get-user.decorator';
@@ -18,6 +18,8 @@ import {
   AccountTransactionFilterQueryDto,
   AccountTransactionSummaryDTO,
 } from './dto/account-grouped-transactions';
+import { CreateAccountDto } from './dto/create-account.dto';
+import { UpdateAccountDto } from './dto/update-account.dto';
 
 @ApiTags('Accounts')
 @UseGuards(JwtAuthGuard)
@@ -64,6 +66,15 @@ export class AccountsController {
   @Get(':id')
   findOne(@Param('id') id: string, @GetUser() user: UserPayload) {
     return this.accountsService.findOne(user.id, id);
+  }
+
+  @Patch(':id')
+  update(
+    @GetUser() user: UserPayload,
+    @Param('id') id: string,
+    @Body() dto: UpdateAccountDto,
+  ) {
+    return this.accountsService.update(user.id, id, dto);
   }
 
   @Delete(':id')
