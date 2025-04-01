@@ -20,16 +20,16 @@ enum AccountType {
 }
 
 model User {
-  id           String        @id @default(uuid())
-  email        String        @unique
-  password     String
-  timezone     String?       // 사용자의 타임존 (예: America/Toronto)
-  createdAt    DateTime      @default(now())
-  transactions Transaction[]
-  categories   Category[]
-  budgets      Budget[]
-  accounts     Account[]
-  hashedRefreshToken  String?  // ✅ 이 필드가 없으면 추가!
+  id                 String        @id @default(uuid())
+  email              String        @unique
+  password           String
+  timezone           String? // 사용자의 타임존 (예: America/Toronto)
+  createdAt          DateTime      @default(now())
+  transactions       Transaction[]
+  categories         Category[]
+  budgets            Budget[]
+  accounts           Account[]
+  hashedRefreshToken String? // ✅ 이 필드가 없으면 추가!
 }
 
 model Account {
@@ -39,37 +39,34 @@ model Account {
   name         String
   type         AccountType
   color        String? // UI 색상 (선택)
-  description String?
+  description  String?
   balance      Float         @default(0) // 계좌 잔액
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
   transactions Transaction[] // 1:N 관계
-  receivedTransfers Transaction[] @relation("ToAccount") // 👉 이 줄 추가
 }
 
 model Transaction {
-  id         String   @id @default(uuid())
-  type       String // "income" 또는 "expense"
-  amount     Int
-  categoryId String
-  userId     String
-  accountId  String
-  toAccountId String?     // 👉 transfer일 때만 사용됨
-  date       DateTime
-  note       String?
+  id          String   @id @default(uuid())
+  type        String // "income" 또는 "expense"
+  amount      Int
+  categoryId  String
+  userId      String
+  accountId   String
+  date        DateTime
+  note        String?
   description String?
-  createdAt  DateTime @default(now())
-  category   Category @relation(fields: [categoryId], references: [id])
-  user       User     @relation(fields: [userId], references: [id])
-  account    Account  @relation(fields: [accountId], references: [id])
-  toAccount   Account?  @relation("ToAccount", fields: [toAccountId], references: [id])
+  createdAt   DateTime @default(now())
+  category    Category @relation(fields: [categoryId], references: [id])
+  user        User     @relation(fields: [userId], references: [id])
+  Account     Account  @relation(fields: [accountId], references: [id])
 }
 
 model Category {
   id           String           @id @default(uuid())
   name         String
   icon         String
-  type         CategoryType  
+  type         CategoryType
   userId       String
   color        String? // UI 색상 (선택)
   transactions Transaction[]
