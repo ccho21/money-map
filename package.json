@@ -20,7 +20,8 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "reset": "npx tsx prisma/reset.ts",
     "seed": "npx tsx prisma/seed.ts",
-    "refresh": "npm run reset && npm run seed"
+    "refresh": "npm run reset && npm run seed",
+    "dev:init": "npx prisma migrate reset && npx prisma generate && npm run refresh"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
