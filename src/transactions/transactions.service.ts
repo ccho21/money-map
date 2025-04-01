@@ -199,6 +199,7 @@ export class TransactionsService {
         name: tx.category.name,
         icon: tx.category.icon,
         type: tx.category.type,
+        color: tx.category.color as string
       },
       account: {
         id: tx.account.id,
@@ -301,6 +302,7 @@ export class TransactionsService {
           name: tx.category.name,
           icon: tx.category.icon,
           type: tx.category.type,
+          color: tx.category.color as string,
         },
         account: {
           id: tx.account.id,

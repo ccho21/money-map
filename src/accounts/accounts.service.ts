@@ -219,6 +219,7 @@ export class AccountsService {
           name: tx.category.name,
           icon: tx.category.icon,
           type: tx.category.type,
+          color: tx.category.color as string
         },
         account: {
           id: tx.account.id,

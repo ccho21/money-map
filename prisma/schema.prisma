@@ -44,6 +44,7 @@ model Account {
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
   transactions Transaction[] // 1:N 관계
+  receivedTransfers Transaction[] @relation("ToAccount") // 👉 이 줄 추가
 }
 
 model Transaction {
@@ -53,6 +54,7 @@ model Transaction {
   categoryId String
   userId     String
   accountId  String
+  toAccountId String?     // 👉 transfer일 때만 사용됨
   date       DateTime
   note       String?
   description String?
@@ -60,6 +62,7 @@ model Transaction {
   category   Category @relation(fields: [categoryId], references: [id])
   user       User     @relation(fields: [userId], references: [id])
   account    Account  @relation(fields: [accountId], references: [id])
+  toAccount   Account?  @relation("ToAccount", fields: [toAccountId], references: [id])
 }
 
 model Category {
@@ -68,6 +71,7 @@ model Category {
   icon         String
   type         CategoryType  
   userId       String
+  color        String? // UI 색상 (선택)
   transactions Transaction[]
   budgets      BudgetCategory[]
   user         User             @relation(fields: [userId], references: [id])
@@ -97,4 +101,10 @@ model BudgetCategory {
 enum CategoryType {
   income
   expense
+}
+
+enum TransactionType {
+  income
+  expense
+  transfer
 }

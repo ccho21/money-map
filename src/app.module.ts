@@ -10,9 +10,8 @@ import { TransactionsModule } from './transactions/transactions.module';
 import { CategoriesModule } from './categories/categories.module';
 import { BudgetsModule } from './budgets/budgets.module';
 import { EventsModule } from './events/events.module';
-import { AnalysisController } from './analysis/analysis.controller';
-import { AnalysisService } from './analysis/analysis.service';
 import { AccountsModule } from './accounts/accounts.module';
+import { StatsModule } from './stats/stats.module';
 
 @Module({
   imports: [
@@ -25,8 +24,9 @@ import { AccountsModule } from './accounts/accounts.module';
     BudgetsModule,
     EventsModule,
     AccountsModule,
+    StatsModule,
   ],
-  controllers: [AppController, AnalysisController],
-  providers: [AppService, PrismaService, AnalysisService],
+  controllers: [AppController],
+  providers: [AppService, PrismaService],
 })
 export class AppModule {}

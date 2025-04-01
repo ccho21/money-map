@@ -30,7 +30,6 @@ export class RefreshTokenStrategy extends PassportStrategy(
   }
 
   validate(req: Request, payload: JwtPayload): UserPayload {
-    console.log('✅ RefreshTokenStrategy payload.sub:', payload.sub);
     return {
       id: payload.sub,
       email: payload.email,

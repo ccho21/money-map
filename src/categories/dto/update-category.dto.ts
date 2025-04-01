@@ -19,4 +19,9 @@ export class UpdateCategoryDto {
   @IsOptional()
   @IsString()
   icon: string;
+
+  @ApiProperty({ example: '#ffffff', description: 'color code' })
+  @IsOptional()
+  @IsString()
+  color: string;
 }

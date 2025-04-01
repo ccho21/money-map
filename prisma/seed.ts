@@ -20,16 +20,16 @@ async function main(): Promise<void> {
     prisma.account.create({
       data: {
         userId: user.id,
-        name: '현금지갑',
+        name: 'Cash Wallet',
         type: 'CASH',
         color: '#4CAF50',
-        balance: 500_000,
+        balance: 2_000,
       },
     }),
     prisma.account.create({
       data: {
         userId: user.id,
-        name: '국민카드',
+        name: 'National Credit Card',
         type: 'CARD',
         color: '#2196F3',
         balance: 0,
@@ -38,10 +38,10 @@ async function main(): Promise<void> {
     prisma.account.create({
       data: {
         userId: user.id,
-        name: '신한은행',
+        name: 'Shinhan Bank',
         type: 'BANK',
         color: '#FF9800',
-        balance: 2_000_000,
+        balance: 1_000,
       },
     }),
   ]);
@@ -50,40 +50,30 @@ async function main(): Promise<void> {
     name: string;
     icon: string;
     type: 'income' | 'expense';
+    color: string;
   }[] = [
-    // ✅ 수입 카테고리
-    { name: '급여', icon: 'BadgeDollarSign', type: 'income' }, // 실제 수입 느낌
-    { name: '이자소득', icon: 'PiggyBank', type: 'income' }, // 저축/이자 이미지
-    { name: '프리랜스', icon: 'Briefcase', type: 'income' }, // 일/업무
-
-    // ✅ 지출 카테고리
-    { name: '식비', icon: 'UtensilsCrossed', type: 'expense' }, // 식사용
-    { name: '교통', icon: 'Bus', type: 'expense' }, // 교통수단
-    { name: '쇼핑', icon: 'ShoppingCart', type: 'expense' }, // 장바구니
-    { name: '여가', icon: 'Gamepad2', type: 'expense' }, // 게임/취미
-    { name: '의료', icon: 'Stethoscope', type: 'expense' }, // 의료용
-    { name: '카페', icon: 'Coffee', type: 'expense' }, // 커피 아이콘
+    { name: 'Salary', icon: 'BadgeDollarSign', type: 'income', color: '#3B82F6' },
+    { name: 'Interest', icon: 'PiggyBank', type: 'income', color: '#10B981' },
+    { name: 'Freelance', icon: 'Briefcase', type: 'income', color: '#8B5CF6' },
+    { name: 'Food', icon: 'UtensilsCrossed', type: 'expense', color: '#F59E0B' },
+    { name: 'Transport', icon: 'Bus', type: 'expense', color: '#F43F5E' },
+    { name: 'Shopping', icon: 'ShoppingCart', type: 'expense', color: '#0EA5E9' },
+    { name: 'Leisure', icon: 'Gamepad2', type: 'expense', color: '#A855F7' },
+    { name: 'Health', icon: 'Stethoscope', type: 'expense', color: '#14B8A6' },
+    { name: 'Cafe', icon: 'Coffee', type: 'expense', color: '#D97706' },
   ];
 
   const createdCategories: Category[] = [];
 
-  for (const { name, icon, type } of categorySeedData) {
+  for (const { name, icon, type, color } of categorySeedData) {
     const category = await prisma.category.create({
-      data: {
-        name,
-        icon,
-        type,
-        userId: user.id,
-      },
+      data: { name, icon, type, color, userId: user.id },
     });
     createdCategories.push(category);
   }
 
   const budget = await prisma.budget.create({
-    data: {
-      userId: user.id,
-      total: 1_000_000,
-    },
+    data: { userId: user.id, total: 1_000 },
   });
 
   await Promise.all(
@@ -92,10 +82,10 @@ async function main(): Promise<void> {
         data: {
           budgetId: budget.id,
           categoryId: cat.id,
-          amount: 150_000,
+          amount: 300,
         },
-      }),
-    ),
+      })
+    )
   );
 
   const getRandomUTCDateInMonth = (year: number, month: number): Date => {
@@ -108,7 +98,9 @@ async function main(): Promise<void> {
     { year: 2025, month: 3 },
   ];
 
-  // ✅ 지출 트랜잭션 생성
+  const expenseNotes = ['Lunch', 'Bus Fare', 'T-shirt', 'Movie', 'Doctor', 'Latte'];
+  const incomeNotes = ['Monthly Salary', 'Freelance Gig', 'Interest Income'];
+
   for (const cat of createdCategories.filter((c) => c.type === 'expense')) {
     for (const account of accounts) {
       for (const { year, month } of targetMonths) {
@@ -120,9 +112,9 @@ async function main(): Promise<void> {
               categoryId: cat.id,
               accountId: account.id,
               type: 'expense',
-              amount: Math.floor(Math.random() * 50_000) + 10_000,
+              amount: Math.floor(Math.random() * 50) + 10,
               date: getRandomUTCDateInMonth(year, month),
-              note: `${cat.name} - ${account.name} 테스트 지출`,
+              note: `${expenseNotes[Math.floor(Math.random() * expenseNotes.length)]}`,
             },
           });
         }
@@ -130,15 +122,14 @@ async function main(): Promise<void> {
     }
   }
 
-  // ✅ 수입 트랜잭션 생성
   const incomeMeta = {
-    급여: { amount: 3_000_000, isFixed: true },
-    이자소득: { amount: 200_000, isFixed: false },
-    프리랜스: { amount: 500_000, isFixed: false },
+    Salary: { amount: 4_000, isFixed: true },
+    Interest: { amount: 200, isFixed: false },
+    Freelance: { amount: 1_000, isFixed: false },
   };
 
   for (const cat of createdCategories.filter((c) => c.type === 'income')) {
-    const meta = incomeMeta[cat.name];
+    const meta = incomeMeta[cat.name as keyof typeof incomeMeta];
 
     for (const { year, month } of targetMonths) {
       const date = meta.isFixed
@@ -153,15 +144,13 @@ async function main(): Promise<void> {
           type: 'income',
           amount: meta.amount,
           date,
-          note: `${cat.name} 수입`,
+          note: incomeNotes[Math.floor(Math.random() * incomeNotes.length)],
         },
       });
     }
   }
 
-  console.log(
-    '✅ 전체 시드 데이터 생성 완료 (lucide 아이콘 + 카테고리 타입 포함)',
-  );
+  console.log('✅ Seed data generated successfully with enhanced variety and styling.');
 }
 
 main()

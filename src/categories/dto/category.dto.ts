@@ -22,5 +22,10 @@ export class CategoryDto {
   @ApiProperty({ example: 'Utensils', description: 'lucide-react 아이콘 이름' })
   @IsOptional()
   @IsString()
-  icon: string;
+  icon?: string;
+
+  @ApiProperty({ example: '#ffffff', description: 'color code' })
+  @IsOptional()
+  @IsString()
+  color?: string;
 }

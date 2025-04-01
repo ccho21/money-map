@@ -1,5 +1,3 @@
-// src/analysis/dto/get-budget-usage.dto.ts
-
 import { IsISO8601, IsEnum } from 'class-validator';
 
 export enum CategoryType {
@@ -8,7 +6,7 @@ export enum CategoryType {
   all = 'all',
 }
 
-export class GetBudgetUsageDto {
+export class StatsQuery {
   @IsISO8601()
   startDate: string;
 
