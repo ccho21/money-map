@@ -16,7 +16,7 @@ export const generateTokens = async (
 
   console.log('### payload', jwtPayload);
   const accessToken = await jwt.signAsync(jwtPayload, {
-    expiresIn: '5s',
+    expiresIn: '15m',
   });
 
   const refreshSecret = config.get<string>('JWT_REFRESH_SECRET');
