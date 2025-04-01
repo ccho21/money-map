@@ -1,9 +1,16 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { startOfMonth, startOfWeek, startOfYear } from 'date-fns';
+import {
+  endOfDay,
+  startOfDay,
+  startOfMonth,
+  startOfWeek,
+  startOfYear,
+} from 'date-fns';
 import { GetByCategoryDto } from './dto/get-by-category.dto';
 import { GetBudgetSummaryDto } from './dto/get-budget-summary.dto';
 import { GetNoteSummaryDto } from './dto/get-note-summary.dto';
+import { CategoryType } from './dto/get-budget-usage.dto';
 
 type BudgetItem = {
   categoryId: string;
@@ -288,6 +295,101 @@ export class AnalysisService {
       count: g._count.note ?? 0,
       totalAmount: g._sum.amount ?? 0,
     }));
+
+    return result;
+  }
+
+  async getBudgetUsage(
+    userId: string,
+    start: string,
+    end: string,
+    type: CategoryType,
+  ) {
+    const startDate = startOfDay(new Date(start));
+    const endDate = endOfDay(new Date(end));
+
+    this.logger.debug(`📊 getBudgetUsage called with:
+    userId: ${userId}
+    type: ${type}
+    startDate: ${startDate.toISOString()}
+    endDate: ${endDate.toISOString()}
+    `);
+
+    const transactionTypeFilter =
+      type === CategoryType.all ? undefined : { type };
+
+    // 트랜잭션 groupBy
+    const transactions = await this.prisma.transaction.groupBy({
+      by: ['categoryId'],
+      where: {
+        userId,
+        date: { gte: startDate, lte: endDate },
+        ...transactionTypeFilter,
+      },
+      _sum: { amount: true },
+    });
+
+    this.logger.debug(
+      `📦 Grouped Transactions: ${JSON.stringify(transactions, null, 2)}`,
+    );
+    this.logger.debug(
+      `🧾 Filter: ${JSON.stringify({
+        userId,
+        ...transactionTypeFilter,
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
+      })}`,
+    );
+
+    const debugTx = await this.prisma.transaction.findMany({
+      where: {
+        userId,
+        date: { gte: startDate, lte: endDate },
+        ...(transactionTypeFilter ?? {}),
+      },
+    });
+    this.logger.debug(`🧪 Raw Transactions Count: ${debugTx.length}`);
+
+    // 유저의 BudgetCategory
+    const budgetCategories = await this.prisma.budgetCategory.findMany({
+      where: {
+        budget: { userId },
+      },
+      include: {
+        category: true,
+      },
+    });
+
+    this.logger.debug(
+      `📁 Budget Categories: ${JSON.stringify(budgetCategories, null, 2)}`,
+    );
+
+    // 결과 매핑
+    const result = transactions.map((tx) => {
+      const matched = budgetCategories.find(
+        (bc) => bc.categoryId === tx.categoryId,
+      );
+
+      const spentAmount = tx._sum.amount ?? 0;
+      const budgetAmount = matched?.amount ?? 0;
+
+      return {
+        categoryId: tx.categoryId,
+        categoryName: matched?.category.name || 'Unknown',
+        categoryIcon: matched?.category.icon || '',
+        categoryType: matched?.category.type || 'expense',
+        spentAmount,
+        budgetAmount,
+        percentage:
+          budgetAmount > 0
+            ? Math.min((spentAmount / budgetAmount) * 100, 999)
+            : 0,
+      };
+    });
+
+    result.sort((a, b) => b.percentage - a.percentage);
+
+    this.logger.debug(`✅ Final Result: ${JSON.stringify(result, null, 2)}`);
 
     return result;
   }
