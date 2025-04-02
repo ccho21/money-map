@@ -194,13 +194,15 @@ export class TransactionsService {
       note: tx.note ?? '',
       accountId: tx.accountId,
       date: tx.date.toISOString(),
-      category: {
-        id: tx.category.id,
-        name: tx.category.name,
-        icon: tx.category.icon,
-        type: tx.category.type,
-        color: tx.category.color as string
-      },
+      category: tx.category
+        ? {
+            id: tx.category.id,
+            name: tx.category.name,
+            icon: tx.category.icon,
+            type: tx.category.type,
+            color: tx.category.color as string,
+          }
+        : undefined,
       account: {
         id: tx.account.id,
         name: tx.account.name,
@@ -297,13 +299,15 @@ export class TransactionsService {
         accountId: tx.accountId,
         description: tx.description ?? '',
         date: tx.date.toISOString(),
-        category: {
-          id: tx.category.id,
-          name: tx.category.name,
-          icon: tx.category.icon,
-          type: tx.category.type,
-          color: tx.category.color as string,
-        },
+        category: tx.category
+          ? {
+              id: tx.category.id,
+              name: tx.category.name,
+              icon: tx.category.icon,
+              type: tx.category.type,
+              color: tx.category.color as string,
+            }
+          : undefined,
         account: {
           id: tx.account.id,
           name: tx.account.name,

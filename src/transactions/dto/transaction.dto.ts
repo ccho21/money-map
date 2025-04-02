@@ -17,7 +17,7 @@ export class TransactionDto {
   accountId: string;
 
   @ApiProperty({ type: CategoryDto, description: '카테고리 정보' })
-  category: CategoryDto;
+  category?: CategoryDto;
 
   @ApiProperty({
     example: '점심 식사',

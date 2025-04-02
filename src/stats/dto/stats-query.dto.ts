@@ -1,10 +1,5 @@
+import { CategoryType } from '@prisma/client';
 import { IsISO8601, IsEnum } from 'class-validator';
-
-export enum CategoryType {
-  income = 'income',
-  expense = 'expense',
-  all = 'all',
-}
 
 export class StatsQuery {
   @IsISO8601()

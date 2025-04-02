@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { endOfDay, startOfDay } from 'date-fns';
-import { CategoryType, StatsQuery } from './dto/stats-query.dto';
+import { StatsQuery } from './dto/stats-query.dto';
 import {
   StatsByCategory,
   StatsByCategoryDTO,
@@ -30,15 +30,12 @@ export class StatsService {
     endDate: ${end.toISOString()}
     `);
 
-    const transactionTypeFilter =
-      type === CategoryType.all ? undefined : { type };
-
     const transactions = await this.prisma.transaction.groupBy({
       by: ['categoryId'],
       where: {
         userId,
         date: { gte: start, lte: end },
-        ...transactionTypeFilter,
+        type,
       },
       _sum: { amount: true },
     });
@@ -52,27 +49,31 @@ export class StatsService {
       },
     });
 
-    const result: StatsByCategory[] = transactions.map((tx) => {
-      const matched = budgetCategories.find(
-        (bc) => bc.categoryId === tx.categoryId,
-      );
+    const result: StatsByCategory[] = transactions
+      .map((tx): StatsByCategory | null => {
+        const matched = budgetCategories.find(
+          (bc) => bc.categoryId === tx.categoryId,
+        );
 
-      const spent = tx._sum.amount ?? 0;
-      const budget = matched?.amount ?? 0;
-      const remaining = budget - spent;
+        // 매칭 안된 항목은 스킵
+        if (!matched || !matched.category) return null;
 
-      return {
-        categoryId: tx.categoryId,
-        categoryName: matched?.category.name || 'Unknown',
-        categoryIcon: matched?.category.icon || '',
-        categoryType: matched?.category.type || 'expense',
-        color: matched?.category.color as string,
-        spent,
-        budget,
-        remaining,
-        rate: budget > 0 ? Math.min((spent / budget) * 100, 999) : 0,
-      };
-    });
+        const spent = tx._sum.amount ?? 0;
+        const budget = matched.amount ?? 0;
+        const remaining = budget - spent;
+
+        return {
+          categoryId: tx.categoryId!,
+          categoryName: matched.category.name,
+          categoryType: matched.category.type,
+          color: matched.category.color ?? '#999999',
+          spent,
+          budget,
+          remaining,
+          rate: budget > 0 ? Math.min((spent / budget) * 100, 999) : 0,
+        };
+      })
+      .filter((item): item is StatsByCategory => item !== null); // 타입 좁히기
 
     result.sort((a, b) => b.rate - a.rate);
 
@@ -100,23 +101,20 @@ export class StatsService {
     const start = startOfDay(new Date(startDate));
     const end = endOfDay(new Date(endDate));
 
-    // ✅ 1. 조건에 따라 type 필터링
-    const typeFilter = type === 'all' ? undefined : { type };
-
     // ✅ 2. 트랜잭션 합계 groupBy(categoryId)
     const transactions = await this.prisma.transaction.groupBy({
       by: ['categoryId'],
       where: {
         userId,
         date: { gte: start, lte: end },
-        ...(typeFilter ? { type } : {}),
+        type,
       },
       _sum: {
         amount: true,
       },
     });
 
-    // ✅ 3. 예산 정보 가져오기 (연결된 카테고리 포함)
+    // ✅ 3. 예산 + 카테고리 정보 가져오기
     const budgetCategories = await this.prisma.budgetCategory.findMany({
       where: {
         budget: {
@@ -128,29 +126,34 @@ export class StatsService {
       },
     });
 
-    // ✅ 4. 카테고리별 매핑 + 합산 계산
-    const data: StatsByBudget[] = transactions.map((tx) => {
-      const matched = budgetCategories.find(
-        (bc) => bc.categoryId === tx.categoryId,
-      );
-      const spent = tx._sum.amount ?? 0;
-      const budget = matched?.amount ?? 0;
-      const rate = budget > 0 ? Math.min((spent / budget) * 100, 999) : 0;
+    // ✅ 4. 각 항목 매핑
+    const data: StatsByBudget[] = transactions
+      .map((tx): StatsByBudget | null => {
+        const matched = budgetCategories.find(
+          (bc) => bc.categoryId === tx.categoryId,
+        );
 
-      return {
-        categoryId: tx.categoryId,
-        categoryName: matched?.category.name || 'Unknown',
-        categoryType: matched?.category.type || 'expense',
-        icon: matched?.category.icon || '',
-        color: matched?.category.color as string,
-        budget,
-        spent,
-        rate,
-        remaining: budget - spent,
-      };
-    });
+        if (!matched || !matched.category) return null;
 
-    // ✅ 5. 총계 계산
+        const spent = tx._sum?.amount ?? 0;
+        const budget = matched.amount ?? 0;
+        const remaining = budget - spent;
+
+        return {
+          categoryId: tx.categoryId!,
+          categoryName: matched.category.name,
+          categoryType: matched.category.type,
+          icon: matched.category.icon,
+          color: matched.category.color ?? '#999999',
+          budget,
+          spent,
+          remaining,
+          rate: budget > 0 ? Math.min((spent / budget) * 100, 999) : 0,
+        };
+      })
+      .filter((item): item is StatsByBudget => item !== null); // ✅ 타입 좁히기
+
+    // ✅ 5. 합계 계산
     const totalBudget = data.reduce((acc, item) => acc + item.budget, 0);
     const totalSpent = data.reduce((acc, item) => acc + item.spent, 0);
     const totalRemaining = totalBudget - totalSpent;
@@ -163,26 +166,18 @@ export class StatsService {
     };
   }
 
-  async getByNote(
-    userId: string,
-    query: StatsQuery,
-  ): Promise<StatsByNoteDTO> {
+  async getByNote(userId: string, query: StatsQuery): Promise<StatsByNoteDTO> {
     const { type, startDate, endDate } = query;
 
-    const baseWhere: any = {
-      userId,
-      date: {
-        gte: new Date(startDate),
-        lte: new Date(endDate),
-      },
-    };
-
-    if (type !== CategoryType.all) {
-      baseWhere.type = type;
-    }
-
     const transactions = await this.prisma.transaction.findMany({
-      where: baseWhere,
+      where: {
+        userId,
+        date: {
+          gte: new Date(startDate),
+          lte: new Date(endDate),
+        },
+        type, // ✅ 이제 항상 'income' 또는 'expense'만 오니까 안전하게 직접 넣어도 됨
+      },
       select: {
         note: true,
         amount: true,
