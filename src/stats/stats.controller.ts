@@ -1,12 +1,18 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
 import { StatsService } from './stats.service';
 import { JwtAuthGuard } from '../common/guards/jwt.guard';
 import { GetUser } from '../common/decorators/get-user.decorator';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiQuery,
+  ApiTags,
+} from '@nestjs/swagger';
 import { UserPayload } from 'src/auth/types/user-payload.type';
 import { StatsByCategoryDTO } from './dto/stats-by-category.dto';
 import { StatsQuery } from './dto/stats-query.dto';
 import { StatsByNoteDTO } from './dto/stats-by-note.dto';
+import { TransactionSummaryDTO } from '@/transactions/dto/transaction.dto';
 
 @ApiTags('Stats')
 @ApiBearerAuth('access-token')
@@ -34,5 +40,19 @@ export class StatsController {
     @Query() query: StatsQuery,
   ): Promise<StatsByNoteDTO> {
     return this.statsService.getByNote(user.id, query);
+  }
+
+  @Get('/category/:categoryId')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: '카테고리 기준 통계 조회' })
+  @ApiQuery({ name: 'startDate', type: String, required: true })
+  @ApiQuery({ name: 'endDate', type: String, required: true })
+  @ApiQuery({ name: 'type', enum: ['income', 'expense'], required: true })
+  getStatsCategory(
+    @GetUser() user: UserPayload,
+    @Param('categoryId') categoryId: string,
+    @Query() query: StatsQuery,
+  ): Promise<TransactionSummaryDTO> {
+    return this.statsService.getStatsCategory(user.id, categoryId, query);
   }
 }

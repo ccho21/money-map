@@ -576,7 +576,7 @@ export class TransactionsService {
       }
 
       const prevAmount = original.amount;
-      const prevFromAccountId = original.accountId;
+      // const prevFromAccountId = original.accountId;
 
       // 기존 잔액 롤백
       await tx.account.update({

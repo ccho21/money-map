@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { endOfDay, startOfDay } from 'date-fns';
+import { endOfDay, parseISO, startOfDay } from 'date-fns';
 import { StatsQuery } from './dto/stats-query.dto';
 import {
   StatsByCategory,
@@ -8,6 +8,10 @@ import {
 } from './dto/stats-by-category.dto';
 import { StatsByBudget, StatsByBudgetDTO } from './dto/stats-by-budget.dto';
 import { StatsByNote, StatsByNoteDTO } from './dto/stats-by-note.dto';
+import { TransactionSummaryDTO } from '@/transactions/dto/transaction.dto';
+import { fromZonedTime, toZonedTime } from 'date-fns-tz';
+import { getUserTimezone } from '@/common/util/timezone';
+import { groupTransactions } from './util/group-transactions';
 
 @Injectable()
 export class StatsService {
@@ -205,6 +209,55 @@ export class StatsService {
       data: Object.values(resultMap),
       totalIncome,
       totalExpense,
+    };
+  }
+
+  async getStatsCategory(
+    userId: string,
+    categoryId: string,
+    query: StatsQuery,
+  ): Promise<TransactionSummaryDTO> {
+    const { startDate, endDate, groupBy, type } = query;
+
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new Error('User not found');
+    const timezone = getUserTimezone(user);
+
+    const start = fromZonedTime(
+      startOfDay(toZonedTime(parseISO(startDate), timezone)),
+      timezone,
+    );
+    const end = fromZonedTime(
+      endOfDay(toZonedTime(parseISO(endDate), timezone)),
+      timezone,
+    );
+
+    const transactions = await this.prisma.transaction.findMany({
+      where: {
+        userId,
+        categoryId,
+        type,
+        date: { gte: start, lte: end },
+      },
+      orderBy: { date: 'asc' },
+      include: {
+        category: true,
+        account: true,
+        toAccount: true,
+      },
+    });
+
+    const data = groupTransactions(transactions, groupBy, timezone);
+
+    const incomeTotal = data.reduce((sum, d) => sum + d.incomeTotal, 0);
+    const expenseTotal = data.reduce((sum, d) => sum + d.expenseTotal, 0);
+    return {
+      type: groupBy.toLowerCase() as 'daily' | 'weekly' | 'monthly' | 'yearly',
+      startDate,
+      endDate,
+      incomeTotal,
+      expenseTotal,
+      data,
     };
   }
 }
