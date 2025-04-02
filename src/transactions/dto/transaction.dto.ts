@@ -7,16 +7,30 @@ export class TransactionDTO {
   @IsNotEmpty()
   id: string;
 
-  @ApiProperty({ enum: ['income', 'expense'], description: '거래 타입' })
-  type: 'income' | 'expense';
+  @ApiProperty({
+    enum: ['income', 'expense', 'transfer'],
+    description: '거래 타입',
+  })
+  type: 'income' | 'expense' | 'transfer';
 
   @ApiProperty({ example: 15000, description: '금액' })
   amount: number;
 
-  @ApiProperty({ example: 'acc001', description: '계좌 ID' })
+  @ApiProperty({ example: 'acc001', description: '계좌 ID (출금)' })
   accountId: string;
 
-  @ApiProperty({ type: CategoryDto, description: '카테고리 정보' })
+  @ApiProperty({
+    example: 'acc002',
+    description: '입금 계좌 ID (transfer 타입일 경우만)',
+    required: false,
+  })
+  toAccountId?: string;
+
+  @ApiProperty({
+    type: CategoryDto,
+    description: '카테고리 정보',
+    required: false,
+  })
   category?: CategoryDto;
 
   @ApiProperty({
@@ -27,8 +41,8 @@ export class TransactionDTO {
   note?: string | null;
 
   @ApiProperty({
-    example: '점심 식사',
-    description: '다시 체크해야되는 거래 (선택)',
+    example: '신용카드로 점심 결제',
+    description: '추가 설명 (선택)',
     required: false,
   })
   description?: string | null;
@@ -40,10 +54,11 @@ export class TransactionDTO {
   date: string;
 
   @ApiProperty({
-    description: '계좌 정보 (이름, 유형, 색상)',
+    description: '출금 계좌 정보',
     example: {
-      name: 'KB 국민카드',
-      type: 'card',
+      id: 'acc001',
+      name: '신한카드',
+      type: 'CARD',
       color: '#FFAA00',
     },
   })
@@ -53,6 +68,30 @@ export class TransactionDTO {
     type: string;
     color?: string | null;
   };
+
+  @ApiProperty({
+    description: '입금 계좌 정보 (transfer 전용)',
+    required: false,
+    example: {
+      id: 'acc002',
+      name: '우리은행',
+      type: 'BANK',
+      color: '#0099FF',
+    },
+  })
+  toAccount?: {
+    id: string;
+    name: string;
+    type: string;
+    color?: string | null;
+  };
+
+  @ApiProperty({
+    description: '쌍방 트랜잭션 ID (transfer 전용)',
+    required: false,
+    example: 'tx456',
+  })
+  linkedTransferId?: string;
 }
 
 export class TransactionSummary {

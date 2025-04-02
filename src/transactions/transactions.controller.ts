@@ -6,12 +6,18 @@ import {
   Query,
   UseGuards,
   Param,
-  Patch,
+  Delete,
+  Put,
 } from '@nestjs/common';
 import { TransactionsService } from './transactions.service';
 import { JwtAuthGuard } from '../common/guards/jwt.guard';
 import { GetUser } from '../common/decorators/get-user.decorator';
-import { ApiBearerAuth, ApiQuery, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiQuery,
+  ApiTags,
+} from '@nestjs/swagger';
 import { UserPayload } from 'src/auth/types/user-payload.type';
 import { TransactionCreateDTO } from './dto/transaction-create.dto';
 import {
@@ -21,6 +27,7 @@ import {
 } from './dto/transaction-filter.dto';
 import { TransactionSummaryDTO } from './dto/transaction.dto';
 import { TransactionUpdateDTO } from './dto/transaction-update.dto';
+import { TransactionTransferDTO } from './dto/transaction-transfer.dto';
 
 @ApiTags('Transactions')
 @UseGuards(JwtAuthGuard)
@@ -32,6 +39,12 @@ export class TransactionsController {
   @Post()
   create(@GetUser() user: UserPayload, @Body() dto: TransactionCreateDTO) {
     return this.transactionService.create(user.id, dto);
+  }
+
+  @Get()
+  @ApiQuery({ type: TransactionFilterDTO })
+  findAll(@GetUser() user: UserPayload, @Query() query: TransactionFilterDTO) {
+    return this.transactionService.findFiltered(user.id, query);
   }
 
   @Get('summary')
@@ -49,15 +62,37 @@ export class TransactionsController {
     return this.transactionService.getTransactionSummary(user.id, query);
   }
 
+  @Post('/transfer')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: '계좌 간 이체 생성' })
+  createTransfer(
+    @Body() createTransferDto: TransactionTransferDTO,
+    @GetUser() user: UserPayload,
+  ) {
+    return this.transactionService.createTransfer(user.id, createTransferDto);
+  }
+
   @Get('calendar')
   getCalendarView(@GetUser() user: UserPayload, @Query() query: DateQueryDTO) {
     return this.transactionService.getTransactionCalendarView(user.id, query);
   }
 
-  @Get()
-  @ApiQuery({ type: TransactionFilterDTO })
-  findAll(@GetUser() user: UserPayload, @Query() query: TransactionFilterDTO) {
-    return this.transactionService.findFiltered(user.id, query);
+  @Put('/transfer/:id')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: '이체 트랜잭션 수정' })
+  updateTransfer(
+    @Param('id') id: string,
+    @Body() dto: TransactionTransferDTO,
+    @GetUser() user: UserPayload,
+  ) {
+    return this.transactionService.updateTransfer(user.id, id, dto);
+  }
+
+  @Delete('/transfer/:id')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: '이체 트랜잭션 삭제' })
+  deleteTransfer(@Param('id') id: string, @GetUser() user: UserPayload) {
+    return this.transactionService.deleteTransfer(user.id, id);
   }
 
   @Get(':id')
@@ -65,7 +100,7 @@ export class TransactionsController {
     return this.transactionService.getTransactionById(user.id, id);
   }
 
-  @Patch(':id')
+  @Put(':id')
   update(
     @GetUser() user: UserPayload,
     @Param('id') id: string,

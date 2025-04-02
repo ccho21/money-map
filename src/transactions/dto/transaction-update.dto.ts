@@ -1,9 +1,16 @@
-import { IsString, IsOptional, IsInt, IsDateString } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsInt,
+  IsDateString,
+  IsEnum,
+  ValidateIf,
+} from 'class-validator';
 
 export class TransactionUpdateDTO {
   @IsOptional()
-  @IsString()
-  type?: 'income' | 'expense';
+  @IsEnum(['income', 'expense', 'transfer'])
+  type?: 'income' | 'expense' | 'transfer';
 
   @IsOptional()
   @IsInt()
@@ -16,6 +23,16 @@ export class TransactionUpdateDTO {
   @IsOptional()
   @IsString()
   accountId?: string;
+
+  @IsOptional()
+  @ValidateIf((_, value) => value === null || typeof value === 'string')
+  @IsString()
+  toAccountId?: string | null;
+
+  @IsOptional()
+  @ValidateIf((_, value) => value === null || typeof value === 'string')
+  @IsString()
+  linkedTransferId?: string | null;
 
   @IsOptional()
   @IsDateString()
