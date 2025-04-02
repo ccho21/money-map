@@ -1,6 +1,6 @@
 import { IsOptional, IsDateString } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { TransactionDto } from 'src/transactions/dto/transaction.dto';
+import { TransactionDTO } from 'src/transactions/dto/transaction.dto';
 
 export class AccountTransactionFilterQueryDto {
   @ApiPropertyOptional({
@@ -32,5 +32,5 @@ export class AccountTransactionSummaryDTO {
   balance: number;
   incomeTotal: number;
   expenseTotal: number;
-  transactions: TransactionDto[];
+  transactions: TransactionDTO[];
 }

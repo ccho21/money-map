@@ -2,7 +2,7 @@ import { CategoryDto } from '@/categories/dto/category.dto';
 import { ApiProperty } from '@nestjs/swagger';
 import { IsNotEmpty } from 'class-validator';
 
-export class TransactionDto {
+export class TransactionDTO {
   @ApiProperty({ example: 'tx123', description: '거래 ID' })
   @IsNotEmpty()
   id: string;
@@ -61,7 +61,7 @@ export class TransactionSummary {
   rangeEnd: string;
   incomeTotal: number;
   expenseTotal: number;
-  transactions: TransactionDto[]; // ✅ 해당 날짜 or 월 or 연도에 속한 거래 목록
+  transactions: TransactionDTO[]; // ✅ 해당 날짜 or 월 or 연도에 속한 거래 목록
 }
 
 export class TransactionSummaryDTO {

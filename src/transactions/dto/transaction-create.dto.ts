@@ -7,7 +7,7 @@ import {
   IsString,
 } from 'class-validator';
 
-export class CreateTransactionDto {
+export class TransactionCreateDTO {
   @IsEnum(['income', 'expense'])
   type: 'income' | 'expense';
 

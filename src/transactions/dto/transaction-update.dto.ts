@@ -1,6 +1,6 @@
 import { IsString, IsOptional, IsInt, IsDateString } from 'class-validator';
 
-export class UpdateTransactionDto {
+export class TransactionUpdateDTO {
   @IsOptional()
   @IsString()
   type?: 'income' | 'expense';

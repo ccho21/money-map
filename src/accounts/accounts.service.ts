@@ -14,7 +14,7 @@ import {
   startOfMonth,
 } from 'date-fns';
 import { fromZonedTime, toZonedTime } from 'date-fns-tz';
-import { TransactionDto } from 'src/transactions/dto/transaction.dto';
+import { TransactionDTO } from 'src/transactions/dto/transaction.dto';
 import { AccountTransactionSummaryDTO } from './dto/account-grouped-transactions';
 import { getUserTimezone } from '@/common/util/timezone';
 
@@ -207,7 +207,7 @@ export class AccountsService {
         },
       });
 
-      const txDtos: TransactionDto[] = transactions.map((tx) => ({
+      const txDtos: TransactionDTO[] = transactions.map((tx) => ({
         id: tx.id,
         type: tx.type as 'income' | 'expense',
         amount: tx.amount,

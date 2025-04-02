@@ -10,7 +10,7 @@ import {
 import { Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
-export class FindTransactionQueryDto {
+export class TransactionFilterDTO {
   @ApiPropertyOptional({
     enum: ['income', 'expense'],
     description: '거래 타입',
@@ -65,7 +65,7 @@ export class FindTransactionQueryDto {
   limit?: number = 20;
 }
 
-export class BaseDateQueryDto {
+export class BaseDateQueryDTO {
   @Type(() => Number)
   @IsInt()
   year: number;
@@ -84,9 +84,9 @@ export class BaseDateQueryDto {
   @Max(31)
   day?: number;
 }
-export class DateQueryDto extends BaseDateQueryDto {}
+export class DateQueryDTO extends BaseDateQueryDTO {}
 
-export class SummaryRangeQueryDto {
+export class SummaryRangeQueryDTO {
   @IsEnum(['daily', 'weekly', 'monthly', 'yearly'])
   groupBy: 'daily' | 'weekly' | 'monthly' | 'yearly';
 

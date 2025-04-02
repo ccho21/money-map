@@ -9,18 +9,18 @@ import {
   Patch,
 } from '@nestjs/common';
 import { TransactionsService } from './transactions.service';
-import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { JwtAuthGuard } from '../common/guards/jwt.guard';
 import { GetUser } from '../common/decorators/get-user.decorator';
 import { ApiBearerAuth, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { UserPayload } from 'src/auth/types/user-payload.type';
-import { TransactionSummaryDTO } from './dto/transaction.dto';
+import { TransactionCreateDTO } from './dto/transaction-create.dto';
 import {
-  DateQueryDto,
-  FindTransactionQueryDto,
-  SummaryRangeQueryDto,
-} from './dto/filter-transaction.dto';
-import { UpdateTransactionDto } from './dto/update-transaction.dto';
+  DateQueryDTO,
+  SummaryRangeQueryDTO,
+  TransactionFilterDTO,
+} from './dto/transaction-filter.dto';
+import { TransactionSummaryDTO } from './dto/transaction.dto';
+import { TransactionUpdateDTO } from './dto/transaction-update.dto';
 
 @ApiTags('Transactions')
 @UseGuards(JwtAuthGuard)
@@ -30,7 +30,7 @@ export class TransactionsController {
   constructor(private readonly transactionService: TransactionsService) {}
 
   @Post()
-  create(@GetUser() user: UserPayload, @Body() dto: CreateTransactionDto) {
+  create(@GetUser() user: UserPayload, @Body() dto: TransactionCreateDTO) {
     return this.transactionService.create(user.id, dto);
   }
 
@@ -44,22 +44,19 @@ export class TransactionsController {
   @ApiQuery({ name: 'endDate', type: String, required: true })
   getTransactionSummary(
     @GetUser() user: UserPayload,
-    @Query() query: SummaryRangeQueryDto,
+    @Query() query: SummaryRangeQueryDTO,
   ): Promise<TransactionSummaryDTO> {
     return this.transactionService.getTransactionSummary(user.id, query);
   }
 
   @Get('calendar')
-  getCalendarView(@GetUser() user: UserPayload, @Query() query: DateQueryDto) {
+  getCalendarView(@GetUser() user: UserPayload, @Query() query: DateQueryDTO) {
     return this.transactionService.getTransactionCalendarView(user.id, query);
   }
 
   @Get()
-  @ApiQuery({ type: FindTransactionQueryDto })
-  findAll(
-    @GetUser() user: UserPayload,
-    @Query() query: FindTransactionQueryDto,
-  ) {
+  @ApiQuery({ type: TransactionFilterDTO })
+  findAll(@GetUser() user: UserPayload, @Query() query: TransactionFilterDTO) {
     return this.transactionService.findFiltered(user.id, query);
   }
 
@@ -72,7 +69,7 @@ export class TransactionsController {
   update(
     @GetUser() user: UserPayload,
     @Param('id') id: string,
-    @Body() dto: UpdateTransactionDto,
+    @Body() dto: TransactionUpdateDTO,
   ) {
     return this.transactionService.update(user.id, id, dto);
   }

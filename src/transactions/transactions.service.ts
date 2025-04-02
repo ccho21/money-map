@@ -6,11 +6,10 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventsGateway } from 'src/events/events.gateway';
-import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { Prisma } from '@prisma/client';
 import {
   TransactionCalendarItem,
-  TransactionDto,
+  TransactionDTO,
   TransactionSummary,
   TransactionSummaryDTO,
 } from './dto/transaction.dto';
@@ -28,13 +27,15 @@ import {
   parse,
 } from 'date-fns';
 import { toZonedTime, fromZonedTime } from 'date-fns-tz';
-import {
-  DateQueryDto,
-  FindTransactionQueryDto,
-  SummaryRangeQueryDto,
-} from './dto/filter-transaction.dto';
-import { UpdateTransactionDto } from './dto/update-transaction.dto';
+
 import { getUserTimezone } from '@/common/util/timezone';
+import { TransactionCreateDTO } from './dto/transaction-create.dto';
+import { TransactionUpdateDTO } from './dto/transaction-update.dto';
+import {
+  DateQueryDTO,
+  SummaryRangeQueryDTO,
+  TransactionFilterDTO,
+} from './dto/transaction-filter.dto';
 
 export type TransactionFilterWhereInput = Prisma.TransactionWhereInput;
 
@@ -47,7 +48,7 @@ export class TransactionsService {
     private eventsGateway: EventsGateway,
   ) {}
 
-  async create(userId: string, dto: CreateTransactionDto) {
+  async create(userId: string, dto: TransactionCreateDTO) {
     console.log('###', dto);
     const transaction = await this.prisma.transaction.create({
       data: {
@@ -88,7 +89,7 @@ export class TransactionsService {
     return transaction;
   }
 
-  async update(userId: string, id: string, dto: UpdateTransactionDto) {
+  async update(userId: string, id: string, dto: TransactionUpdateDTO) {
     // 1. 기존 거래 찾기 + 소유자 확인
     const existing = await this.prisma.transaction.findFirst({
       where: {
@@ -144,8 +145,8 @@ export class TransactionsService {
 
   async findFiltered(
     userId: string,
-    filter: FindTransactionQueryDto,
-  ): Promise<TransactionDto[]> {
+    filter: TransactionFilterDTO,
+  ): Promise<TransactionDTO[]> {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
       throw new Error('User not found');
@@ -214,7 +215,7 @@ export class TransactionsService {
 
   async getTransactionSummary(
     userId: string,
-    query: SummaryRangeQueryDto,
+    query: SummaryRangeQueryDTO,
   ): Promise<TransactionSummaryDTO> {
     const { groupBy, startDate, endDate } = query;
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
@@ -244,7 +245,7 @@ export class TransactionsService {
 
     const grouped = new Map<
       string,
-      { rangeStart: string; rangeEnd: string; transactions: TransactionDto[] }
+      { rangeStart: string; rangeEnd: string; transactions: TransactionDTO[] }
     >();
 
     for (const tx of transactions) {
@@ -354,7 +355,7 @@ export class TransactionsService {
 
   async getTransactionCalendarView(
     userId: string,
-    query: DateQueryDto,
+    query: DateQueryDTO,
   ): Promise<TransactionCalendarItem[]> {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
