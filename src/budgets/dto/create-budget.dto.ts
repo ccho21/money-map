@@ -1,13 +1,20 @@
-import { IsInt, IsArray, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
-import { CreateBudgetCategoryDto } from './create-budget-category.dto';
+import { IsInt, IsArray, ValidateNested, IsUUID } from 'class-validator';
 
-export class CreateBudgetDto {
+export class CreateBudgetCategoryDTO {
+  @IsUUID()
+  categoryId: string;
+
+  @IsInt()
+  amount: number;
+}
+
+export class CreateBudgetDTO {
   @IsInt()
   total: number;
 
   @IsArray()
   @ValidateNested({ each: true })
-  @Type(() => CreateBudgetCategoryDto)
-  categories: CreateBudgetCategoryDto[];
+  @Type(() => CreateBudgetCategoryDTO)
+  categories: CreateBudgetCategoryDTO[];
 }

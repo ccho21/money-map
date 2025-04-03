@@ -24,7 +24,7 @@ type GroupTransactionInput = Transaction & {
 
 export function groupTransactions(
   transactions: GroupTransactionInput[],
-  groupBy: 'Daily' | 'Weekly' | 'Monthly' | 'Yearly',
+  groupBy: 'daily' | 'weekly' | 'monthly' | 'yearly',
   timezone: string,
 ): TransactionSummary[] {
   const grouped = new Map<
@@ -39,22 +39,22 @@ export function groupTransactions(
     let rangeEnd: Date;
 
     switch (groupBy) {
-      case 'Daily':
+      case 'daily':
         rangeStart = startOfDay(zonedTx);
         rangeEnd = endOfDay(zonedTx);
         label = format(rangeStart, 'yyyy-MM-dd');
         break;
-      case 'Weekly':
+      case 'weekly':
         rangeStart = startOfWeek(zonedTx, { weekStartsOn: 0 });
         rangeEnd = endOfWeek(zonedTx, { weekStartsOn: 0 });
         label = format(rangeStart, 'yyyy-MM-dd');
         break;
-      case 'Monthly':
+      case 'monthly':
         rangeStart = startOfMonth(zonedTx);
         rangeEnd = endOfMonth(zonedTx);
         label = format(rangeStart, 'yyyy-MM');
         break;
-      case 'Yearly':
+      case 'yearly':
         rangeStart = startOfYear(zonedTx);
         rangeEnd = endOfYear(zonedTx);
         label = format(rangeStart, 'yyyy');

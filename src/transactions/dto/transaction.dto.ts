@@ -1,4 +1,4 @@
-import { CategoryDto } from '@/categories/dto/category.dto';
+import { CategoryDTO } from '@/categories/dto/category.dto';
 import { ApiProperty } from '@nestjs/swagger';
 import { IsNotEmpty } from 'class-validator';
 
@@ -27,11 +27,11 @@ export class TransactionDTO {
   toAccountId?: string;
 
   @ApiProperty({
-    type: CategoryDto,
+    type: CategoryDTO,
     description: '카테고리 정보',
     required: false,
   })
-  category?: CategoryDto;
+  category?: CategoryDTO;
 
   @ApiProperty({
     example: '점심 식사',

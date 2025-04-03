@@ -11,6 +11,6 @@ export class StatsQuery {
   @IsEnum(CategoryType)
   type: CategoryType; // income 또는 expense 구분
 
-  @IsEnum(['Daily', 'Weekly', 'Monthly', 'Yearly'])
-  groupBy: 'Daily' | 'Weekly' | 'Monthly' | 'Yearly';
+  @IsEnum(['daily', 'weekly', 'monthly', 'yearly'])
+  groupBy: 'daily' | 'weekly' | 'monthly' | 'yearly';
 }

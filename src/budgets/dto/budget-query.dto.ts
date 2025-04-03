@@ -1,7 +1,7 @@
 import { IsOptional, IsDateString } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
-export class BudgetUsageQueryDto {
+export class BudgetQueryDto {
   @ApiPropertyOptional({ description: '시작일 (YYYY-MM-DD)' })
   @IsOptional()
   @IsDateString()

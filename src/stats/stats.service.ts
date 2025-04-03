@@ -27,14 +27,15 @@ export class StatsService {
     const start = startOfDay(new Date(startDate));
     const end = endOfDay(new Date(endDate));
 
-    this.logger.debug(`📊 getBudgetUsage called with:
+    this.logger.debug(`📊 getByCategory called with:
     userId: ${userId}
     type: ${type}
     startDate: ${start.toISOString()}
     endDate: ${end.toISOString()}
     `);
 
-    const transactions = await this.prisma.transaction.groupBy({
+    // 1. 카테고리별 금액 groupBy
+    const grouped = await this.prisma.transaction.groupBy({
       by: ['categoryId'],
       where: {
         userId,
@@ -44,50 +45,58 @@ export class StatsService {
       _sum: { amount: true },
     });
 
-    const budgetCategories = await this.prisma.budgetCategory.findMany({
-      where: {
-        budget: { userId },
-      },
-      include: {
-        category: true,
-      },
+    if (grouped.length === 0) {
+      return {
+        data: [],
+        totalIncome: 0,
+        totalExpense: 0,
+      };
+    }
+
+    // 2. 관련 카테고리 정보 조회
+    const categoryIds = grouped.map((g) => g.categoryId!);
+    const categories = await this.prisma.category.findMany({
+      where: { id: { in: categoryIds } },
     });
 
-    const result: StatsByCategory[] = transactions
-      .map((tx): StatsByCategory | null => {
-        const matched = budgetCategories.find(
-          (bc) => bc.categoryId === tx.categoryId,
-        );
+    // 🔄 Map으로 최적화된 접근 구조 생성
+    const categoryMap = new Map(categories.map((c) => [c.id, c]));
 
-        // 매칭 안된 항목은 스킵
-        if (!matched || !matched.category) return null;
+    // 3. 최종 데이터 구성 + 전체 합계 집계
+    let totalIncome = 0;
+    let totalExpense = 0;
+    const totalSpent = grouped.reduce(
+      (sum, g) => sum + (g._sum.amount ?? 0),
+      0,
+    );
 
-        const spent = tx._sum.amount ?? 0;
-        const budget = matched.amount ?? 0;
-        const remaining = budget - spent;
+    const result: StatsByCategory[] = [];
 
-        return {
-          categoryId: tx.categoryId!,
-          categoryName: matched.category.name,
-          categoryType: matched.category.type,
-          color: matched.category.color ?? '#999999',
-          spent,
-          budget,
-          remaining,
-          rate: budget > 0 ? Math.min((spent / budget) * 100, 999) : 0,
-        };
-      })
-      .filter((item): item is StatsByCategory => item !== null); // 타입 좁히기
+    for (const group of grouped) {
+      const category = categoryMap.get(group.categoryId!);
+      if (!category) continue;
 
-    result.sort((a, b) => b.rate - a.rate);
+      const expense = group._sum.amount ?? 0;
+      const rate =
+        type === 'expense' && totalSpent > 0
+          ? Math.min((expense / totalSpent) * 100, 999)
+          : 0;
 
-    const totalIncome = result
-      .filter((r) => r.categoryType === 'income')
-      .reduce((sum, cur) => sum + cur.spent, 0);
+      if (category.type === 'income') totalIncome += expense;
+      else if (category.type === 'expense') totalExpense += expense;
 
-    const totalExpense = result
-      .filter((r) => r.categoryType === 'expense')
-      .reduce((sum, cur) => sum + cur.spent, 0);
+      result.push({
+        categoryId: group.categoryId!,
+        categoryName: category.name,
+        categoryType: category.type,
+        color: category.color ?? '#999999',
+        expense,
+        rate,
+      });
+    }
+
+    // 4. 지출 많은 순으로 정렬
+    result.sort((a, b) => b.expense - a.expense);
 
     return {
       data: result,
@@ -314,7 +323,7 @@ export class StatsService {
 
     const incomeTotal = grouped.reduce((sum, d) => sum + d.incomeTotal, 0);
     const expenseTotal = grouped.reduce((sum, d) => sum + d.expenseTotal, 0);
-    
+
     const summary: TransactionSummaryDTO = {
       type: groupBy.toLowerCase() as 'daily' | 'weekly' | 'monthly' | 'yearly',
       startDate,

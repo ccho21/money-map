@@ -1,12 +1,11 @@
 import { Controller, Post, Body, Get, UseGuards, Query } from '@nestjs/common';
 import { BudgetsService } from './budgets.service';
-import { CreateBudgetDto } from './dto/create-budget.dto';
 import { JwtAuthGuard } from '../common/guards/jwt.guard';
 import { GetUser } from '../common/decorators/get-user.decorator';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { UserPayload } from 'src/auth/types/user-payload.type';
-import { BudgetAlert } from './types/budgets.types';
-import { BudgetUsageQueryDto } from './types/budget-usage-query.dto';
+import { BudgetQueryDto } from './dto/budget-query.dto';
+import { CreateBudgetDTO } from './dto/create-budget.dto';
 
 @ApiTags('Budgets')
 @ApiBearerAuth('access-token')
@@ -16,25 +15,25 @@ export class BudgetsController {
   constructor(private readonly budgetsService: BudgetsService) {}
 
   @Post()
-  create(@GetUser() user: UserPayload, @Body() dto: CreateBudgetDto) {
+  create(@GetUser() user: UserPayload, @Body() dto: CreateBudgetDTO) {
     return this.budgetsService.create(user.id, dto);
   }
 
   @Get()
   findAll(@GetUser() user: UserPayload) {
-    return this.budgetsService.findAllByUser(user.id);
+    return this.budgetsService.findAll(user.id);
   }
 
-  @Get('alerts')
-  alerts(@GetUser() user: UserPayload): Promise<BudgetAlert[]> {
-    return this.budgetsService.getBudgetAlerts(user.id);
-  }
-  
-  @Get('usage')
-  getBudgetUsage(
+  // @Get('alerts')
+  // alerts(@GetUser() user: UserPayload): Promise<BudgetAlert[]> {
+  //   return this.budgetsService.getBudgetAlerts(user.id);
+  // }
+
+  @Get('summary')
+  getBudgetSummary(
     @GetUser() user: UserPayload,
-    @Query() query: BudgetUsageQueryDto,
+    @Query() query: BudgetQueryDto,
   ) {
-    return this.budgetsService.getBudgetUsage(user.id, query);
+    return this.budgetsService.getBudgetSummary(user.id, query);
   }
 }

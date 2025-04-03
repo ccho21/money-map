@@ -17,20 +17,9 @@ export class StatsByCategory {
   @IsEnum(CategoryType)
   categoryType: CategoryType; // income 또는 expense 구분
 
-  @ApiProperty({
-    example: 300000,
-    description: '예산 금액 (해당 카테고리의 설정된 Budget)',
-  })
-  @IsNumber()
-  budget: number;
-
   @ApiProperty({ example: 150000, description: '실제 지출된 금액' })
   @IsNumber()
-  spent: number;
-
-  @ApiProperty({ example: 150000, description: '남은 예산 (budget - spent)' })
-  @IsNumber()
-  remaining: number;
+  expense: number;
 
   @ApiProperty({
     example: 50.0,
