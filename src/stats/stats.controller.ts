@@ -48,11 +48,35 @@ export class StatsController {
   @ApiQuery({ name: 'startDate', type: String, required: true })
   @ApiQuery({ name: 'endDate', type: String, required: true })
   @ApiQuery({ name: 'type', enum: ['income', 'expense'], required: true })
+  @ApiQuery({
+    name: 'groupBy',
+    enum: ['daily', 'weekly', 'monthly', 'yearly'],
+    required: true,
+  })
   getStatsCategory(
     @GetUser() user: UserPayload,
     @Param('categoryId') categoryId: string,
     @Query() query: StatsQuery,
   ): Promise<TransactionSummaryDTO> {
     return this.statsService.getStatsCategory(user.id, categoryId, query);
+  }
+
+  @Get('/budget/:categoryId')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: '카테고리 기준 통계 조회' })
+  @ApiQuery({ name: 'startDate', type: String, required: true })
+  @ApiQuery({ name: 'endDate', type: String, required: true })
+  @ApiQuery({ name: 'type', enum: ['income', 'expense'], required: true })
+  @ApiQuery({
+    name: 'groupBy',
+    enum: ['daily', 'weekly', 'monthly', 'yearly'],
+    required: true,
+  })
+  getStatsBudgetCategory(
+    @GetUser() user: UserPayload,
+    @Param('categoryId') categoryId: string,
+    @Query() query: StatsQuery,
+  ): Promise<TransactionSummaryDTO> {
+    return this.statsService.getStatsBudgetCategory(user.id, categoryId, query);
   }
 }

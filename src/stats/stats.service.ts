@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { endOfDay, parseISO, startOfDay } from 'date-fns';
 import { StatsQuery } from './dto/stats-query.dto';
@@ -259,5 +259,71 @@ export class StatsService {
       expenseTotal,
       data,
     };
+  }
+
+  async getStatsBudgetCategory(
+    userId: string,
+    budgetCategoryId: string,
+    query: StatsQuery,
+  ): Promise<TransactionSummaryDTO> {
+    const { startDate, endDate, type, groupBy } = query;
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new Error('User not found');
+    const timezone = getUserTimezone(user);
+
+    const start = fromZonedTime(
+      startOfDay(toZonedTime(parseISO(startDate), timezone)),
+      timezone,
+    );
+    const end = fromZonedTime(
+      endOfDay(toZonedTime(parseISO(endDate), timezone)),
+      timezone,
+    );
+
+    const budgetCategory = await this.prisma.budgetCategory.findUnique({
+      where: { id: budgetCategoryId },
+      include: {
+        category: true,
+        budget: true,
+      },
+    });
+
+    if (!budgetCategory || budgetCategory.budget.userId !== userId) {
+      throw new ForbiddenException('해당 예산 항목에 접근할 수 없습니다.');
+    }
+
+    const transactions = await this.prisma.transaction.findMany({
+      include: {
+        category: true,
+        account: true,
+        toAccount: true,
+      },
+      where: {
+        userId,
+        type,
+        categoryId: budgetCategory.categoryId,
+
+        date: {
+          gte: new Date(start),
+          lte: new Date(end),
+        },
+      },
+    });
+
+    const grouped = groupTransactions(transactions, groupBy, timezone); // 유틸 함수 사용
+
+    const incomeTotal = grouped.reduce((sum, d) => sum + d.incomeTotal, 0);
+    const expenseTotal = grouped.reduce((sum, d) => sum + d.expenseTotal, 0);
+    
+    const summary: TransactionSummaryDTO = {
+      type: groupBy.toLowerCase() as 'daily' | 'weekly' | 'monthly' | 'yearly',
+      startDate,
+      endDate,
+      incomeTotal,
+      expenseTotal,
+      data: grouped,
+    };
+
+    return summary;
   }
 }
