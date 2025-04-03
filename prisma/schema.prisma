@@ -92,13 +92,18 @@ model Budget {
 }
 
 model BudgetCategory {
-  id         String @id @default(uuid())
+  id         String   @id @default(uuid())
   budgetId   String
   categoryId String
   amount     Int
 
+  startDate  DateTime // ✅ 추가
+  endDate    DateTime // ✅ 추가
+
   budget   Budget   @relation(fields: [budgetId], references: [id])
   category Category @relation(fields: [categoryId], references: [id])
+
+  @@unique([categoryId, startDate, endDate]) // ✅ 중복 방지
 }
 
 enum CategoryType {

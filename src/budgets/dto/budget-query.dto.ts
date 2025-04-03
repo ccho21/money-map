@@ -1,14 +1,16 @@
-import { IsOptional, IsDateString } from 'class-validator';
+import { IsOptional, IsDateString, IsEnum } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class BudgetQueryDto {
   @ApiPropertyOptional({ description: '시작일 (YYYY-MM-DD)' })
-  @IsOptional()
   @IsDateString()
-  startDate?: string;
+  startDate: string;
 
   @ApiPropertyOptional({ description: '종료일 (YYYY-MM-DD)' })
-  @IsOptional()
   @IsDateString()
-  endDate?: string;
+  endDate: string;
+
+  @IsOptional()
+  @IsEnum(['daily', 'weekly', 'monthly', 'yearly'])
+  groupBy?: 'daily' | 'weekly' | 'monthly' | 'yearly';
 }

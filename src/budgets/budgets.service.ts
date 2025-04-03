@@ -1,46 +1,29 @@
-import { Injectable, Logger } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { endOfDay, format, parse, startOfDay } from 'date-fns';
 import { fromZonedTime, toZonedTime } from 'date-fns-tz';
 import { BudgetQueryDto } from './dto/budget-query.dto';
 import { BudgetDTO, BudgetSummary, BudgetSummaryDTO } from './dto/budget.dto';
-import { CreateBudgetDTO } from './dto/create-budget.dto';
+import {
+  CreateBudgetCategoryDTO,
+  CreateBudgetCategoryResponseDTO,
+} from './dto/create-budget.dto';
+import {
+  BudgetCategoryListDTO,
+  UpdateBudgetCategoryDTO,
+  UpdateBudgetCategoryResponseDTO,
+} from './dto/budget-category.dto';
 
 @Injectable()
 export class BudgetsService {
   private readonly logger = new Logger(BudgetsService.name);
 
   constructor(private prisma: PrismaService) {}
-
-  async create(userId: string, dto: CreateBudgetDTO) {
-    this.logger.debug(
-      `🧾 Creating budget for user: ${userId}, total: ₩${dto.total}`,
-    );
-
-    const budget = await this.prisma.budget.create({
-      data: {
-        userId,
-        total: dto.total,
-      },
-    });
-
-    const budgetCategories = dto.categories.map((cat) => {
-      this.logger.debug(
-        `📂 Assigning ₩${cat.amount} to category ${cat.categoryId}`,
-      );
-      return this.prisma.budgetCategory.create({
-        data: {
-          budgetId: budget.id,
-          categoryId: cat.categoryId,
-          amount: cat.amount,
-        },
-      });
-    });
-
-    await Promise.all(budgetCategories);
-    this.logger.log(`✅ Budget created: ${budget.id}`);
-    return budget;
-  }
 
   async findAll(userId: string): Promise<BudgetDTO[]> {
     this.logger.debug(`🔍 Retrieving all budgets for user: ${userId}`);
@@ -133,6 +116,136 @@ export class BudgetsService {
       totalExpense,
       rate,
       data,
+    };
+  }
+
+  async getBudgetsByCategory(
+    userId: string,
+    query: BudgetQueryDto,
+  ): Promise<BudgetCategoryListDTO> {
+    const { startDate, endDate } = query;
+
+    const categories = await this.prisma.category.findMany({
+      where: { userId },
+    });
+
+    const budgetCategories = await this.prisma.budgetCategory.findMany({
+      where: {
+        budget: { userId },
+        startDate: new Date(startDate),
+        endDate: new Date(endDate),
+      },
+    });
+
+    const budgetMap = new Map<string, (typeof budgetCategories)[0]>();
+    for (const bc of budgetCategories) {
+      budgetMap.set(bc.categoryId, bc);
+    }
+
+    const data = categories.map((c) => {
+      const bc = budgetMap.get(c.id);
+      return {
+        categoryId: c.id,
+        categoryName: c.name,
+        type: c.type,
+        icon: c.icon,
+        color: c.color ?? undefined,
+        budgetId: bc?.id ?? null,
+        budgetAmount: bc?.amount ?? 0,
+        startDate,
+        endDate,
+        isNew: !bc,
+      };
+    });
+
+    const total = data.reduce((sum, item) => sum + item.budgetAmount, 0);
+
+    return {
+      total,
+      data,
+    };
+  }
+
+  async createBudgetForCategory(
+    userId: string,
+    dto: CreateBudgetCategoryDTO,
+  ): Promise<CreateBudgetCategoryResponseDTO> {
+    const { categoryId, amount, startDate, endDate } = dto;
+
+    const [budget] = await this.prisma.budget.findMany({
+      where: { userId },
+      take: 1,
+    });
+
+    if (!budget) {
+      throw new NotFoundException('No budget record found for user.');
+    }
+
+    const category = await this.prisma.category.findUnique({
+      where: { id: dto.categoryId },
+    });
+    if (!category || category.userId !== userId) {
+      throw new NotFoundException('Invalid category or access denied.');
+    }
+
+    const exists = await this.prisma.budgetCategory.findFirst({
+      where: {
+        budgetId: budget.id,
+        categoryId,
+        startDate: new Date(startDate),
+        endDate: new Date(endDate),
+      },
+    });
+
+    console.log('### exists, ', exists);
+    if (exists) {
+      throw new ConflictException(
+        'Budget already exists for this category and period.',
+      );
+    }
+
+    const created = await this.prisma.budgetCategory.create({
+      data: {
+        budgetId: budget.id,
+        categoryId,
+        amount,
+        startDate: new Date(startDate),
+        endDate: new Date(endDate),
+      },
+    });
+
+    return {
+      budgetId: created.id,
+      message: 'Budget created successfully.',
+    };
+  }
+
+  async updateBudgetForCategory(
+    userId: string,
+    budgetId: string,
+    dto: UpdateBudgetCategoryDTO,
+  ): Promise<UpdateBudgetCategoryResponseDTO> {
+    const budget = await this.prisma.budgetCategory.findUnique({
+      where: { id: budgetId },
+      include: { budget: true },
+    });
+
+    if (!budget || budget.budget.userId !== userId) {
+      throw new NotFoundException('Budget not found or access denied.');
+    }
+
+    const updated = await this.prisma.budgetCategory.update({
+      where: { id: budgetId },
+      data: {
+        ...(dto.amount !== undefined && { amount: dto.amount }),
+        ...(dto.startDate && { startDate: new Date(dto.startDate) }),
+        ...(dto.endDate && { endDate: new Date(dto.endDate) }),
+      },
+    });
+
+    return {
+      budgetId: updated.id,
+      message: 'Budget updated successfully.',
     };
   }
 }

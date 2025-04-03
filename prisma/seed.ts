@@ -1,3 +1,5 @@
+// ✅ Updated Prisma Seed File for Period-based BudgetCategory
+
 import { PrismaClient, Category, User, Account } from '@prisma/client';
 import bcrypt from 'bcrypt';
 
@@ -52,12 +54,27 @@ async function main(): Promise<void> {
     type: 'income' | 'expense';
     color: string;
   }[] = [
-    { name: 'Salary', icon: 'BadgeDollarSign', type: 'income', color: '#3B82F6' },
+    {
+      name: 'Salary',
+      icon: 'BadgeDollarSign',
+      type: 'income',
+      color: '#3B82F6',
+    },
     { name: 'Interest', icon: 'PiggyBank', type: 'income', color: '#10B981' },
     { name: 'Freelance', icon: 'Briefcase', type: 'income', color: '#8B5CF6' },
-    { name: 'Food', icon: 'UtensilsCrossed', type: 'expense', color: '#F59E0B' },
+    {
+      name: 'Food',
+      icon: 'UtensilsCrossed',
+      type: 'expense',
+      color: '#F59E0B',
+    },
     { name: 'Transport', icon: 'Bus', type: 'expense', color: '#F43F5E' },
-    { name: 'Shopping', icon: 'ShoppingCart', type: 'expense', color: '#0EA5E9' },
+    {
+      name: 'Shopping',
+      icon: 'ShoppingCart',
+      type: 'expense',
+      color: '#0EA5E9',
+    },
     { name: 'Leisure', icon: 'Gamepad2', type: 'expense', color: '#A855F7' },
     { name: 'Health', icon: 'Stethoscope', type: 'expense', color: '#14B8A6' },
     { name: 'Cafe', icon: 'Coffee', type: 'expense', color: '#D97706' },
@@ -76,6 +93,10 @@ async function main(): Promise<void> {
     data: { userId: user.id, total: 1_000 },
   });
 
+  // ✅ Define fixed period range for seeding budget categories
+  const startDate = new Date(Date.UTC(2025, 3, 1)); // April 1st
+  const endDate = new Date(Date.UTC(2025, 3, 30)); // April 30th
+
   await Promise.all(
     createdCategories.map((cat) =>
       prisma.budgetCategory.create({
@@ -83,9 +104,11 @@ async function main(): Promise<void> {
           budgetId: budget.id,
           categoryId: cat.id,
           amount: 300,
+          startDate,
+          endDate,
         },
-      })
-    )
+      }),
+    ),
   );
 
   const getRandomUTCDateInMonth = (year: number, month: number): Date => {
@@ -98,7 +121,14 @@ async function main(): Promise<void> {
     { year: 2025, month: 3 },
   ];
 
-  const expenseNotes = ['Lunch', 'Bus Fare', 'T-shirt', 'Movie', 'Doctor', 'Latte'];
+  const expenseNotes = [
+    'Lunch',
+    'Bus Fare',
+    'T-shirt',
+    'Movie',
+    'Doctor',
+    'Latte',
+  ];
   const incomeNotes = ['Monthly Salary', 'Freelance Gig', 'Interest Income'];
 
   for (const cat of createdCategories.filter((c) => c.type === 'expense')) {
@@ -150,7 +180,7 @@ async function main(): Promise<void> {
     }
   }
 
-  console.log('✅ Seed data generated successfully with enhanced variety and styling.');
+  console.log('✅ Seed data generated successfully with budget periods.');
 }
 
 main()

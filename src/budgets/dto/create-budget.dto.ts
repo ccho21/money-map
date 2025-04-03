@@ -1,20 +1,32 @@
-import { Type } from 'class-transformer';
-import { IsInt, IsArray, ValidateNested, IsUUID } from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
+import {
+  IsInt,
+  IsString,
+  IsNotEmpty,
+  Min,
+  IsDateString,
+} from 'class-validator';
 
 export class CreateBudgetCategoryDTO {
-  @IsUUID()
+  @IsString()
+  @IsNotEmpty()
   categoryId: string;
 
   @IsInt()
+  @Min(0)
   amount: number;
+
+  @IsDateString()
+  startDate: string;
+
+  @IsDateString()
+  endDate: string;
 }
 
-export class CreateBudgetDTO {
-  @IsInt()
-  total: number;
+export class CreateBudgetCategoryResponseDTO {
+  @ApiProperty({ example: 'budgetcat123' })
+  budgetId: string;
 
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => CreateBudgetCategoryDTO)
-  categories: CreateBudgetCategoryDTO[];
+  @ApiProperty({ example: 'Budget created successfully.' })
+  message: string;
 }
