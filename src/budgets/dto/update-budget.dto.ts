@@ -1,7 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsArray, IsInt, ValidateNested } from 'class-validator';
-import { CreateBudgetCategoryDTO } from './create-budget.dto';
+import { CreateBudgetCategoryDTO } from './budget-category.dto';
 
 export class UpdateBudgetDto {
   @ApiPropertyOptional({ example: 600000, description: '수정할 총 예산' })

@@ -26,37 +26,6 @@ export class BudgetDTO {
   updatedAt: string;
 }
 
-export class BudgetCategoryDTO {
-  @ApiProperty({ example: 'budget001', description: '예산 ID' })
-  @IsUUID()
-  id: string;
-
-  @ApiProperty({ example: 500000, description: '총 예산 금액' })
-  total: number;
-
-  @ApiProperty({ example: '2025-04-01T12:00:00.000Z', description: '생성일' })
-  createdAt: string;
-
-  @ApiProperty({ example: '2025-04-02T09:00:00.000Z', description: '수정일' })
-  updatedAt: string;
-
-  @ApiProperty({
-    type: [CategoryDTO],
-    description: '연결된 카테고리 리스트 (선택)',
-    example: [
-      {
-        id: 'cat001',
-        name: '식비',
-        icon: 'Utensils',
-        type: 'expense',
-        color: '#FF0000',
-      },
-    ],
-    required: false,
-  })
-  categories: CategoryDTO[];
-}
-
 export class BudgetSummary {
   @ApiProperty({ example: 'cat001', description: '카테고리 ID' })
   categoryId: string;

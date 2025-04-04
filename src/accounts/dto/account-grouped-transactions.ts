@@ -12,7 +12,7 @@ export class AccountTransactionFilterQueryDto {
     {},
     { message: 'startDate는 ISO 형식이어야 합니다 (예: yyyy-MM-dd)' },
   )
-  startDate?: string;
+  startDate: string;
 
   @ApiPropertyOptional({
     example: '2025-01-31',
@@ -23,7 +23,7 @@ export class AccountTransactionFilterQueryDto {
     {},
     { message: 'endDate는 ISO 형식이어야 합니다 (예: yyyy-MM-dd)' },
   )
-  endDate?: string;
+  endDate: string;
 }
 
 export class AccountTransactionSummaryDTO {

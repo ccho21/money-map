@@ -4,7 +4,6 @@ import { AppService } from './app.service';
 import { PrismaService } from './prisma/prisma.service';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
-import { UsersModule } from './users/users.module';
 import { ConfigModule } from '@nestjs/config';
 import { TransactionsModule } from './transactions/transactions.module';
 import { CategoriesModule } from './categories/categories.module';
@@ -17,7 +16,6 @@ import { StatsModule } from './stats/stats.module';
   imports: [
     PrismaModule,
     AuthModule,
-    UsersModule,
     ConfigModule.forRoot({ isGlobal: true }),
     TransactionsModule,
     CategoriesModule,

@@ -1,23 +1,32 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { endOfDay, format, parse, startOfDay } from 'date-fns';
-import { fromZonedTime, toZonedTime } from 'date-fns-tz';
 import { BudgetQueryDto } from './dto/budget-query.dto';
 import { BudgetDTO, BudgetSummary, BudgetSummaryDTO } from './dto/budget.dto';
 import {
+  BudgetCategoryDTO,
+  BudgetCategoryListDTO,
   CreateBudgetCategoryDTO,
   CreateBudgetCategoryResponseDTO,
-} from './dto/create-budget.dto';
-import {
-  BudgetCategoryListDTO,
   UpdateBudgetCategoryDTO,
   UpdateBudgetCategoryResponseDTO,
 } from './dto/budget-category.dto';
+import {
+  BudgetCategoryGroupItemDTO,
+  BudgetCategoryGroupResponseDTO,
+} from './dto/budget-group.dto';
+import { CategoryType } from '@prisma/client';
+import { format, addMonths, isSameMonth, parseISO } from 'date-fns';
+import {
+  getLocalDate,
+  getDateRangeAndLabelByGroup,
+  toUTC,
+} from '@/libs/date.util';
 
 @Injectable()
 export class BudgetsService {
@@ -31,14 +40,14 @@ export class BudgetsService {
     const budgets = await this.prisma.budget.findMany({
       where: { userId },
       include: {
-        categories: true, // ✅ BudgetCategory[] 포함
+        categories: true,
       },
     });
 
     return budgets.map((b) => ({
       id: b.id,
       total: b.total,
-      categoryIds: b.categories.map((c) => c.categoryId), // ✅ 핵심 수정
+      categoryIds: b.categories.map((c) => c.categoryId),
       createdAt: b.createdAt.toISOString(),
       updatedAt: b.updatedAt.toISOString(),
     }));
@@ -49,21 +58,15 @@ export class BudgetsService {
     query: BudgetQueryDto,
   ): Promise<BudgetSummaryDTO> {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user) throw new Error('User not found');
+    if (!user) throw new NotFoundException('User not found');
 
-    const timezone = user.timezone || 'Asia/Seoul';
+    const timezone = user.timezone || 'America/Toronto';
 
-    const startDateStr = query.startDate ?? format(new Date(), 'yyyy-MM-01');
-    const endDateStr = query.endDate ?? format(new Date(), 'yyyy-MM-dd');
+    const start = getLocalDate(query.startDate, timezone);
+    const end = getLocalDate(query.endDate, timezone);
 
-    const parsedStart = parse(startDateStr, 'yyyy-MM-dd', new Date());
-    const parsedEnd = parse(endDateStr, 'yyyy-MM-dd', new Date());
-
-    const startZoned = toZonedTime(parsedStart, timezone);
-    const endZoned = toZonedTime(parsedEnd, timezone);
-
-    const startUTC = fromZonedTime(startOfDay(startZoned), timezone);
-    const endUTC = fromZonedTime(endOfDay(endZoned), timezone);
+    const startUTC = toUTC(start, timezone);
+    const endUTC = toUTC(end, timezone);
 
     const budgetCategories = await this.prisma.budgetCategory.findMany({
       where: {
@@ -119,12 +122,20 @@ export class BudgetsService {
     };
   }
 
-  async getBudgetsByCategory(
+  async getBudgetCategories(
     userId: string,
     query: BudgetQueryDto,
   ): Promise<BudgetCategoryListDTO> {
-    const { startDate, endDate } = query;
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+    if (!user) throw new Error('User not found');
 
+    const timezone = user.timezone || 'Asia/Seoul';
+
+    const { startDate, endDate } = query;
+    const start = toUTC(getLocalDate(startDate, timezone), timezone);
+    const end = toUTC(getLocalDate(endDate, timezone), timezone);
     const categories = await this.prisma.category.findMany({
       where: { userId },
     });
@@ -132,8 +143,8 @@ export class BudgetsService {
     const budgetCategories = await this.prisma.budgetCategory.findMany({
       where: {
         budget: { userId },
-        startDate: new Date(startDate),
-        endDate: new Date(endDate),
+        startDate: start,
+        endDate: end,
       },
     });
 
@@ -166,11 +177,20 @@ export class BudgetsService {
     };
   }
 
-  async createBudgetForCategory(
+  async createBudgetCategory(
     userId: string,
     dto: CreateBudgetCategoryDTO,
   ): Promise<CreateBudgetCategoryResponseDTO> {
     const { categoryId, amount, startDate, endDate } = dto;
+
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found');
+
+    const timezone = user.timezone || 'Asia/Seoul';
+
+    // ✅ 날짜 변환: Local 기준 00시 → UTC
+    const startUTC = toUTC(getLocalDate(startDate, timezone), timezone);
+    const endUTC = toUTC(getLocalDate(endDate, timezone), timezone);
 
     const [budget] = await this.prisma.budget.findMany({
       where: { userId },
@@ -182,7 +202,7 @@ export class BudgetsService {
     }
 
     const category = await this.prisma.category.findUnique({
-      where: { id: dto.categoryId },
+      where: { id: categoryId },
     });
     if (!category || category.userId !== userId) {
       throw new NotFoundException('Invalid category or access denied.');
@@ -192,12 +212,11 @@ export class BudgetsService {
       where: {
         budgetId: budget.id,
         categoryId,
-        startDate: new Date(startDate),
-        endDate: new Date(endDate),
+        startDate: startUTC,
+        endDate: endUTC,
       },
     });
 
-    console.log('### exists, ', exists);
     if (exists) {
       throw new ConflictException(
         'Budget already exists for this category and period.',
@@ -209,8 +228,8 @@ export class BudgetsService {
         budgetId: budget.id,
         categoryId,
         amount,
-        startDate: new Date(startDate),
-        endDate: new Date(endDate),
+        startDate: startUTC,
+        endDate: endUTC,
       },
     });
 
@@ -220,7 +239,7 @@ export class BudgetsService {
     };
   }
 
-  async updateBudgetForCategory(
+  async updateBudgetCategory(
     userId: string,
     budgetId: string,
     dto: UpdateBudgetCategoryDTO,
@@ -234,12 +253,25 @@ export class BudgetsService {
       throw new NotFoundException('Budget not found or access denied.');
     }
 
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found');
+
+    const timezone = user.timezone || 'Asia/Seoul';
+
+    // ✅ 날짜 변환
+    const startUTC = dto.startDate
+      ? toUTC(getLocalDate(dto.startDate, timezone), timezone)
+      : undefined;
+    const endUTC = dto.endDate
+      ? toUTC(getLocalDate(dto.endDate, timezone), timezone)
+      : undefined;
+
     const updated = await this.prisma.budgetCategory.update({
       where: { id: budgetId },
       data: {
         ...(dto.amount !== undefined && { amount: dto.amount }),
-        ...(dto.startDate && { startDate: new Date(dto.startDate) }),
-        ...(dto.endDate && { endDate: new Date(dto.endDate) }),
+        ...(startUTC && { startDate: startUTC }),
+        ...(endUTC && { endDate: endUTC }),
       },
     });
 
@@ -248,53 +280,86 @@ export class BudgetsService {
       message: 'Budget updated successfully.',
     };
   }
+
+  async getGroupedBudgetCategories(
+    userId: string,
+    categoryId: string,
+    query: BudgetQueryDto,
+  ): Promise<BudgetCategoryGroupResponseDTO> {
+    const { startDate, endDate, groupBy } = query;
+
+    if (!startDate || !endDate || !groupBy) {
+      throw new NotFoundException('startDate endDate, groupBy는 필수입니다.');
+    }
+
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found');
+    const timezone = user.timezone || 'Asia/Seoul';
+
+    const baseDate = parseISO(startDate);
+
+    const months = Array.from({ length: 12 }, (_, i) => {
+      const start = addMonths(baseDate, i);
+      const end = addMonths(baseDate, i + 1);
+      return {
+        label: format(start, 'MMM'),
+        startDate: format(start, 'yyyy-MM-01'),
+        endDate: format(end, 'yyyy-MM-01'),
+      };
+    });
+
+    const startUTC = toUTC(
+      getLocalDate(months[0].startDate, timezone),
+      timezone,
+    );
+    const endUTC = toUTC(getLocalDate(months[11].endDate, timezone), timezone);
+
+    const allBudgetCategories = await this.prisma.budgetCategory.findMany({
+      where: {
+        categoryId,
+        category: { userId },
+        startDate: { gte: startUTC },
+        endDate: { lt: endUTC },
+      },
+      include: {
+        category: true,
+      },
+    });
+
+    if (!allBudgetCategories.length) {
+      throw new NotFoundException('해당 카테고리 예산 정보가 없습니다.');
+    }
+
+    const categoryInfo = allBudgetCategories[0].category;
+
+    const budgets: BudgetCategoryGroupItemDTO[] = months.map((month) => {
+      const matched = allBudgetCategories.find(
+        (b) =>
+          format(b.startDate, 'yyyy-MM-01') === month.startDate &&
+          format(b.endDate, 'yyyy-MM-01') === month.endDate,
+      );
+
+      const isCurrent = isSameMonth(
+        parseISO(month.startDate),
+        parseISO(startDate),
+      );
+
+      return {
+        label: month.label,
+        startDate: month.startDate,
+        endDate: month.endDate,
+        budgetAmount: matched ? matched.amount : 100,
+        isCurrent,
+      };
+    });
+
+    return {
+      categoryId,
+      categoryName: categoryInfo.name,
+      type: categoryInfo.type as CategoryType,
+      icon: categoryInfo.icon,
+      color: categoryInfo.color ?? undefined,
+      budgets,
+    };
+  }
 }
-
-// async getBudgetAlerts(userId: string): Promise<BudgetAlert[]> {
-//   this.logger.debug(`🚨 Checking budget alerts for user: ${userId}`);
-
-//   const budgets = await this.prisma.budgetCategory.findMany({
-//     where: {
-//       budget: {
-//         userId,
-//       },
-//     },
-//     include: {
-//       category: true,
-//       budget: true,
-//     },
-//   });
-
-//   const alerts: BudgetAlert[] = [];
-
-//   for (const item of budgets) {
-//     const spent = await this.prisma.transaction.aggregate({
-//       where: {
-//         categoryId: item.categoryId,
-//         userId,
-//       },
-//       _sum: { amount: true },
-//     });
-
-//     const totalSpent = spent._sum.amount || 0;
-//     this.logger.debug(
-//       `📊 Category: ${item.category.name}, Limit: ₩${item.amount}, Spent: ₩${totalSpent}`,
-//     );
-
-//     if (totalSpent > item.amount) {
-//       const exceededBy = totalSpent - item.amount;
-//       this.logger.warn(
-//         `⚠️ 예산 초과! ${item.category.name} - ₩${exceededBy} 초과`,
-//       );
-
-//       alerts.push({
-//         category: item.category.name,
-//         budget: item.amount,
-//         spent: totalSpent,
-//         exceededBy,
-//       });
-//     }
-//   }
-
-//   return alerts;
-// }

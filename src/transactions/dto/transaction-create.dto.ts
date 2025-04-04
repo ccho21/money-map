@@ -1,3 +1,4 @@
+import { CategoryType, TransactionType } from '@prisma/client';
 import {
   IsUUID,
   IsEnum,
@@ -9,7 +10,7 @@ import {
 
 export class TransactionCreateDTO {
   @IsEnum(['income', 'expense'])
-  type: 'income' | 'expense';
+  type: TransactionType;
 
   @IsInt()
   amount: number;

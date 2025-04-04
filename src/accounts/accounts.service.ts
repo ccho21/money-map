@@ -6,23 +6,18 @@ import {
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateAccountDto } from './dto/create-account.dto';
 import { UpdateAccountDto } from './dto/update-account.dto';
-import {
-  endOfDay,
-  endOfMonth,
-  parse,
-  startOfDay,
-  startOfMonth,
-} from 'date-fns';
-import { fromZonedTime, toZonedTime } from 'date-fns-tz';
 import { TransactionDTO } from 'src/transactions/dto/transaction.dto';
-import { AccountTransactionSummaryDTO } from './dto/account-grouped-transactions';
-import { getUserTimezone } from '@/common/util/timezone';
+import { AccountTransactionFilterQueryDto, AccountTransactionSummaryDTO } from './dto/account-grouped-transactions';
+import { getUserTimezone } from '@/libs/timezone';
+import {
+  getDateRangeAndLabelByGroup,
+  toUTC,
+} from '@/libs/date.util';
 
 @Injectable()
 export class AccountsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  // 계좌 생성
   async create(userId: string, dto: CreateAccountDto) {
     return this.prisma.account.create({
       data: {
@@ -31,40 +26,30 @@ export class AccountsService {
         balance: Number(dto.balance),
         description: dto.description ?? null,
         type: dto.type,
-        color: dto.color ?? '#2196F3', // 기본 색상
+        color: dto.color ?? '#2196F3',
       },
     });
   }
 
   async update(userId: string, id: string, dto: UpdateAccountDto) {
     const existing = await this.prisma.account.findUnique({
-      where: {
-        id,
-        userId,
-      },
+      where: { id, userId },
     });
-
-    if (!existing) {
-      throw new NotFoundException('계좌를 찾을 수 없습니다.');
-    }
+    if (!existing) throw new NotFoundException('계좌를 찾을 수 없습니다.');
 
     const updateData: Partial<typeof existing> = {};
-
     if (dto.name) updateData.name = dto.name;
     if (dto.balance) updateData.balance = dto.balance;
     if (dto.type) updateData.type = dto.type;
     if (dto.color !== undefined) updateData.color = dto.color;
     if (dto.description !== undefined) updateData.description = dto.description;
 
-    const updated = await this.prisma.account.update({
+    return this.prisma.account.update({
       where: { id },
       data: updateData,
     });
-
-    return updated;
   }
 
-  // 유저의 모든 계좌 조회
   async findAll(userId: string) {
     return this.prisma.account.findMany({
       where: { userId },
@@ -72,41 +57,37 @@ export class AccountsService {
     });
   }
 
-  // 단일 계좌 조회
   async findOne(userId: string, accountId: string) {
     const account = await this.prisma.account.findUnique({
       where: { id: accountId },
     });
-
     if (!account) throw new NotFoundException('Account not found');
     if (account.userId !== userId)
       throw new ForbiddenException('Access denied');
-
     return account;
   }
 
-  // 계좌 삭제
   async remove(userId: string, accountId: string) {
     const account = await this.prisma.account.findUnique({
       where: { id: accountId },
     });
-
     if (!account) throw new NotFoundException('Account not found');
     if (account.userId !== userId)
       throw new ForbiddenException('Access denied');
 
-    return this.prisma.account.delete({
-      where: { id: accountId },
-    });
+    return this.prisma.account.delete({ where: { id: accountId } });
   }
 
+  // ✅ 요약 API - 타임존 로직 개선
   async getSummary(userId: string, year?: number, month?: number) {
-    const dateFilter = (() => {
-      if (!year || !month) return undefined;
-      const start = startOfMonth(new Date(year, month - 1));
-      const end = endOfMonth(start);
-      return { gte: start, lte: end };
-    })();
+    if (!year || !month) return undefined;
+
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new Error('User not found');
+    const timezone = getUserTimezone(user);
+
+    const baseDate = new Date(year, month - 1, 1);
+    const { rangeStart, rangeEnd } = getDateRangeAndLabelByGroup(baseDate, 'monthly', timezone);
 
     const accounts = await this.prisma.account.findMany({
       where: { userId },
@@ -122,7 +103,7 @@ export class AccountsService {
               userId,
               accountId: account.id,
               type: 'income',
-              ...(dateFilter && { date: dateFilter }),
+              date: { gte: rangeStart, lte: rangeEnd },
             },
           }),
           this.prisma.transaction.aggregate({
@@ -131,23 +112,19 @@ export class AccountsService {
               userId,
               accountId: account.id,
               type: 'expense',
-              ...(dateFilter && { date: dateFilter }),
+              date: { gte: rangeStart, lte: rangeEnd },
             },
           }),
         ]);
-
-        const totalIncome = income._sum.amount ?? 0;
-        const totalExpense = expense._sum.amount ?? 0;
-        const balance = totalIncome - totalExpense;
 
         return {
           accountId: account.id,
           name: account.name,
           type: account.type,
           color: account.color,
-          totalIncome,
-          totalExpense,
-          balance,
+          totalIncome: income._sum.amount ?? 0,
+          totalExpense: expense._sum.amount ?? 0,
+          balance: (income._sum.amount ?? 0) - (expense._sum.amount ?? 0),
         };
       }),
     );
@@ -157,7 +134,7 @@ export class AccountsService {
 
   async getGroupedTransactions(
     userId: string,
-    query: { startDate?: string; endDate?: string },
+    query: AccountTransactionFilterQueryDto,
   ): Promise<AccountTransactionSummaryDTO[]> {
     const { startDate, endDate } = query;
 
@@ -165,24 +142,9 @@ export class AccountsService {
     if (!user) throw new Error('User not found');
 
     const timezone = getUserTimezone(user);
+    const startUTC = toUTC(startDate, timezone);
+    const endUTC = toUTC(endDate, timezone);
 
-    // 날짜 파싱
-    const parsedStart = startDate
-      ? parse(startDate, 'yyyy-MM-dd', new Date())
-      : null;
-    const parsedEnd = endDate ? parse(endDate, 'yyyy-MM-dd', new Date()) : null;
-
-    const startZoned = parsedStart ? toZonedTime(parsedStart, timezone) : null;
-    const endZoned = parsedEnd ? toZonedTime(parsedEnd, timezone) : null;
-
-    const startUTC = startZoned
-      ? fromZonedTime(startOfDay(startZoned), timezone)
-      : undefined;
-    const endUTC = endZoned
-      ? fromZonedTime(endOfDay(endZoned), timezone)
-      : undefined;
-
-    // 계좌 목록 조회
     const accounts = await this.prisma.account.findMany({
       where: { userId },
       orderBy: { createdAt: 'asc' },
@@ -195,16 +157,10 @@ export class AccountsService {
         where: {
           userId,
           accountId: account.id,
-          ...(startUTC && { date: { gte: startUTC } }),
-          ...(endUTC && {
-            date: { ...(startUTC ? { gte: startUTC } : {}), lte: endUTC },
-          }),
+          date: { gte: startUTC, lte: endUTC },
         },
         orderBy: { date: 'asc' },
-        include: {
-          category: true,
-          account: true,
-        },
+        include: { category: true, account: true },
       });
 
       const txDtos: TransactionDTO[] = transactions.map((tx) => ({
@@ -214,6 +170,7 @@ export class AccountsService {
         note: tx.note ?? '',
         accountId: tx.accountId,
         date: tx.date.toISOString(),
+        createdAt: tx.createdAt.toISOString(),
         category: tx.category
           ? {
               id: tx.category.id,

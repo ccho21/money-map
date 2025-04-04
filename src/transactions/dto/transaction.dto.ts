@@ -54,6 +54,12 @@ export class TransactionDTO {
   date: string;
 
   @ApiProperty({
+    example: '2025-03-25T14:48:00.000Z',
+    description: '거래 날짜 (ISO 8601)',
+  })
+  createdAt: string;
+
+  @ApiProperty({
     description: '출금 계좌 정보',
     example: {
       id: 'acc001',

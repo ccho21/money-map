@@ -12,7 +12,7 @@ import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
 import { UserPayload } from './types/user-payload.type';
 import { Response } from 'express';
-import { getUserTimezone } from '@/common/util/timezone';
+import { getUserTimezone } from '@/libs/timezone';
 import { setAuthCookies } from './helpers/set-cookie.helper';
 import { generateTokens } from './helpers/token.helper';
 import { ConfigService } from '@nestjs/config';

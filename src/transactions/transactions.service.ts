@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventsGateway } from 'src/events/events.gateway';
-import { Prisma } from '@prisma/client';
+import { Prisma, TransactionType } from '@prisma/client';
 import {
   TransactionCalendarItem,
   TransactionDTO,
@@ -29,7 +29,7 @@ import {
 } from 'date-fns';
 import { toZonedTime, fromZonedTime } from 'date-fns-tz';
 
-import { getUserTimezone } from '@/common/util/timezone';
+import { getUserTimezone } from '@/libs/timezone';
 import { TransactionCreateDTO } from './dto/transaction-create.dto';
 import { TransactionUpdateDTO } from './dto/transaction-update.dto';
 import {
@@ -38,6 +38,13 @@ import {
   TransactionFilterDTO,
 } from './dto/transaction-filter.dto';
 import { TransactionTransferDTO } from './dto/transaction-transfer.dto';
+import {
+  getDateRangeAndLabelByGroup,
+  getLocalDate,
+  toUTC,
+} from '@/libs/date.util';
+import { UserPayload } from '@/auth/types/user-payload.type';
+import { groupBy } from 'rxjs';
 
 export type TransactionFilterWhereInput = Prisma.TransactionWhereInput;
 
@@ -51,12 +58,19 @@ export class TransactionsService {
   ) {}
 
   async create(userId: string, dto: TransactionCreateDTO) {
-    console.log('###', dto);
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new Error('User not found');
+    const timezone = getUserTimezone(user);
+
     const transaction = await this.prisma.transaction.create({
       data: {
-        ...dto,
+        type: dto.type,
+        amount: dto.amount,
+        categoryId: dto.categoryId,
+        accountId: dto.accountId,
+        note: dto.note,
+        date: toUTC(dto.date, timezone),
         userId,
-        date: new Date(dto.date),
       },
     });
 
@@ -93,141 +107,85 @@ export class TransactionsService {
 
   async update(userId: string, id: string, dto: TransactionUpdateDTO) {
     const existing = await this.prisma.transaction.findFirst({
-      where: {
-        id,
-        userId,
-      },
+      where: { id, userId },
     });
+    if (!existing) throw new NotFoundException('거래를 찾을 수 없습니다.');
 
-    if (!existing) {
-      throw new NotFoundException('거래를 찾을 수 없습니다.');
-    }
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new Error('User not found');
 
-    const { type, amount, categoryId, accountId, date, note, description } =
-      dto;
+    const timezone = getUserTimezone(user);
+    const updateData: TransactionUpdateDTO = {
+      ...(dto.type && { type: dto.type }),
+      ...(dto.amount !== undefined && { amount: dto.amount }),
+      ...(dto.categoryId && { categoryId: dto.categoryId }),
+      ...(dto.accountId && { accountId: dto.accountId }),
+      ...(dto.date && { date: toUTC(dto.date, timezone).toISOString() }),
+      ...(dto.note !== undefined && { note: dto.note }),
+      ...(dto.description !== undefined && { description: dto.description }),
+    };
 
-    const updateData: TransactionUpdateDTO = {};
-
-    if (type) updateData.type = type;
-    if (amount !== undefined) updateData.amount = amount;
-    if (categoryId) updateData.categoryId = categoryId;
-    if (accountId) updateData.accountId = accountId;
-    if (date) updateData.date = new Date(date).toISOString();
-    if (note !== undefined) updateData.note = note;
-    if (description !== undefined) updateData.description = description;
-
-    return this.prisma.$transaction(async (tx) => {
-      // ⚠️ transfer → 일반 거래로 타입 변경되는 경우
-      const isTransferToRegular =
-        existing.type === 'transfer' &&
-        (type === 'expense' || type === 'income');
-
-      if (isTransferToRegular) {
-        // 연결된 트랜잭션 삭제
-        if (existing.linkedTransferId) {
-          await tx.transaction.delete({
-            where: { id: existing.linkedTransferId },
-          });
-        }
-
-        // categoryId는 필수
-        if (!categoryId) {
-          throw new BadRequestException('카테고리를 지정해야 합니다.');
-        }
-      }
-
-      // transfer 전용 필드 제거
-
-      updateData.linkedTransferId = null;
-      updateData.toAccountId = null;
-      const updated = await tx.transaction.update({
-        where: { id },
-        data: updateData,
-      });
-
-      return updated;
+    return this.prisma.transaction.update({
+      where: { id },
+      data: updateData,
     });
   }
 
   async getTransactionById(userId: string, transactionId: string) {
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user) {
-      throw new Error('User not found');
-    }
-
-    const transaction = await this.prisma.transaction.findUnique({
+    const tx = await this.prisma.transaction.findUnique({
       where: { id: transactionId },
       include: { category: true, account: true },
     });
 
-    if (!transaction) throw new NotFoundException('Account not found');
-    if (transaction.userId !== userId)
+    if (!tx || tx.userId !== userId)
       throw new ForbiddenException('Access denied');
 
-    return transaction;
+    return tx;
   }
 
-  async findFiltered(
-    userId: string,
-    filter: TransactionFilterDTO,
-  ): Promise<TransactionDTO[]> {
+  async findFiltered(userId: string, filter: TransactionFilterDTO) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user) {
-      throw new Error('User not found');
-    }
+    if (!user) throw new Error('User not found');
+    const timezone = getUserTimezone(user);
 
     const where: TransactionFilterWhereInput = {
       userId,
-      OR: [
-        { type: { in: ['income', 'expense'] } },
-        {
-          type: 'transfer',
-          // toAccountId: { not: null }, // ✅ 출금 트랜잭션만
-        },
-      ],
+      ...(filter.type && { type: filter.type }),
+      ...(filter.categoryId && { categoryId: filter.categoryId }),
+      ...(filter.search && {
+        note: { contains: filter.search, mode: 'insensitive' },
+      }),
     };
 
-    if (filter.type) where.type = filter.type;
-    if (filter.categoryId) where.categoryId = filter.categoryId;
-
-    if (filter.startDate && !filter.endDate) {
-      where.date = {
-        gte: new Date(`${filter.startDate}T00:00:00.000Z`),
-        lte: new Date(`${filter.startDate}T23:59:59.999Z`),
-      };
-    } else if (filter.startDate || filter.endDate) {
-      where.date = {};
-      if (filter.startDate)
-        where.date.gte = new Date(`${filter.startDate}T00:00:00.000Z`);
-      if (filter.endDate)
-        where.date.lte = new Date(`${filter.endDate}T23:59:59.999Z`);
-    }
-
-    if (filter.search) {
-      where.note = { contains: filter.search, mode: 'insensitive' };
+    if (filter.startDate || filter.endDate) {
+      const start = filter.startDate
+        ? getLocalDate(filter.startDate, timezone)
+        : undefined;
+      const end = filter.endDate
+        ? getLocalDate(filter.endDate, timezone)
+        : undefined;
+      where.date = { ...(start && { gte: start }), ...(end && { lte: end }) };
     }
 
     const sortField = filter.sort ?? 'date';
     const sortOrder = filter.order ?? 'desc';
-    const page = filter.page ?? 1;
-    const limit = filter.limit ?? 20;
-    const skip = (page - 1) * limit;
+    const skip = ((filter.page ?? 1) - 1) * (filter.limit ?? 20);
 
     const transactions = await this.prisma.transaction.findMany({
       where,
       orderBy: { [sortField]: sortOrder },
       skip,
-      take: limit,
+      take: filter.limit ?? 20,
       include: {
         category: true,
         account: true,
-        toAccount: true, // ✅ transfer용 입금 계좌 정보
+        toAccount: true,
       },
     });
 
     return transactions.map((tx) => ({
       id: tx.id,
-      type: tx.type as 'income' | 'expense' | 'transfer',
+      type: tx.type,
       amount: tx.amount,
       note: tx.note ?? '',
       description: tx.description ?? '',
@@ -235,6 +193,7 @@ export class TransactionsService {
       toAccountId: tx.toAccountId ?? undefined,
       linkedTransferId: tx.linkedTransferId ?? undefined,
       date: tx.date.toISOString(),
+      createdAt: tx.createdAt.toISOString(),
       category: tx.category
         ? {
             id: tx.category.id,
@@ -270,24 +229,14 @@ export class TransactionsService {
     if (!user) throw new Error('User not found');
     const timezone = getUserTimezone(user);
 
-    const parsedStart = parse(startDate, 'yyyy-MM-dd', new Date());
-    const parsedEnd = parse(endDate, 'yyyy-MM-dd', new Date());
-    const startZoned = toZonedTime(parsedStart, timezone);
-    const endZoned = toZonedTime(parsedEnd, timezone);
-    const startUTC = fromZonedTime(startOfDay(startZoned), timezone);
-    const endUTC = fromZonedTime(endOfDay(endZoned), timezone);
+    const start = getLocalDate(startDate, timezone);
+    const end = getLocalDate(endDate, timezone);
 
     const transactions = await this.prisma.transaction.findMany({
       where: {
         userId,
-        date: { gte: startUTC, lte: endUTC },
-        OR: [
-          { type: { in: ['income', 'expense'] } },
-          {
-            type: 'transfer',
-            toAccountId: { not: null }, // ✅ 출금 트랜잭션만 가져온다
-          },
-        ],
+        date: { gte: start, lte: end },
+        OR: [{ type: 'income' }, { type: 'expense' }],
       },
       orderBy: { date: 'asc' },
       include: {
@@ -303,35 +252,11 @@ export class TransactionsService {
     >();
 
     for (const tx of transactions) {
-      const zonedTx = toZonedTime(tx.date, timezone);
-      let label: string;
-      let rangeStart: Date;
-      let rangeEnd: Date;
-
-      switch (groupBy) {
-        case 'daily':
-          rangeStart = startOfDay(zonedTx);
-          rangeEnd = endOfDay(zonedTx);
-          label = format(rangeStart, 'yyyy-MM-dd');
-          break;
-        case 'weekly':
-          rangeStart = startOfWeek(zonedTx, { weekStartsOn: 0 });
-          rangeEnd = endOfWeek(zonedTx, { weekStartsOn: 0 });
-          label = format(rangeStart, 'yyyy-MM-dd');
-          break;
-        case 'monthly':
-          rangeStart = startOfMonth(zonedTx);
-          rangeEnd = endOfMonth(zonedTx);
-          label = format(rangeStart, 'yyyy-MM');
-          break;
-        case 'yearly':
-          rangeStart = startOfYear(zonedTx);
-          rangeEnd = endOfYear(zonedTx);
-          label = format(rangeStart, 'yyyy');
-          break;
-        default:
-          throw new Error('Invalid groupBy');
-      }
+      const { label, rangeStart, rangeEnd } = getDateRangeAndLabelByGroup(
+        tx.date,
+        groupBy,
+        timezone,
+      );
 
       if (!grouped.has(label)) {
         grouped.set(label, {
@@ -341,11 +266,9 @@ export class TransactionsService {
         });
       }
 
-      // const isTransfer: TransactionType = tx.type === TransactionType.transfer;
-
-      const dto: TransactionDTO = {
+      grouped.get(label)!.transactions.push({
         id: tx.id,
-        type: tx.type as 'income' | 'expense' | 'transfer',
+        type: tx.type,
         amount: tx.amount,
         note: tx.note ?? '',
         description: tx.description ?? '',
@@ -353,6 +276,7 @@ export class TransactionsService {
         toAccountId: tx.toAccountId ?? undefined,
         linkedTransferId: tx.linkedTransferId ?? undefined,
         date: tx.date.toISOString(),
+        createdAt: tx.createdAt.toISOString(),
         category: tx.category
           ? {
               id: tx.category.id,
@@ -376,9 +300,7 @@ export class TransactionsService {
               color: tx.toAccount.color ?? undefined,
             }
           : undefined,
-      };
-
-      grouped.get(label)!.transactions.push(dto);
+      });
     }
 
     const data: TransactionSummary[] = [];
@@ -415,7 +337,7 @@ export class TransactionsService {
       data,
     };
   }
-
+  
   async getTransactionCalendarView(
     userId: string,
     query: DateQueryDTO,
@@ -428,12 +350,15 @@ export class TransactionsService {
 
     const { year, month } = query;
     const base = new Date(Number(year), Number(month) - 1);
-    const startDate = startOfMonth(base);
-    const endDate = endOfMonth(base);
+    const { rangeStart, rangeEnd } = getDateRangeAndLabelByGroup(
+      base,
+      'monthly',
+      timezone,
+    );
 
     const grouped = await this.prisma.transaction.groupBy({
       by: ['date', 'type'],
-      where: { userId, date: { gte: startDate, lte: endDate } },
+      where: { userId, date: { gte: rangeStart, lte: rangeEnd } },
       _sum: { amount: true },
     });
 
@@ -455,6 +380,11 @@ export class TransactionsService {
   }
 
   async createTransfer(userId: string, dto: TransactionTransferDTO) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      throw new Error('User not found');
+    }
+    const timezone = getUserTimezone(user);
     const { amount, fromAccountId, toAccountId, date, note, description } = dto;
 
     if (fromAccountId === toAccountId) {
@@ -488,7 +418,7 @@ export class TransactionsService {
           userId,
           accountId: fromAccountId,
           toAccountId,
-          date: new Date(date),
+          date: toUTC(date, timezone),
           note,
           description,
         },
@@ -503,7 +433,7 @@ export class TransactionsService {
           accountId: toAccountId,
           toAccountId: null,
           linkedTransferId: outgoing.id,
-          date: new Date(date),
+          date: toUTC(date, timezone),
           note,
           description,
         },
@@ -546,6 +476,11 @@ export class TransactionsService {
     id: string,
     dto: TransactionTransferDTO,
   ) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      throw new Error('User not found');
+    }
+    const timezone = getUserTimezone(user);
     const { amount, fromAccountId, toAccountId, date, note, description } = dto;
 
     if (fromAccountId === toAccountId) {
@@ -613,7 +548,7 @@ export class TransactionsService {
           accountId: toAccountId,
           toAccountId: null,
           linkedTransferId: original.id,
-          date: new Date(date),
+          date: toUTC(date, timezone),
           note,
           description,
         },
@@ -628,7 +563,7 @@ export class TransactionsService {
           accountId: fromAccountId,
           toAccountId,
           linkedTransferId: incoming.id,
-          date: new Date(date),
+          date: toUTC(date, timezone),
           note,
           description,
           categoryId: null, // ✅ 기존 income/expense일 경우 카테고리 제거

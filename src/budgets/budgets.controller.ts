@@ -7,6 +7,7 @@ import {
   Query,
   Put,
   Param,
+  ParseIntPipe,
 } from '@nestjs/common';
 import { BudgetsService } from './budgets.service';
 import { JwtAuthGuard } from '../common/guards/jwt.guard';
@@ -14,8 +15,11 @@ import { GetUser } from '../common/decorators/get-user.decorator';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { UserPayload } from 'src/auth/types/user-payload.type';
 import { BudgetQueryDto } from './dto/budget-query.dto';
-import { CreateBudgetCategoryDTO } from './dto/create-budget.dto';
-import { UpdateBudgetCategoryDTO } from './dto/budget-category.dto';
+import {
+  BudgetCategoryListDTO,
+  CreateBudgetCategoryDTO,
+  UpdateBudgetCategoryDTO,
+} from './dto/budget-category.dto';
 
 @ApiTags('Budgets')
 @ApiBearerAuth('access-token')
@@ -45,25 +49,39 @@ export class BudgetsController {
   @Get('by-category')
   @UseGuards(JwtAuthGuard)
   getByCategory(@GetUser() user: UserPayload, @Query() query: BudgetQueryDto) {
-    return this.budgetsService.getBudgetsByCategory(user.id, query);
+    return this.budgetsService.getBudgetCategories(user.id, query);
   }
 
   @Post('by-category')
   @UseGuards(JwtAuthGuard)
-  createForCategory(
+  createBudgetCategory(
     @GetUser() user: UserPayload,
     @Body() dto: CreateBudgetCategoryDTO,
   ) {
-    return this.budgetsService.createBudgetForCategory(user.id, dto);
+    return this.budgetsService.createBudgetCategory(user.id, dto);
   }
 
+  @UseGuards(JwtAuthGuard)
+  @Post('/by-category/:categoryId')
+  async getBudgetCategoryByCategoryId(
+    @GetUser() user: UserPayload,
+    @Param('categoryId') categoryId: string,
+    @Body() body: BudgetQueryDto,
+  ) {
+    return this.budgetsService.getGroupedBudgetCategories(
+      user.id,
+      categoryId,
+      body,
+    );
+  }
+  
   @Put('by-category/:id')
   @UseGuards(JwtAuthGuard)
-  updateBudgetForCategory(
+  updateBudgetCategory(
     @GetUser() user: UserPayload,
     @Param('id') budgetId: string,
     @Body() dto: UpdateBudgetCategoryDTO,
   ) {
-    return this.budgetsService.updateBudgetForCategory(user.id, budgetId, dto);
+    return this.budgetsService.updateBudgetCategory(user.id, budgetId, dto);
   }
 }

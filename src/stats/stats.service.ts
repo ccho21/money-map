@@ -1,6 +1,10 @@
-import { ForbiddenException, Injectable, Logger } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
-import { endOfDay, parseISO, startOfDay } from 'date-fns';
+import {
+  ForbiddenException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
+import { PrismaService } from 'src/prisma/prisma.service';
 import { StatsQuery } from './dto/stats-query.dto';
 import {
   StatsByCategory,
@@ -9,9 +13,10 @@ import {
 import { StatsByBudget, StatsByBudgetDTO } from './dto/stats-by-budget.dto';
 import { StatsByNote, StatsByNoteDTO } from './dto/stats-by-note.dto';
 import { TransactionSummaryDTO } from '@/transactions/dto/transaction.dto';
-import { fromZonedTime, toZonedTime } from 'date-fns-tz';
-import { getUserTimezone } from '@/common/util/timezone';
+import { getUserTimezone } from '@/libs/timezone';
 import { groupTransactions } from './util/group-transactions';
+import { toUTC, fromUTC, getDateRangeAndLabelByGroup } from '@/libs/date.util';
+import { parseISO } from 'date-fns';
 
 @Injectable()
 export class StatsService {
@@ -24,17 +29,13 @@ export class StatsService {
     query: StatsQuery,
   ): Promise<StatsByCategoryDTO> {
     const { startDate, endDate, type } = query;
-    const start = startOfDay(new Date(startDate));
-    const end = endOfDay(new Date(endDate));
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found');
+    const timezone = getUserTimezone(user);
 
-    this.logger.debug(`📊 getByCategory called with:
-    userId: ${userId}
-    type: ${type}
-    startDate: ${start.toISOString()}
-    endDate: ${end.toISOString()}
-    `);
+    const start = toUTC(startDate, timezone);
+    const end = toUTC(endDate, timezone);
 
-    // 1. 카테고리별 금액 groupBy
     const grouped = await this.prisma.transaction.groupBy({
       by: ['categoryId'],
       where: {
@@ -53,49 +54,41 @@ export class StatsService {
       };
     }
 
-    // 2. 관련 카테고리 정보 조회
     const categoryIds = grouped.map((g) => g.categoryId!);
     const categories = await this.prisma.category.findMany({
       where: { id: { in: categoryIds } },
     });
-
-    // 🔄 Map으로 최적화된 접근 구조 생성
     const categoryMap = new Map(categories.map((c) => [c.id, c]));
 
-    // 3. 최종 데이터 구성 + 전체 합계 집계
-    let totalIncome = 0;
-    let totalExpense = 0;
     const totalSpent = grouped.reduce(
       (sum, g) => sum + (g._sum.amount ?? 0),
       0,
     );
 
-    const result: StatsByCategory[] = [];
+    let totalIncome = 0;
+    let totalExpense = 0;
 
-    for (const group of grouped) {
+    const result: StatsByCategory[] = grouped.map((group) => {
       const category = categoryMap.get(group.categoryId!);
-      if (!category) continue;
-
-      const expense = group._sum.amount ?? 0;
+      const amount = group._sum.amount ?? 0;
       const rate =
         type === 'expense' && totalSpent > 0
-          ? Math.min((expense / totalSpent) * 100, 999)
+          ? Math.min((amount / totalSpent) * 100, 999)
           : 0;
 
-      if (category.type === 'income') totalIncome += expense;
-      else if (category.type === 'expense') totalExpense += expense;
+      if (category?.type === 'income') totalIncome += amount;
+      if (category?.type === 'expense') totalExpense += amount;
 
-      result.push({
+      return {
         categoryId: group.categoryId!,
-        categoryName: category.name,
-        categoryType: category.type,
-        color: category.color ?? '#999999',
-        expense,
+        categoryName: category?.name || 'Unknown',
+        categoryType: category?.type || 'expense',
+        color: category?.color ?? '#999999',
+        expense: amount,
         rate,
-      });
-    }
+      };
+    });
 
-    // 4. 지출 많은 순으로 정렬
     result.sort((a, b) => b.expense - a.expense);
 
     return {
@@ -111,10 +104,13 @@ export class StatsService {
   ): Promise<StatsByBudgetDTO> {
     const { startDate, endDate, type } = query;
 
-    const start = startOfDay(new Date(startDate));
-    const end = endOfDay(new Date(endDate));
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found');
+    const timezone = getUserTimezone(user);
 
-    // ✅ 2. 트랜잭션 합계 groupBy(categoryId)
+    const start = toUTC(startDate, timezone);
+    const end = toUTC(endDate, timezone);
+
     const transactions = await this.prisma.transaction.groupBy({
       by: ['categoryId'],
       where: {
@@ -127,54 +123,47 @@ export class StatsService {
       },
     });
 
-    // ✅ 3. 예산 + 카테고리 정보 가져오기
     const budgetCategories = await this.prisma.budgetCategory.findMany({
       where: {
-        budget: {
-          userId,
-        },
+        budget: { userId },
       },
       include: {
         category: true,
       },
     });
 
-    // ✅ 4. 각 항목 매핑
-    const data: StatsByBudget[] = transactions
-      .map((tx): StatsByBudget | null => {
-        const matched = budgetCategories.find(
-          (bc) => bc.categoryId === tx.categoryId,
-        );
+    const data: StatsByBudget[] = [];
 
-        if (!matched || !matched.category) return null;
+    for (const tx of transactions) {
+      const matched = budgetCategories.find(
+        (bc) => bc.categoryId === tx.categoryId,
+      );
 
-        const spent = tx._sum?.amount ?? 0;
-        const budget = matched.amount ?? 0;
-        const remaining = budget - spent;
+      if (!matched || !matched.category) continue;
 
-        return {
-          categoryId: tx.categoryId!,
-          categoryName: matched.category.name,
-          categoryType: matched.category.type,
-          icon: matched.category.icon,
-          color: matched.category.color ?? '#999999',
-          budget,
-          spent,
-          remaining,
-          rate: budget > 0 ? Math.min((spent / budget) * 100, 999) : 0,
-        };
-      })
-      .filter((item): item is StatsByBudget => item !== null); // ✅ 타입 좁히기
+      const spent = tx._sum?.amount ?? 0;
+      const budget = matched.amount ?? 0;
 
-    // ✅ 5. 합계 계산
+      data.push({
+        categoryId: tx.categoryId!,
+        categoryName: matched.category.name,
+        categoryType: matched.category.type,
+        icon: matched.category.icon,
+        color: matched.category.color ?? '#999999',
+        budget,
+        spent,
+        remaining: budget - spent,
+        rate: budget > 0 ? Math.min((spent / budget) * 100, 999) : 0,
+      });
+    }
+
     const totalBudget = data.reduce((acc, item) => acc + item.budget, 0);
     const totalSpent = data.reduce((acc, item) => acc + item.spent, 0);
-    const totalRemaining = totalBudget - totalSpent;
 
     return {
       totalBudget,
       totalSpent,
-      totalRemaining,
+      totalRemaining: totalBudget - totalSpent,
       data,
     };
   }
@@ -182,14 +171,18 @@ export class StatsService {
   async getByNote(userId: string, query: StatsQuery): Promise<StatsByNoteDTO> {
     const { type, startDate, endDate } = query;
 
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found');
+    const timezone = getUserTimezone(user);
+
+    const start = toUTC(startDate, timezone);
+    const end = toUTC(endDate, timezone);
+
     const transactions = await this.prisma.transaction.findMany({
       where: {
         userId,
-        date: {
-          gte: new Date(startDate),
-          lte: new Date(endDate),
-        },
-        type, // ✅ 이제 항상 'income' 또는 'expense'만 오니까 안전하게 직접 넣어도 됨
+        date: { gte: start, lte: end },
+        type,
       },
       select: {
         note: true,
@@ -211,7 +204,7 @@ export class StatsService {
       resultMap[note].amount += tx.amount;
 
       if (tx.type === 'income') totalIncome += tx.amount;
-      if (tx.type === 'expense') totalExpense += tx.amount;
+      else totalExpense += tx.amount;
     });
 
     return {
@@ -229,17 +222,11 @@ export class StatsService {
     const { startDate, endDate, groupBy, type } = query;
 
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user) throw new Error('User not found');
+    if (!user) throw new NotFoundException('User not found');
     const timezone = getUserTimezone(user);
 
-    const start = fromZonedTime(
-      startOfDay(toZonedTime(parseISO(startDate), timezone)),
-      timezone,
-    );
-    const end = fromZonedTime(
-      endOfDay(toZonedTime(parseISO(endDate), timezone)),
-      timezone,
-    );
+    const start = toUTC(startDate, timezone);
+    const end = toUTC(endDate, timezone);
 
     const transactions = await this.prisma.transaction.findMany({
       where: {
@@ -248,25 +235,25 @@ export class StatsService {
         type,
         date: { gte: start, lte: end },
       },
-      orderBy: { date: 'asc' },
       include: {
         category: true,
         account: true,
         toAccount: true,
       },
+      orderBy: { date: 'asc' },
     });
 
-    const data = groupTransactions(transactions, groupBy, timezone);
+    const grouped = groupTransactions(transactions, groupBy, timezone);
+    const incomeTotal = grouped.reduce((sum, d) => sum + d.incomeTotal, 0);
+    const expenseTotal = grouped.reduce((sum, d) => sum + d.expenseTotal, 0);
 
-    const incomeTotal = data.reduce((sum, d) => sum + d.incomeTotal, 0);
-    const expenseTotal = data.reduce((sum, d) => sum + d.expenseTotal, 0);
     return {
-      type: groupBy.toLowerCase() as 'daily' | 'weekly' | 'monthly' | 'yearly',
+      type: groupBy as 'daily' | 'weekly' | 'monthly' | 'yearly',
       startDate,
       endDate,
       incomeTotal,
       expenseTotal,
-      data,
+      data: grouped,
     };
   }
 
@@ -276,18 +263,13 @@ export class StatsService {
     query: StatsQuery,
   ): Promise<TransactionSummaryDTO> {
     const { startDate, endDate, type, groupBy } = query;
+
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user) throw new Error('User not found');
+    if (!user) throw new NotFoundException('User not found');
     const timezone = getUserTimezone(user);
 
-    const start = fromZonedTime(
-      startOfDay(toZonedTime(parseISO(startDate), timezone)),
-      timezone,
-    );
-    const end = fromZonedTime(
-      endOfDay(toZonedTime(parseISO(endDate), timezone)),
-      timezone,
-    );
+    const start = toUTC(startDate, timezone);
+    const end = toUTC(endDate, timezone);
 
     const budgetCategory = await this.prisma.budgetCategory.findUnique({
       where: { id: budgetCategoryId },
@@ -302,37 +284,30 @@ export class StatsService {
     }
 
     const transactions = await this.prisma.transaction.findMany({
+      where: {
+        userId,
+        type,
+        categoryId: budgetCategory.categoryId,
+        date: { gte: start, lte: end },
+      },
       include: {
         category: true,
         account: true,
         toAccount: true,
       },
-      where: {
-        userId,
-        type,
-        categoryId: budgetCategory.categoryId,
-
-        date: {
-          gte: new Date(start),
-          lte: new Date(end),
-        },
-      },
     });
 
-    const grouped = groupTransactions(transactions, groupBy, timezone); // 유틸 함수 사용
-
+    const grouped = groupTransactions(transactions, groupBy, timezone);
     const incomeTotal = grouped.reduce((sum, d) => sum + d.incomeTotal, 0);
     const expenseTotal = grouped.reduce((sum, d) => sum + d.expenseTotal, 0);
 
-    const summary: TransactionSummaryDTO = {
-      type: groupBy.toLowerCase() as 'daily' | 'weekly' | 'monthly' | 'yearly',
+    return {
+      type: groupBy as 'daily' | 'weekly' | 'monthly' | 'yearly',
       startDate,
       endDate,
       incomeTotal,
       expenseTotal,
       data: grouped,
     };
-
-    return summary;
   }
 }

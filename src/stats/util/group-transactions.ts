@@ -81,6 +81,7 @@ export function groupTransactions(
       toAccountId: tx.toAccountId ?? undefined,
       linkedTransferId: tx.linkedTransferId ?? undefined,
       date: tx.date.toISOString(),
+      createdAt: tx.createdAt.toISOString(),
       category: tx.category
         ? {
             id: tx.category.id,
