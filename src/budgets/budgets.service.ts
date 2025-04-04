@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   ConflictException,
   Injectable,
   Logger,
@@ -9,7 +8,6 @@ import { PrismaService } from '../prisma/prisma.service';
 import { BudgetQueryDto } from './dto/budget-query.dto';
 import { BudgetDTO, BudgetSummary, BudgetSummaryDTO } from './dto/budget.dto';
 import {
-  BudgetCategoryDTO,
   BudgetCategoryListDTO,
   CreateBudgetCategoryDTO,
   CreateBudgetCategoryResponseDTO,
@@ -22,11 +20,7 @@ import {
 } from './dto/budget-group.dto';
 import { CategoryType } from '@prisma/client';
 import { format, addMonths, isSameMonth, parseISO } from 'date-fns';
-import {
-  getLocalDate,
-  getDateRangeAndLabelByGroup,
-  toUTC,
-} from '@/libs/date.util';
+import { getLocalDate, toUTC } from '@/libs/date.util';
 
 @Injectable()
 export class BudgetsService {
