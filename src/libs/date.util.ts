@@ -1,7 +1,6 @@
 // 📄 경로: src/libs/date.util.ts
 import { toZonedTime, fromZonedTime, format } from 'date-fns-tz';
 import {
-  formatISO,
   startOfDay,
   endOfDay,
   endOfWeek,
@@ -10,6 +9,14 @@ import {
   endOfMonth,
   startOfYear,
   endOfYear,
+  addDays,
+  isSameDay,
+  addWeeks,
+  isSameWeek,
+  addMonths,
+  isSameMonth,
+  addYears,
+  isSameYear,
 } from 'date-fns';
 
 /**
@@ -39,9 +46,9 @@ export function getDateRangeAndLabelByGroup(
   groupBy: string,
   timezone: string,
 ) {
-  let rangeStart;
-  let rangeEnd;
-  let label;
+  let rangeStart: Date;
+  let rangeEnd: Date;
+  let label: string;
   const zonedDate = toZonedTime(date, timezone);
   switch (groupBy) {
     case 'daily':
@@ -79,4 +86,72 @@ export function formatZonedDate(
   fmt = 'yyyy-MM-dd HH:mm:ssXXX',
 ) {
   return format(fromZonedTime(date, timeZone), fmt, { timeZone });
+}
+
+export function getDateRangeList(
+  date: Date,
+  groupBy: 'daily' | 'weekly' | 'monthly' | 'yearly',
+  timezone: string,
+) {
+  const centerDate = toZonedTime(date, timezone);
+  const rangeList: {
+    label: string;
+    startDate: string;
+    endDate: string;
+    isCurrent: boolean;
+  }[] = [];
+
+  for (let i = -5; i <= 6; i++) {
+    let current: Date;
+    let startDate: Date;
+    let endDate: Date;
+    let label: string;
+    let isCurrent = false;
+
+    switch (groupBy) {
+      case 'daily':
+        current = addDays(centerDate, i);
+        startDate = startOfDay(current);
+        endDate = endOfDay(current);
+        label = format(current, 'MM-dd');
+        isCurrent = isSameDay(current, centerDate);
+        break;
+
+      case 'weekly':
+        current = addWeeks(centerDate, i);
+        startDate = startOfWeek(current, { weekStartsOn: 0 });
+        endDate = endOfWeek(current, { weekStartsOn: 0 });
+        label = format(startDate, 'MM/dd');
+        isCurrent = isSameWeek(current, centerDate, { weekStartsOn: 0 });
+        break;
+
+      case 'monthly':
+        current = addMonths(centerDate, i);
+        startDate = startOfMonth(current);
+        endDate = endOfMonth(current);
+        label = format(current, 'MMM');
+        isCurrent = isSameMonth(current, centerDate);
+        break;
+
+      case 'yearly':
+        current = addYears(centerDate, i);
+        startDate = startOfYear(current);
+        endDate = endOfYear(current);
+        label = format(current, 'yyyy');
+        isCurrent = isSameYear(current, centerDate);
+        break;
+
+      default:
+        throw new Error('Invalid groupBy');
+    }
+
+    rangeList.push({
+      label,
+      startDate: format(startDate, 'yyyy-MM-dd'),
+      endDate: format(endDate, 'yyyy-MM-dd'),
+      isCurrent,
+    });
+  }
+
+  return rangeList;
 }

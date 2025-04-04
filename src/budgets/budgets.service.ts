@@ -18,9 +18,9 @@ import {
   BudgetCategoryGroupItemDTO,
   BudgetCategoryGroupResponseDTO,
 } from './dto/budget-group.dto';
-import { CategoryType } from '@prisma/client';
-import { format, addMonths, isSameMonth, parseISO } from 'date-fns';
-import { getLocalDate, toUTC } from '@/libs/date.util';
+import { isSameDay, parseISO } from 'date-fns';
+import { getDateRangeList, getLocalDate, toUTC } from '@/libs/date.util';
+import { toZonedTime } from 'date-fns-tz';
 
 @Injectable()
 export class BudgetsService {
@@ -274,7 +274,6 @@ export class BudgetsService {
       message: 'Budget updated successfully.',
     };
   }
-
   async getGroupedBudgetCategories(
     userId: string,
     categoryId: string,
@@ -283,7 +282,7 @@ export class BudgetsService {
     const { startDate, endDate, groupBy } = query;
 
     if (!startDate || !endDate || !groupBy) {
-      throw new NotFoundException('startDate endDate, groupBy는 필수입니다.');
+      throw new NotFoundException('startDate, endDate, groupBy는 필수입니다.');
     }
 
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
@@ -291,66 +290,73 @@ export class BudgetsService {
     const timezone = user.timezone || 'Asia/Seoul';
 
     const baseDate = parseISO(startDate);
-
-    const months = Array.from({ length: 12 }, (_, i) => {
-      const start = addMonths(baseDate, i);
-      const end = addMonths(baseDate, i + 1);
-      return {
-        label: format(start, 'MMM'),
-        startDate: format(start, 'yyyy-MM-01'),
-        endDate: format(end, 'yyyy-MM-01'),
-      };
-    });
+    const ranges = getDateRangeList(baseDate, groupBy, timezone); // ✅ 중심 기준으로 12개 구간 생성
 
     const startUTC = toUTC(
-      getLocalDate(months[0].startDate, timezone),
+      getLocalDate(ranges[0].startDate, timezone),
       timezone,
     );
-    const endUTC = toUTC(getLocalDate(months[11].endDate, timezone), timezone);
+    const endUTC = toUTC(getLocalDate(ranges[11].endDate, timezone), timezone);
 
     const allBudgetCategories = await this.prisma.budgetCategory.findMany({
       where: {
         categoryId,
         category: { userId },
         startDate: { gte: startUTC },
-        endDate: { lt: endUTC },
+        endDate: { lte: endUTC },
       },
       include: {
         category: true,
       },
     });
-
+    allBudgetCategories.forEach((c) => {
+      console.log('s', toZonedTime(c.startDate, timezone));
+      console.log('e', toZonedTime(c.endDate, timezone));
+    });
+    console.log('### all budget', allBudgetCategories);
     if (!allBudgetCategories.length) {
       throw new NotFoundException('해당 카테고리 예산 정보가 없습니다.');
     }
 
     const categoryInfo = allBudgetCategories[0].category;
 
-    const budgets: BudgetCategoryGroupItemDTO[] = months.map((month) => {
-      const matched = allBudgetCategories.find(
+    let defaultAmount = 0;
+    for (const range of ranges) {
+      const match = allBudgetCategories.find(
         (b) =>
-          format(b.startDate, 'yyyy-MM-01') === month.startDate &&
-          format(b.endDate, 'yyyy-MM-01') === month.endDate,
+          isSameDay(b.startDate, getLocalDate(range.startDate, timezone)) &&
+          isSameDay(b.endDate, getLocalDate(range.endDate, timezone)),
       );
+      if (match) {
+        defaultAmount = match.amount;
+        break;
+      }
+    }
 
-      const isCurrent = isSameMonth(
-        parseISO(month.startDate),
-        parseISO(startDate),
-      );
+    const budgets: BudgetCategoryGroupItemDTO[] = ranges.map((range) => {
+      const matched = allBudgetCategories.find((b) => {
+        return (
+          isSameDay(b.startDate, getLocalDate(range.startDate, timezone)) &&
+          isSameDay(b.endDate, getLocalDate(range.endDate, timezone))
+        );
+      });
+
+      const amount = matched ? matched.amount : defaultAmount;
 
       return {
-        label: month.label,
-        startDate: month.startDate,
-        endDate: month.endDate,
-        budgetAmount: matched ? matched.amount : 100,
-        isCurrent,
+        label: range.label,
+        startDate: range.startDate,
+        endDate: range.endDate,
+        budgetAmount: amount,
+        isCurrent: range.isCurrent,
+        categoryId: matched ? matched.categoryId : undefined,
       };
     });
 
     return {
       categoryId,
       categoryName: categoryInfo.name,
-      type: categoryInfo.type as CategoryType,
+      type: categoryInfo.type,
       icon: categoryInfo.icon,
       color: categoryInfo.color ?? undefined,
       budgets,

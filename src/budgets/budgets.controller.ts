@@ -7,7 +7,6 @@ import {
   Query,
   Put,
   Param,
-  ParseIntPipe,
 } from '@nestjs/common';
 import { BudgetsService } from './budgets.service';
 import { JwtAuthGuard } from '../common/guards/jwt.guard';
@@ -16,7 +15,6 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { UserPayload } from 'src/auth/types/user-payload.type';
 import { BudgetQueryDto } from './dto/budget-query.dto';
 import {
-  BudgetCategoryListDTO,
   CreateBudgetCategoryDTO,
   UpdateBudgetCategoryDTO,
 } from './dto/budget-category.dto';
@@ -74,7 +72,7 @@ export class BudgetsController {
       body,
     );
   }
-  
+
   @Put('by-category/:id')
   @UseGuards(JwtAuthGuard)
   updateBudgetCategory(
