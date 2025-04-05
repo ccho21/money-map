@@ -15,6 +15,8 @@ import {
 import { getUserTimezone } from '@/libs/timezone';
 import {
   getDateRangeAndLabelByGroup,
+  getLocalDate,
+  getUTCDate,
   getValidDay,
   toUTC,
 } from '@/libs/date.util';
@@ -24,6 +26,7 @@ import {
 } from './dto/account-dashboard-response.dto';
 import { toZonedTime } from 'date-fns-tz';
 import { subMonths } from 'date-fns';
+import { Prisma, TransactionType } from '@prisma/client';
 
 @Injectable()
 export class AccountsService {
@@ -33,11 +36,12 @@ export class AccountsService {
   async create(userId: string, dto: CreateAccountDTO) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new Error('User not found');
-    const timezone = getUserTimezone(user);
-    const now = toZonedTime(new Date(), timezone);
 
-    const year = now.getFullYear();
-    const month = now.getMonth() + 1;
+    const timezone = getUserTimezone(user);
+    const now = toZonedTime(new Date(), timezone).toISOString();
+    const nowUTC = getLocalDate(now, timezone);
+    const year = nowUTC.getFullYear();
+    const month = nowUTC.getMonth() + 1;
 
     let settlementDate: number | null = null;
     let paymentDate: number | null = null;
@@ -55,21 +59,41 @@ export class AccountsService {
       autoPayment = dto.autoPayment ?? false;
     }
 
-    const account = await this.prisma.account.create({
-      data: {
-        userId,
-        name: dto.name,
-        balance: Number(dto.balance), // 초기 값 입력은 OK
-        description: dto.description ?? null,
-        type: dto.type,
-        color: dto.color ?? '#2196F3',
-        settlementDate,
-        paymentDate,
-        autoPayment,
-      },
-    });
+    return await this.prisma.$transaction(async (tx) => {
+      const account = await tx.account.create({
+        data: {
+          userId,
+          name: dto.name,
+          balance: 0, // ✅ 초기에는 0으로 설정 (잔액은 트랜잭션으로 반영됨)
+          description: dto.description ?? null,
+          type: dto.type,
+          color: dto.color ?? '#2196F3',
+          settlementDate,
+          paymentDate,
+          autoPayment,
+        },
+      });
 
-    return account;
+      // ✅ 초기 금액이 있다면 Opening Deposit 생성 (type = 'income')
+      if (dto.balance && Number(dto.balance) > 0) {
+        await tx.transaction.create({
+          data: {
+            userId,
+            accountId: account.id,
+            type: 'income',
+            amount: Number(dto.balance),
+            date: nowUTC, // 타임존 기반 UTC
+            note: 'Opening Balance',
+            description: 'Account created with initial balance',
+          },
+        });
+      }
+
+      // ✅ 계좌 잔액 재계산
+      await this.recalculateAccountBalanceInTx(tx, account.id);
+
+      return account;
+    });
   }
 
   async update(userId: string, accountId: string, dto: UpdateAccountDTO) {
@@ -288,11 +312,10 @@ export class AccountsService {
     if (!user) throw new Error('User not found');
 
     const timezone = getUserTimezone(user);
-    const nowUTC = toUTC(new Date(), timezone); // 현재 UTC 기준 시점
+    const nowUTC = toUTC(new Date(), timezone);
 
     try {
       const result = await this.prisma.$transaction(async (tx) => {
-        // ✅ 계좌 + 카드 트랜잭션 (부채 및 정산용)
         const [accounts, allCardTransactions] = await Promise.all([
           tx.account.findMany({
             where: { userId },
@@ -335,33 +358,9 @@ export class AccountsService {
             response.asset += account.balance;
           }
 
-          // ✅ 부채 계산 (카드만 대상)
-          let calculatedLiability = 0;
-          if (isCard) {
-            const cardTxs = allCardTransactions.filter(
-              (t) => t.accountId === account.id || t.toAccountId === account.id,
-            );
-
-            for (const tx of cardTxs) {
-              if (tx.type === 'expense' && tx.accountId === account.id) {
-                calculatedLiability += tx.amount;
-              } else if (tx.type === 'income' && tx.accountId === account.id) {
-                calculatedLiability -= tx.amount;
-              } else if (tx.type === 'transfer') {
-                if (tx.accountId === account.id && tx.toAccountId) {
-                  // 카드에서 출금한 트랜스퍼 ➜ 빚 증가
-                  calculatedLiability += tx.amount;
-                } else if (tx.accountId === account.id && !tx.toAccountId) {
-                  // 카드로 입금한 트랜스퍼 ➜ 빚 감소
-                  calculatedLiability -= tx.amount;
-                }
-              }
-            }
-
-            // ✅ 카드 잔액이 양수면 부채 없음, 음수부터 계산 반영
-            if (account.balance < 0) {
-              response.liability += Math.abs(account.balance);
-            }
+          // ✅ 카드 부채 계산 (잔액이 음수일 경우만 부채 반영)
+          if (isCard && account.balance < 0) {
+            response.liability += Math.abs(account.balance);
           }
 
           const base: AccountDashboardItemDTO = {
@@ -372,7 +371,7 @@ export class AccountsService {
             amount: account.balance,
           };
 
-          // ✅ 카드 정산 정보 (settlement 기준 balancePayable / outstanding)
+          // ✅ 정산 정보 추가
           if (isCard && account.settlementDate !== null) {
             const year = nowUTC.getFullYear();
             const month = nowUTC.getMonth() + 1;
@@ -397,51 +396,29 @@ export class AccountsService {
               (t) => t.accountId === account.id || t.toAccountId === account.id,
             );
 
-            // ✅ 정산 기간 내 트랜잭션 ➜ balancePayable 계산
+            // ✅ 정산 기간 내
             const balancePayable = cardTxs
               .filter((t) => t.date >= settleStart && t.date <= settleEnd)
-              .reduce((sum, t) => {
-                if (t.type === 'expense' && t.accountId === account.id)
-                  return sum - t.amount;
-                if (t.type === 'income' && t.accountId === account.id)
-                  return sum + t.amount;
-                if (t.type === 'transfer') {
-                  if (t.accountId === account.id && t.toAccountId)
-                    return sum - t.amount;
-                  if (t.accountId === account.id && !t.toAccountId)
-                    return sum + t.amount;
-                }
-                return sum;
-              }, 0);
+              .reduce(
+                (sum, tx) => sum + this.getTransactionDelta(tx, account.id),
+                0,
+              );
 
-            // ✅ 정산 이후 현재까지 ➜ outstandingBalance 계산
+            // ✅ 정산 이후 ~ 현재까지
             const outstandingBalance = cardTxs
               .filter((t) => t.date > settleEnd && t.date <= nowUTC)
-              .reduce((sum, t) => {
-                if (t.type === 'expense' && t.accountId === account.id)
-                  return sum - t.amount;
-                if (t.type === 'income' && t.accountId === account.id)
-                  return sum + t.amount;
-                if (t.type === 'transfer') {
-                  if (t.accountId === account.id && t.toAccountId)
-                    return sum - t.amount;
-                  if (t.accountId === account.id && !t.toAccountId)
-                    return sum + t.amount;
-                }
-                return sum;
-              }, 0);
+              .reduce(
+                (sum, tx) => sum + this.getTransactionDelta(tx, account.id),
+                0,
+              );
 
-            Object.assign(base, {
-              balancePayable,
-              outstandingBalance,
-            });
+            Object.assign(base, { balancePayable, outstandingBalance });
           }
 
           response.data[account.type].push(base);
         }
 
         response.total = response.asset - response.liability;
-
         return response;
       });
 
@@ -450,5 +427,79 @@ export class AccountsService {
       this.logger.error('📉 [getAccountsDashboard] 실패:', err);
       throw new Error('계좌 요약 정보를 불러오는 데 실패했습니다.');
     }
+  }
+
+  private getTransactionDelta(
+    tx: {
+      type: TransactionType;
+      amount: number;
+      accountId: string;
+      toAccountId?: string | null;
+    },
+    targetAccountId: string,
+  ): number {
+    if (tx.type === 'expense' && tx.accountId === targetAccountId)
+      return -tx.amount;
+
+    if (tx.type === 'income' && tx.accountId === targetAccountId)
+      return tx.amount;
+
+    if (tx.type === 'transfer') {
+      if (tx.accountId === targetAccountId && tx.toAccountId) return -tx.amount; // 출금
+      if (tx.accountId === targetAccountId && !tx.toAccountId) return tx.amount; // 입금 (linked)
+      if (tx.toAccountId === targetAccountId) return tx.amount; // 입금
+    }
+
+    return 0;
+  }
+
+  async recalculateAccountBalanceInTx(
+    tx: Prisma.TransactionClient,
+    accountId: string,
+  ): Promise<number> {
+    const account = await tx.account.findUnique({
+      where: { id: accountId },
+    });
+
+    if (!account) {
+      throw new NotFoundException('계좌를 찾을 수 없습니다.');
+    }
+
+    const transactions = await tx.transaction.findMany({
+      where: {
+        OR: [
+          { accountId },
+          { toAccountId: accountId }, // 입금용 transfer도 포함
+        ],
+      },
+    });
+
+    let newBalance = 0;
+
+    for (const txItem of transactions) {
+      const { type, amount } = txItem;
+
+      if (type === 'income' && txItem.accountId === accountId) {
+        newBalance += amount;
+      } else if (type === 'expense' && txItem.accountId === accountId) {
+        newBalance -= amount;
+      } else if (type === 'transfer') {
+        if (txItem.accountId === accountId && txItem.toAccountId) {
+          // 출금 → 마이너스
+          newBalance -= amount;
+        } else if (txItem.toAccountId === accountId) {
+          // 입금 → 플러스
+          newBalance += amount;
+        }
+      }
+    }
+
+    // ✅ DB에 최신 balance 반영
+    await tx.account.update({
+      where: { id: accountId },
+      data: { balance: newBalance },
+    });
+
+    return newBalance;
   }
 }

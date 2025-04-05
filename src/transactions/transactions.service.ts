@@ -556,86 +556,78 @@ export class TransactionsService {
       throw new BadRequestException('같은 계좌 간 이체는 허용되지 않습니다.');
     }
 
-    return await this.prisma.$transaction(async (tx) => {
-      // ✅ 출금 및 입금 계좌 조회
-      const [fromAccount, toAccount] = await Promise.all([
-        tx.account.findUnique({ where: { id: fromAccountId } }),
-        tx.account.findUnique({ where: { id: toAccountId } }),
-      ]);
+    return await this.prisma
+      .$transaction(async (tx) => {
+        // ✅ 계좌 확인
+        const [fromAccount, toAccount] = await Promise.all([
+          tx.account.findUnique({ where: { id: fromAccountId } }),
+          tx.account.findUnique({ where: { id: toAccountId } }),
+        ]);
 
-      if (!fromAccount || !toAccount) {
-        throw new NotFoundException('출금 또는 입금 계좌를 찾을 수 없습니다.');
-      }
+        if (!fromAccount || !toAccount) {
+          throw new NotFoundException(
+            '출금 또는 입금 계좌를 찾을 수 없습니다.',
+          );
+        }
 
-      if (fromAccount.userId !== userId || toAccount.userId !== userId) {
-        throw new ForbiddenException('본인의 계좌만 사용할 수 있습니다.');
-      }
+        if (fromAccount.userId !== userId || toAccount.userId !== userId) {
+          throw new ForbiddenException('본인의 계좌만 사용할 수 있습니다.');
+        }
 
-      // ✅ 자산 계좌에서 출금 시 잔액 부족 확인
-      const isFromCard = fromAccount.type === 'CARD';
-      if (!isFromCard && fromAccount.balance < amount) {
-        throw new BadRequestException('출금 계좌의 잔액이 부족합니다.');
-      }
+        // ✅ 자산 계좌 출금 시 잔액 체크
+        if (fromAccount.type !== 'CARD' && fromAccount.balance < amount) {
+          throw new BadRequestException('출금 계좌의 잔액이 부족합니다.');
+        }
 
-      // ✅ 트랜스퍼 트랜잭션 생성 (출금 + 입금)
-      const outTx = await tx.transaction.create({
-        data: {
-          type: 'transfer',
-          amount,
-          userId,
-          accountId: fromAccountId,
-          toAccountId,
-          date: getUTCDate(date, timezone),
-          note,
-          description,
-        },
+        // ✅ 트랜스퍼 트랜잭션 생성 (출금 → 입금)
+        const outTx = await tx.transaction.create({
+          data: {
+            type: 'transfer',
+            amount,
+            userId,
+            accountId: fromAccountId,
+            toAccountId,
+            date: getUTCDate(date, timezone),
+            note,
+            description,
+          },
+        });
+
+        const inTx = await tx.transaction.create({
+          data: {
+            type: 'transfer',
+            amount,
+            userId,
+            accountId: toAccountId,
+            toAccountId: null,
+            linkedTransferId: outTx.id,
+            date: getUTCDate(date, timezone),
+            note,
+            description,
+          },
+        });
+
+        // ✅ 상호 연결
+        await tx.transaction.update({
+          where: { id: outTx.id },
+          data: { linkedTransferId: inTx.id },
+        });
+
+        return { outgoing: outTx, incoming: inTx };
+      })
+      .then(async (result) => {
+        // ✅ 트랜잭션 후 잔액 재계산 (유틸 활용)
+        await Promise.all([
+          this.recalculateAccountBalance(fromAccountId),
+          this.recalculateAccountBalance(toAccountId),
+        ]);
+
+        return result;
+      })
+      .catch((err) => {
+        this.logger.error('❌ createTransfer 실패:', err);
+        throw new Error('이체 중 오류가 발생했습니다.');
       });
-
-      const inTx = await tx.transaction.create({
-        data: {
-          type: 'transfer',
-          amount,
-          userId,
-          accountId: toAccountId,
-          toAccountId: null,
-          linkedTransferId: outTx.id,
-          date: getUTCDate(date, timezone),
-          note,
-          description,
-        },
-      });
-
-      // ✅ 상호 연결
-      await tx.transaction.update({
-        where: { id: outTx.id },
-        data: { linkedTransferId: inTx.id },
-      });
-
-      // ✅ 잔액 계산 로직 (Charles 기준)
-      const toIsCard = toAccount.type === 'CARD';
-
-      const newFromBalance = isFromCard
-        ? fromAccount.balance // 카드 출금은 잔액 변동 없음
-        : fromAccount.balance - amount;
-
-      const newToBalance = toIsCard
-        ? toAccount.balance + amount // 카드 입금 = 부채 감소
-        : toAccount.balance + amount;
-
-      // ✅ 계좌 잔액 업데이트 (병렬 처리)
-      await Promise.all([
-        tx.account.update({
-          where: { id: fromAccountId },
-          data: { balance: newFromBalance },
-        }),
-        tx.account.update({
-          where: { id: toAccountId },
-          data: { balance: newToBalance },
-        }),
-      ]);
-
-      return { outgoing: outTx, incoming: inTx };
-    });
   }
 
   async updateTransfer(
@@ -824,59 +816,44 @@ export class TransactionsService {
     });
   }
 
-  private async recalculateAccountBalance(accountId: string): Promise<number> {
+  async recalculateAccountBalance(accountId: string) {
     const account = await this.prisma.account.findUnique({
       where: { id: accountId },
-      select: { type: true },
     });
-
-    if (!account) throw new Error('Account not found');
+    if (!account) throw new NotFoundException('계좌를 찾을 수 없습니다.');
 
     const transactions = await this.prisma.transaction.findMany({
       where: {
-        accountId,
-        // deletedAt: null,
-        type: { in: ['income', 'expense'] }, // ✅ transfer 제외
-      },
-      select: {
-        amount: true,
-        type: true,
+        OR: [
+          { accountId },
+          { toAccountId: accountId }, // 카드 입금 고려
+        ],
       },
     });
 
-    const balance = transactions.reduce((sum, t) => {
-      if (account.type === 'CARD') {
-        return t.type === 'expense'
-          ? sum + Number(t.amount) // 부채 증가
-          : sum - Number(t.amount); // 수입이면 부채 감소
-      } else {
-        return t.type === 'income'
-          ? sum + Number(t.amount)
-          : sum - Number(t.amount);
+    let newBalance = 0;
+
+    for (const tx of transactions) {
+      if (tx.type === 'income' && tx.accountId === accountId) {
+        newBalance += tx.amount;
+      } else if (tx.type === 'expense' && tx.accountId === accountId) {
+        newBalance -= tx.amount;
+      } else if (tx.type === 'transfer') {
+        if (tx.accountId === accountId && tx.toAccountId) {
+          // 출금
+          newBalance -= tx.amount;
+        } else if (tx.toAccountId === accountId) {
+          // 입금
+          newBalance += tx.amount;
+        }
       }
-    }, 0);
+    }
 
     await this.prisma.account.update({
       where: { id: accountId },
-      data: { balance },
+      data: { balance: newBalance },
     });
 
-    return balance;
-  }
-
-  // 공통 로직
-  private updateCardBalance(
-    current: number,
-    amount: number,
-    isCard: boolean,
-    isFrom: boolean,
-  ): number {
-    if (isCard) {
-      // 카드 계좌: 출금이면 부채 증가, 입금이면 부채 감소
-      return isFrom ? current + amount : current - amount;
-    } else {
-      // 일반 계좌: 출금이면 자산 감소, 입금이면 자산 증가
-      return isFrom ? current - amount : current + amount;
-    }
+    return newBalance;
   }
 }
