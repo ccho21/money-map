@@ -15,7 +15,7 @@ import {
 import { getUserTimezone } from '@/libs/timezone';
 import {
   getDateRangeAndLabelByGroup,
-  getLocalDate,
+  getUTCDate,
   getValidDay,
   toUTC,
 } from '@/libs/date.util';
@@ -38,7 +38,7 @@ export class AccountsService {
 
     const timezone = getUserTimezone(user);
     const now = toZonedTime(new Date(), timezone).toISOString();
-    const nowUTC = getLocalDate(now, timezone);
+    const nowUTC = getUTCDate(now, timezone);
     const year = nowUTC.getFullYear();
     const month = nowUTC.getMonth() + 1;
 
@@ -84,6 +84,7 @@ export class AccountsService {
             date: nowUTC, // 타임존 기반 UTC
             note: 'Opening Balance',
             description: 'Account created with initial balance',
+            isOpening: true,
           },
         });
       }
@@ -144,8 +145,7 @@ export class AccountsService {
     await this.prisma.transaction.updateMany({
       where: {
         accountId: accountId,
-        type: 'income',
-        note: 'Opening Balance',
+        isOpening: true,
       },
       data: {
         amount: Number(dto.balance),
@@ -382,6 +382,8 @@ export class AccountsService {
             type: account.type,
             financialType: accountType,
             amount: account.balance,
+            settlementDate: account.settlementDate || account.settlementDate,
+            paymentDate: account.settlementDate || account.settlementDate,
           };
 
           // ✅ 정산 정보 추가

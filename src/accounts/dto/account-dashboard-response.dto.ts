@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { AccountType } from '@prisma/client';
-import { IsNumber, IsOptional, IsString } from 'class-validator';
+import { IsInt, IsNumber, IsOptional, IsString } from 'class-validator';
 
 export class AccountDashboardItemDTO {
   @ApiProperty({ description: '계좌 ID' })
@@ -32,6 +32,14 @@ export class AccountDashboardItemDTO {
   @IsOptional()
   @IsNumber()
   outstandingBalance?: number;
+
+  @IsOptional()
+  @IsInt()
+  settlementDate?: number | null;
+
+  @IsOptional()
+  @IsInt()
+  paymentDate?: number | null;
 }
 
 class AccountDashboardDataDTO {

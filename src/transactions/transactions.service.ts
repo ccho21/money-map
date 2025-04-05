@@ -122,6 +122,10 @@ export class TransactionsService {
     });
     if (!existing) throw new NotFoundException('거래를 찾을 수 없습니다.');
 
+    if (existing.isOpening) {
+      throw new BadRequestException('Opening Balance는 삭제할 수 없습니다.');
+    }
+
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new Error('User not found');
 
@@ -164,6 +168,10 @@ export class TransactionsService {
 
     if (!existing) {
       throw new NotFoundException('거래를 찾을 수 없습니다.');
+    }
+
+    if (existing.isOpening) {
+      throw new BadRequestException('Opening Balance는 삭제할 수 없습니다.');
     }
 
     await this.prisma.$transaction(async (tx) => {

@@ -85,6 +85,7 @@ model Transaction {
 
   dueDate DateTime? // 카드 결제 예정일
   paidAt  DateTime? // 실제 결제 완료일
+  isOpening        Boolean      @default(false)
 }
 
 model Category {
