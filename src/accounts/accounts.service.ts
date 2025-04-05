@@ -14,9 +14,7 @@ import {
 } from './dto/account-grouped-transactions';
 import { getUserTimezone } from '@/libs/timezone';
 import {
-  fromUTC,
   getDateRangeAndLabelByGroup,
-  getLocalDate,
   getValidDay,
   toUTC,
 } from '@/libs/date.util';
@@ -24,7 +22,6 @@ import {
   AccountDashboardItemDTO,
   AccountDashboardResponseDTO,
 } from './dto/account-dashboard-response.dto';
-import { TransactionType } from '@prisma/client';
 import { toZonedTime } from 'date-fns-tz';
 import { subMonths } from 'date-fns';
 
@@ -291,12 +288,12 @@ export class AccountsService {
     if (!user) throw new Error('User not found');
 
     const timezone = getUserTimezone(user);
-    const now = fromUTC(new Date(), timezone);
+    const nowUTC = toUTC(new Date(), timezone); // 현재 UTC 기준 시점
 
     try {
       const result = await this.prisma.$transaction(async (tx) => {
-        // ✅ 계좌 + 트랜잭션 미리 조회 (한 번에)
-        const [accounts, cardTransactions, unpaidExpenses] = await Promise.all([
+        // ✅ 계좌 + 카드 트랜잭션 (부채 및 정산용)
+        const [accounts, allCardTransactions] = await Promise.all([
           tx.account.findMany({
             where: { userId },
             orderBy: { createdAt: 'asc' },
@@ -304,32 +301,21 @@ export class AccountsService {
           tx.transaction.findMany({
             where: {
               userId,
-              OR: [{ type: 'expense' }, { type: 'transfer' }],
               account: { type: 'CARD' },
+              type: { in: ['expense', 'income', 'transfer'] },
+              paidAt: null,
             },
             select: {
-              amount: true,
               type: true,
+              amount: true,
+              date: true,
               accountId: true,
               toAccountId: true,
             },
           }),
-          tx.transaction.findMany({
-            where: {
-              userId,
-              type: 'expense',
-              paidAt: null,
-              account: { type: 'CARD' },
-            },
-            select: {
-              amount: true,
-              date: true,
-              accountId: true,
-            },
-          }),
         ]);
 
-        const result: AccountDashboardResponseDTO = {
+        const response: AccountDashboardResponseDTO = {
           asset: 0,
           liability: 0,
           total: 0,
@@ -346,28 +332,36 @@ export class AccountsService {
 
           // ✅ 자산 누적
           if (accountType === 'ASSET') {
-            result.asset += account.balance;
+            response.asset += account.balance;
           }
 
-          // ✅ 카드 계좌는 트랜잭션 기준으로 부채 재계산
+          // ✅ 부채 계산 (카드만 대상)
           let calculatedLiability = 0;
           if (isCard) {
-            const relatedTxs = cardTransactions.filter(
+            const cardTxs = allCardTransactions.filter(
               (t) => t.accountId === account.id || t.toAccountId === account.id,
             );
 
-            for (const tx of relatedTxs) {
+            for (const tx of cardTxs) {
               if (tx.type === 'expense' && tx.accountId === account.id) {
-                calculatedLiability += tx.amount; // 지출 → 부채 증가
-              } else if (
-                tx.type === 'transfer' &&
-                tx.toAccountId === account.id
-              ) {
-                calculatedLiability -= tx.amount; // 갚음 → 부채 감소
+                calculatedLiability += tx.amount;
+              } else if (tx.type === 'income' && tx.accountId === account.id) {
+                calculatedLiability -= tx.amount;
+              } else if (tx.type === 'transfer') {
+                if (tx.accountId === account.id && tx.toAccountId) {
+                  // 카드에서 출금한 트랜스퍼 ➜ 빚 증가
+                  calculatedLiability += tx.amount;
+                } else if (tx.accountId === account.id && !tx.toAccountId) {
+                  // 카드로 입금한 트랜스퍼 ➜ 빚 감소
+                  calculatedLiability -= tx.amount;
+                }
               }
             }
 
-            result.liability += calculatedLiability;
+            // ✅ 카드 잔액이 양수면 부채 없음, 음수부터 계산 반영
+            if (account.balance < 0) {
+              response.liability += Math.abs(account.balance);
+            }
           }
 
           const base: AccountDashboardItemDTO = {
@@ -375,57 +369,85 @@ export class AccountsService {
             name: account.name,
             type: account.type,
             financialType: accountType,
-            amount: account.balance, // 실제 balance
+            amount: account.balance,
           };
 
-          // ✅ 카드 정산 정보
+          // ✅ 카드 정산 정보 (settlement 기준 balancePayable / outstanding)
           if (isCard && account.settlementDate !== null) {
-            const year = now.getFullYear();
-            const month = now.getMonth() + 1;
+            const year = nowUTC.getFullYear();
+            const month = nowUTC.getMonth() + 1;
 
-            const thisMonthSettleDay = getValidDay(
+            const settleEnd = new Date(
               year,
-              month,
-              account.settlementDate,
+              month - 1,
+              getValidDay(year, month, account.settlementDate),
             );
-            const settleEnd = new Date(year, month - 1, thisMonthSettleDay);
-
-            const prevMonth = subMonths(now, 1);
-            const prevSettleDay = getValidDay(
-              prevMonth.getFullYear(),
-              prevMonth.getMonth() + 1,
-              account.settlementDate,
-            );
+            const prevMonth = subMonths(nowUTC, 1);
             const settleStart = new Date(
               prevMonth.getFullYear(),
               prevMonth.getMonth(),
-              prevSettleDay + 1,
+              getValidDay(
+                prevMonth.getFullYear(),
+                prevMonth.getMonth() + 1,
+                account.settlementDate,
+              ) + 1,
             );
 
-            const expenses = unpaidExpenses.filter(
-              (t) => t.accountId === account.id,
+            const cardTxs = allCardTransactions.filter(
+              (t) => t.accountId === account.id || t.toAccountId === account.id,
             );
-            const balancePayable = expenses
+
+            // ✅ 정산 기간 내 트랜잭션 ➜ balancePayable 계산
+            const balancePayable = cardTxs
               .filter((t) => t.date >= settleStart && t.date <= settleEnd)
-              .reduce((sum, t) => sum + t.amount, 0);
+              .reduce((sum, t) => {
+                if (t.type === 'expense' && t.accountId === account.id)
+                  return sum - t.amount;
+                if (t.type === 'income' && t.accountId === account.id)
+                  return sum + t.amount;
+                if (t.type === 'transfer') {
+                  if (t.accountId === account.id && t.toAccountId)
+                    return sum - t.amount;
+                  if (t.accountId === account.id && !t.toAccountId)
+                    return sum + t.amount;
+                }
+                return sum;
+              }, 0);
+
+            // ✅ 정산 이후 현재까지 ➜ outstandingBalance 계산
+            const outstandingBalance = cardTxs
+              .filter((t) => t.date > settleEnd && t.date <= nowUTC)
+              .reduce((sum, t) => {
+                if (t.type === 'expense' && t.accountId === account.id)
+                  return sum - t.amount;
+                if (t.type === 'income' && t.accountId === account.id)
+                  return sum + t.amount;
+                if (t.type === 'transfer') {
+                  if (t.accountId === account.id && t.toAccountId)
+                    return sum - t.amount;
+                  if (t.accountId === account.id && !t.toAccountId)
+                    return sum + t.amount;
+                }
+                return sum;
+              }, 0);
 
             Object.assign(base, {
               balancePayable,
-              outstandingBalance: account.balance, // overpay 반영된 현재 상태
+              outstandingBalance,
             });
           }
 
-          result.data[account.type].push(base);
+          response.data[account.type].push(base);
         }
 
-        result.total = result.asset - result.liability;
+        response.total = response.asset - response.liability;
 
-        return result;
+        return response;
       });
 
       return result;
     } catch (err) {
-      this.logger.error('getAccountsDashboard 실패', err);
+      this.logger.error('📉 [getAccountsDashboard] 실패:', err);
       throw new Error('계좌 요약 정보를 불러오는 데 실패했습니다.');
     }
   }

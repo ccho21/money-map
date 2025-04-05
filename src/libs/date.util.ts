@@ -43,6 +43,11 @@ export function getLocalDate(dateStr: string, timeZone: string) {
   return toZonedTime(startLocal, timeZone);
 }
 
+export function getUTCDate(dateStr: string, timeZone: string) {
+  const startLocal = startOfDay(new Date(dateStr));
+  return fromZonedTime(startLocal, timeZone);
+}
+
 export function getValidDay(year: number, month: number, day: number): number {
   const lastDate = lastDayOfMonth(new Date(year, month - 1)).getDate();
   return Math.min(day, lastDate);

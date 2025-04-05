@@ -30,10 +30,8 @@ import { TransactionTransferDTO } from './dto/transaction-transfer.dto';
 import {
   getDateRangeAndLabelByGroup,
   getLocalDate,
-  toUTC,
+  getUTCDate,
 } from '@/libs/date.util';
-import { UserPayload } from '@/auth/types/user-payload.type';
-import { groupBy } from 'rxjs';
 
 export type TransactionFilterWhereInput = Prisma.TransactionWhereInput;
 
@@ -47,6 +45,7 @@ export class TransactionsService {
   ) {}
 
   async create(userId: string, dto: TransactionCreateDTO) {
+    console.log('## #DTO', dto);
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new Error('User not found');
 
@@ -74,7 +73,7 @@ export class TransactionsService {
           accountId: dto.accountId,
           note: dto.note,
           description: dto.description,
-          date: toUTC(dto.date, timezone),
+          date: getUTCDate(dto.date, timezone),
           userId,
         },
       });
@@ -212,7 +211,7 @@ export class TransactionsService {
           ...(dto.amount !== undefined && { amount: dto.amount }),
           ...(dto.categoryId && { categoryId: dto.categoryId }),
           ...(dto.accountId && { accountId: dto.accountId }),
-          ...(dto.date && { date: toUTC(dto.date, timezone) }),
+          ...(dto.date && { date: getUTCDate(dto.date, timezone) }),
           ...(dto.note !== undefined && { note: dto.note }),
           ...(dto.description !== undefined && {
             description: dto.description,
@@ -381,15 +380,15 @@ export class TransactionsService {
     query: SummaryRangeQueryDTO,
   ): Promise<TransactionSummaryDTO> {
     const { groupBy, startDate, endDate } = query;
-  
+
     // 1️⃣ 유저 인증 및 타임존 확보
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new ForbiddenException('사용자를 찾을 수 없습니다.');
-  
+
     const timezone = getUserTimezone(user);
     const start = getLocalDate(startDate, timezone);
     const end = getLocalDate(endDate, timezone);
-  
+
     // 2️⃣ 해당 기간의 모든 트랜잭션 조회 (income/expense/transfer만)
     const allTx = await this.prisma.transaction.findMany({
       where: {
@@ -404,25 +403,25 @@ export class TransactionsService {
         toAccount: true,
       },
     });
-  
+
     // 3️⃣ 트랜스퍼 중 입금 트랜잭션(toAccountId === null)은 제외
     const transactions = allTx.filter((tx) =>
       tx.type === 'transfer' ? tx.toAccountId !== null : true,
     );
-  
+
     // 4️⃣ 그룹화 및 요약 데이터 생성
     const grouped = new Map<
       string,
       { rangeStart: string; rangeEnd: string; transactions: TransactionDTO[] }
     >();
-  
+
     for (const tx of transactions) {
       const { label, rangeStart, rangeEnd } = getDateRangeAndLabelByGroup(
         tx.date,
         groupBy,
         timezone,
       );
-  
+
       if (!grouped.has(label)) {
         grouped.set(label, {
           rangeStart: format(rangeStart, 'yyyy-MM-dd'),
@@ -430,7 +429,7 @@ export class TransactionsService {
           transactions: [],
         });
       }
-  
+
       grouped.get(label)!.transactions.push({
         id: tx.id,
         type: tx.type,
@@ -467,12 +466,12 @@ export class TransactionsService {
           : undefined,
       });
     }
-  
+
     // 5️⃣ 요약 데이터 계산
     const data: TransactionSummary[] = [];
     let incomeTotal = 0;
     let expenseTotal = 0;
-  
+
     for (const [label, { rangeStart, rangeEnd, transactions }] of grouped) {
       const income = transactions
         .filter((t) => t.type === 'income')
@@ -480,10 +479,10 @@ export class TransactionsService {
       const expense = transactions
         .filter((t) => t.type === 'expense')
         .reduce((sum, t) => sum + t.amount, 0);
-  
+
       incomeTotal += income;
       expenseTotal += expense;
-  
+
       data.push({
         label,
         rangeStart,
@@ -493,7 +492,7 @@ export class TransactionsService {
         transactions,
       });
     }
-  
+
     // 6️⃣ 결과 반환
     return {
       type: groupBy,
@@ -504,7 +503,6 @@ export class TransactionsService {
       data,
     };
   }
-  
 
   async getTransactionCalendarView(
     userId: string,
@@ -587,7 +585,7 @@ export class TransactionsService {
           userId,
           accountId: fromAccountId,
           toAccountId,
-          date: toUTC(date, timezone),
+          date: getUTCDate(date, timezone),
           note,
           description,
         },
@@ -601,7 +599,7 @@ export class TransactionsService {
           accountId: toAccountId,
           toAccountId: null,
           linkedTransferId: outTx.id,
-          date: toUTC(date, timezone),
+          date: getUTCDate(date, timezone),
           note,
           description,
         },
@@ -706,7 +704,7 @@ export class TransactionsService {
           accountId: toAccountId,
           toAccountId: null,
           linkedTransferId: original.id,
-          date: toUTC(date, timezone),
+          date: getUTCDate(date, timezone),
           note,
           description,
         },
@@ -721,7 +719,7 @@ export class TransactionsService {
           accountId: fromAccountId,
           toAccountId,
           linkedTransferId: incoming.id,
-          date: toUTC(date, timezone),
+          date: getUTCDate(date, timezone),
           note,
           description,
           categoryId: null, // ✅ 안전 초기화
