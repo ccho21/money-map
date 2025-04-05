@@ -13,13 +13,14 @@ import { AccountsService } from './accounts.service';
 import { JwtAuthGuard } from 'src/common/guards/jwt.guard';
 import { UserPayload } from 'src/auth/types/user-payload.type';
 import { GetUser } from 'src/common/decorators/get-user.decorator';
-import { ApiQuery, ApiTags } from '@nestjs/swagger';
+import { ApiOkResponse, ApiQuery, ApiTags } from '@nestjs/swagger';
 import {
-  AccountTransactionFilterQueryDto,
+  AccountTransactionFilterQueryDTO,
   AccountTransactionSummaryDTO,
 } from './dto/account-grouped-transactions';
-import { CreateAccountDto } from './dto/create-account.dto';
-import { UpdateAccountDto } from './dto/update-account.dto';
+import { CreateAccountDTO } from './dto/create-account.dto';
+import { UpdateAccountDTO } from './dto/update-account.dto';
+import { AccountDashboardResponseDTO } from './dto/account-dashboard-response.dto';
 
 @ApiTags('Accounts')
 @UseGuards(JwtAuthGuard)
@@ -28,7 +29,7 @@ export class AccountsController {
   constructor(private readonly accountsService: AccountsService) {}
 
   @Post()
-  create(@Body() dto: CreateAccountDto, @GetUser() user: UserPayload) {
+  create(@Body() dto: CreateAccountDTO, @GetUser() user: UserPayload) {
     return this.accountsService.create(user.id, dto);
   }
 
@@ -47,11 +48,18 @@ export class AccountsController {
   @ApiQuery({ name: 'endDate', required: false, type: String })
   async getGroupedTransactions(
     @GetUser() user: UserPayload,
-    @Query() query: AccountTransactionFilterQueryDto,
+    @Query() query: AccountTransactionFilterQueryDTO,
   ): Promise<AccountTransactionSummaryDTO[]> {
     return this.accountsService.getGroupedTransactions(user.id, query);
   }
 
+  @Get('dashboard')
+  @ApiOkResponse({ type: [AccountDashboardResponseDTO] })
+  getAccountsDashboard(
+    @GetUser() user: UserPayload,
+  ): Promise<AccountDashboardResponseDTO> {
+    return this.accountsService.getAccountsDashboard(user.id);
+  }
   @Get('summary')
   getSummary(
     @GetUser() user: UserPayload,
@@ -72,7 +80,7 @@ export class AccountsController {
   update(
     @GetUser() user: UserPayload,
     @Param('id') id: string,
-    @Body() dto: UpdateAccountDto,
+    @Body() dto: UpdateAccountDTO,
   ) {
     return this.accountsService.update(user.id, id, dto);
   }

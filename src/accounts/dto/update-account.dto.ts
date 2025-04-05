@@ -1,6 +1,8 @@
 import { AccountType } from '@prisma/client';
 import {
+  IsBoolean,
   IsEnum,
+  IsInt,
   IsNotEmpty,
   IsNumber,
   IsOptional,
@@ -8,7 +10,7 @@ import {
   Min,
 } from 'class-validator';
 
-export class UpdateAccountDto {
+export class UpdateAccountDTO {
   @IsNotEmpty()
   name: string;
 
@@ -26,4 +28,16 @@ export class UpdateAccountDto {
   @IsOptional()
   @IsString()
   color?: string;
+
+  @IsOptional()
+  @IsInt()
+  settlementDate?: number;
+
+  @IsOptional()
+  @IsInt()
+  paymentDate?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  autoPayment?: boolean;
 }

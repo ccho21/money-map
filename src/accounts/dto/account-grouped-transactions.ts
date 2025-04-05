@@ -2,7 +2,7 @@ import { IsOptional, IsDateString } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { TransactionDTO } from 'src/transactions/dto/transaction.dto';
 
-export class AccountTransactionFilterQueryDto {
+export class AccountTransactionFilterQueryDTO {
   @ApiPropertyOptional({
     example: '2025-01-01',
     description: '시작 날짜 (ISO 형식)',

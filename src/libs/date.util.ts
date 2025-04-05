@@ -17,6 +17,8 @@ import {
   isSameMonth,
   addYears,
   isSameYear,
+  lastDayOfMonth,
+  subMonths,
 } from 'date-fns';
 
 /**
@@ -39,6 +41,11 @@ export function fromUTC(utcDate: Date, timeZone: string): Date {
 export function getLocalDate(dateStr: string, timeZone: string) {
   const startLocal = startOfDay(new Date(dateStr));
   return toZonedTime(startLocal, timeZone);
+}
+
+export function getValidDay(year: number, month: number, day: number): number {
+  const lastDate = lastDayOfMonth(new Date(year, month - 1)).getDate();
+  return Math.min(day, lastDate);
 }
 
 export function getDateRangeAndLabelByGroup(
@@ -154,4 +161,40 @@ export function getDateRangeList(
   }
 
   return rangeList;
+}
+
+export function getCardBillingRange(
+  now: Date,
+  settlementDate: number,
+): { billingStart: Date; billingEnd: Date } {
+  const year = now.getFullYear();
+  const month = now.getMonth() + 1;
+
+  // 이번달 정산일
+  const thisMonthSettlementDay = getValidDay(year, month, settlementDate);
+  const settlementDateThisMonth = new Date(
+    year,
+    month - 1,
+    thisMonthSettlementDay,
+  );
+
+  const previousMonth = subMonths(now, 1);
+  const prevSettlementDay = getValidDay(
+    previousMonth.getFullYear(),
+    previousMonth.getMonth() + 1,
+    settlementDate,
+  );
+  const settlementDatePrevMonth = new Date(
+    previousMonth.getFullYear(),
+    previousMonth.getMonth(),
+    prevSettlementDay,
+  );
+
+  const billingStart = new Date(settlementDatePrevMonth);
+  billingStart.setDate(billingStart.getDate() + 1); // 정산일 다음날부터
+
+  return {
+    billingStart,
+    billingEnd: settlementDateThisMonth,
+  };
 }

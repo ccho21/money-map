@@ -41,7 +41,7 @@ export class BudgetCategoryGroupItemDTO {
 
   @ApiProperty({ example: 'abc123', description: '카테고리 ID' })
   @IsString()
-  categoryId?: string;
+  categoryId?: string | null;
 }
 
 export class BudgetCategoryGroupResponseDTO {

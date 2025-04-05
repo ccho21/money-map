@@ -19,6 +19,17 @@ enum AccountType {
   CARD
 }
 
+enum CategoryType {
+  income
+  expense
+}
+
+enum TransactionType {
+  income
+  expense
+  transfer
+}
+
 model User {
   id                 String        @id @default(uuid())
   email              String        @unique
@@ -45,6 +56,11 @@ model Account {
   updatedAt         DateTime      @updatedAt
   transactions      Transaction[]
   incomingTransfers Transaction[] @relation("ToAccount")
+
+  // Credit CARD
+  settlementDate     Int?
+  paymentDate        Int?
+  autoPayment        Boolean?
 }
 
 model Transaction {
@@ -66,6 +82,9 @@ model Transaction {
 
   account   Account  @relation(fields: [accountId], references: [id])
   toAccount Account? @relation("ToAccount", fields: [toAccountId], references: [id])
+
+  dueDate     DateTime?        // 카드 결제 예정일
+  paidAt      DateTime?        // 실제 결제 완료일
 }
 
 model Category {
@@ -92,27 +111,16 @@ model Budget {
 }
 
 model BudgetCategory {
-  id         String   @id @default(uuid())
+  id         String @id @default(uuid())
   budgetId   String
   categoryId String
   amount     Int
 
-  startDate  DateTime // ✅ 추가
-  endDate    DateTime // ✅ 추가
+  startDate DateTime // ✅ 추가
+  endDate   DateTime // ✅ 추가
 
   budget   Budget   @relation(fields: [budgetId], references: [id])
   category Category @relation(fields: [categoryId], references: [id])
 
   @@unique([categoryId, startDate, endDate]) // ✅ 중복 방지
-}
-
-enum CategoryType {
-  income
-  expense
-}
-
-enum TransactionType {
-  income
-  expense
-  transfer
 }

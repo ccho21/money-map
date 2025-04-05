@@ -309,11 +309,7 @@ export class BudgetsService {
         category: true,
       },
     });
-    allBudgetCategories.forEach((c) => {
-      console.log('s', toZonedTime(c.startDate, timezone));
-      console.log('e', toZonedTime(c.endDate, timezone));
-    });
-    console.log('### all budget', allBudgetCategories);
+
     if (!allBudgetCategories.length) {
       throw new NotFoundException('해당 카테고리 예산 정보가 없습니다.');
     }
@@ -349,7 +345,7 @@ export class BudgetsService {
         endDate: range.endDate,
         budgetAmount: amount,
         isCurrent: range.isCurrent,
-        categoryId: matched ? matched.categoryId : undefined,
+        categoryId: matched ? matched.categoryId : null,
       };
     });
 

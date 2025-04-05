@@ -8,7 +8,7 @@ import {
   Min,
 } from 'class-validator';
 
-export class AccountDto {
+export class AccountDTO {
   @IsString()
   @IsNotEmpty()
   id: string;

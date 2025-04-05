@@ -5,10 +5,12 @@ import {
   IsString,
   IsNumber,
   Min,
+  IsInt,
+  IsBoolean,
 } from 'class-validator';
 import { AccountType } from '@prisma/client';
 
-export class CreateAccountDto {
+export class CreateAccountDTO {
   @IsString()
   @IsNotEmpty()
   name: string;
@@ -27,4 +29,16 @@ export class CreateAccountDto {
   @IsOptional()
   @IsString()
   color?: string;
+
+  @IsOptional()
+  @IsInt()
+  settlementDate?: number;
+
+  @IsOptional()
+  @IsInt()
+  paymentDate?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  autoPayment?: boolean;
 }

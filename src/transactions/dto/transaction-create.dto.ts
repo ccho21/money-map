@@ -27,4 +27,8 @@ export class TransactionCreateDTO {
   @IsOptional()
   @IsString()
   note?: string;
+
+  @IsOptional()
+  @IsString()
+  description?: string;
 }

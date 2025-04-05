@@ -109,8 +109,8 @@ export class TransactionsController {
     return this.transactionService.update(user.id, id, dto);
   }
 
-  // @Delete(':id')
-  // remove(@GetUser() user: UserPayload, @Param('id') id: string) {
-  //   return this.transactionService.remove(user.id, id);
-  // }
+  @Delete(':id')
+  delete(@GetUser() user: UserPayload, @Param('id') id: string) {
+    return this.transactionService.delete(user.id, id);
+  }
 }
