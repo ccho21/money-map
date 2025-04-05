@@ -45,7 +45,6 @@ export class TransactionsService {
   ) {}
 
   async create(userId: string, dto: TransactionCreateDTO) {
-    console.log('## #DTO', dto);
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new Error('User not found');
 
@@ -54,14 +53,16 @@ export class TransactionsService {
     const category = await this.prisma.category.findUnique({
       where: { id: dto.categoryId },
     });
-    if (!category) throw new NotFoundException('카테고리를 찾을 수 없습니다.');
+    if (!category) {
+      throw new NotFoundException('카테고리를 찾을 수 없습니다.');
+    }
 
     const account = await this.prisma.account.findUnique({
       where: { id: dto.accountId },
     });
-    if (!account) throw new NotFoundException('계좌를 찾을 수 없습니다.');
-
-    const isCard = account.type === 'CARD';
+    if (!account) {
+      throw new NotFoundException('계좌를 찾을 수 없습니다.');
+    }
 
     const transaction = await this.prisma.$transaction(async (tx) => {
       // ✅ 트랜잭션 생성
@@ -78,30 +79,13 @@ export class TransactionsService {
         },
       });
 
-      // ✅ 계좌 잔액 반영
-      const newBalance = (() => {
-        if (dto.type === 'income') {
-          return isCard
-            ? account.balance - dto.amount // 카드 수입은 부채 감소
-            : account.balance + dto.amount;
-        }
-        if (dto.type === 'expense') {
-          return isCard
-            ? account.balance + dto.amount // 카드 지출은 부채 증가
-            : account.balance - dto.amount;
-        }
-        return account.balance;
-      })();
-
-      await tx.account.update({
-        where: { id: dto.accountId },
-        data: { balance: newBalance },
-      });
+      // ✅ 계좌 잔액 재계산
+      await this.recalculateAccountBalanceInTx(tx, dto.accountId);
 
       return created;
     });
 
-    // ✅ 예산 초과 경고는 트랜잭션 외부 (성능 + 실시간 처리)
+    // ✅ 예산 초과 경고는 트랜잭션 외부에서 처리
     const budgetItem = await this.prisma.budgetCategory.findFirst({
       where: {
         categoryId: dto.categoryId,
@@ -133,78 +117,18 @@ export class TransactionsService {
   }
 
   async update(userId: string, id: string, dto: TransactionUpdateDTO) {
+    const existing = await this.prisma.transaction.findFirst({
+      where: { id, userId },
+    });
+    if (!existing) throw new NotFoundException('거래를 찾을 수 없습니다.');
+
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new Error('User not found');
 
-    const existing = await this.prisma.transaction.findUnique({
-      where: { id },
-      include: { account: true },
-    });
-
-    if (!existing || existing.userId !== userId) {
-      throw new NotFoundException('수정할 거래를 찾을 수 없습니다.');
-    }
-
-    // transfer는 updateTransfer에서 처리해야 함
-    if (existing.type === 'transfer') {
-      throw new BadRequestException('트랜스퍼 거래는 별도 API를 사용하세요.');
-    }
-
     const timezone = getUserTimezone(user);
 
-    return await this.prisma.$transaction(async (tx) => {
-      const oldAccount = await tx.account.findUnique({
-        where: { id: existing.accountId },
-      });
-      const newAccountId = dto.accountId ?? existing.accountId;
-      const newAccount = await tx.account.findUnique({
-        where: { id: newAccountId },
-      });
-
-      if (!oldAccount || !newAccount) {
-        throw new NotFoundException('계좌 정보를 찾을 수 없습니다.');
-      }
-
-      const isOldCard = oldAccount.type === 'CARD';
-      const isNewCard = newAccount.type === 'CARD';
-
-      const oldAmount = existing.amount;
-      const newAmount = dto.amount ?? oldAmount;
-
-      const newType = dto.type ?? existing.type;
-
-      // ✅ 기존 금액 복원 (원상복구)
-      const restoredOldBalance = (() => {
-        if (existing.type === 'income') {
-          return isOldCard
-            ? oldAccount.balance - oldAmount
-            : oldAccount.balance - oldAmount;
-        }
-        if (existing.type === 'expense') {
-          return isOldCard
-            ? oldAccount.balance + oldAmount
-            : oldAccount.balance + oldAmount;
-        }
-        return oldAccount.balance;
-      })();
-
-      // ✅ 새로운 금액 적용
-      const updatedNewBalance = (() => {
-        if (newType === 'income') {
-          return isNewCard
-            ? newAccount.balance + newAmount
-            : newAccount.balance + newAmount;
-        }
-        if (newType === 'expense') {
-          return isNewCard
-            ? newAccount.balance - newAmount
-            : newAccount.balance - newAmount;
-        }
-        return newAccount.balance;
-      })();
-
-      // ✅ 트랜잭션 업데이트
-      const updatedTransaction = await tx.transaction.update({
+    const updatedTransaction = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.transaction.update({
         where: { id },
         data: {
           ...(dto.type && { type: dto.type }),
@@ -219,70 +143,42 @@ export class TransactionsService {
         },
       });
 
-      // ✅ 잔액 수정
-      await Promise.all([
-        tx.account.update({
-          where: { id: oldAccount.id },
-          data: { balance: restoredOldBalance },
-        }),
-        tx.account.update({
-          where: { id: newAccount.id },
-          data: { balance: updatedNewBalance },
-        }),
-      ]);
+      // ✅ 기존 계좌 잔액 재계산
+      await this.recalculateAccountBalanceInTx(tx, existing.accountId);
 
-      return updatedTransaction;
-    });
-  }
-
-  async delete(userId: string, id: string): Promise<{ success: true }> {
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user) throw new Error('User not found');
-
-    const transaction = await this.prisma.transaction.findUnique({
-      where: { id },
-    });
-
-    if (!transaction || transaction.userId !== userId) {
-      throw new NotFoundException('삭제할 거래를 찾을 수 없습니다.');
-    }
-
-    return await this.prisma.$transaction(async (tx) => {
-      const account = await tx.account.findUnique({
-        where: { id: transaction.accountId },
-      });
-
-      if (!account) {
-        throw new NotFoundException('계좌 정보를 찾을 수 없습니다.');
+      // ✅ 계좌가 변경된 경우 새 계좌도 재계산
+      if (dto.accountId && dto.accountId !== existing.accountId) {
+        await this.recalculateAccountBalanceInTx(tx, dto.accountId);
       }
 
-      const isCard = account.type === 'CARD';
+      return updated;
+    });
 
-      // ✅ 삭제된 트랜잭션 반영 → 잔액 수정
-      const newBalance = (() => {
-        if (transaction.type === 'income') {
-          return isCard
-            ? account.balance - transaction.amount // 카드 계좌: 수입은 부채 감소 → 제거 시 증가
-            : account.balance - transaction.amount;
-        }
+    return updatedTransaction;
+  }
 
-        if (transaction.type === 'expense') {
-          return isCard
-            ? account.balance + transaction.amount // 카드 계좌: 지출은 부채 증가 → 제거 시 감소
-            : account.balance + transaction.amount;
-        }
+  async delete(userId: string, id: string): Promise<void> {
+    const existing = await this.prisma.transaction.findFirst({
+      where: { id, userId },
+    });
 
-        return account.balance; // transfer는 여기서 처리 안 함
-      })();
+    if (!existing) {
+      throw new NotFoundException('거래를 찾을 수 없습니다.');
+    }
 
-      await tx.transaction.delete({ where: { id } });
-
-      await tx.account.update({
-        where: { id: account.id },
-        data: { balance: newBalance },
+    await this.prisma.$transaction(async (tx) => {
+      // ✅ 트랜잭션 삭제
+      await tx.transaction.delete({
+        where: { id },
       });
 
-      return { success: true };
+      // ✅ 잔액 재계산 (기존 계좌)
+      await this.recalculateAccountBalanceInTx(tx, existing.accountId);
+
+      // ✅ transfer인 경우 입금 계좌도 재계산 필요
+      if (existing.type === 'transfer' && existing.toAccountId) {
+        await this.recalculateAccountBalanceInTx(tx, existing.toAccountId);
+      }
     });
   }
 
@@ -655,14 +551,13 @@ export class TransactionsService {
     }
 
     return await this.prisma.$transaction(async (tx) => {
-      // ✅ 계좌 조회
       const [fromAccount, toAccount] = await Promise.all([
         tx.account.findUnique({ where: { id: fromAccountId } }),
         tx.account.findUnique({ where: { id: toAccountId } }),
       ]);
 
       if (!fromAccount || !toAccount) {
-        throw new NotFoundException('출금 또는 입금 계좌를 찾을 수 없습니다.');
+        throw new NotFoundException('계좌 정보를 찾을 수 없습니다.');
       }
 
       if (fromAccount.userId !== userId || toAccount.userId !== userId) {
@@ -670,9 +565,7 @@ export class TransactionsService {
       }
 
       const fromIsCard = fromAccount.type === 'CARD';
-      const toIsCard = toAccount.type === 'CARD';
 
-      // ✅ 자산 계좌는 잔액 체크 필요
       if (!fromIsCard) {
         const simulated = fromAccount.balance + original.amount - amount;
         if (simulated < 0) {
@@ -680,14 +573,14 @@ export class TransactionsService {
         }
       }
 
-      // ✅ 기존 linkedTransfer 삭제
+      // 기존 입금 트랜잭션 제거
       if (original.type === 'transfer' && original.linkedTransferId) {
         await tx.transaction.delete({
           where: { id: original.linkedTransferId },
         });
       }
 
-      // ✅ 새로운 입금 트랜잭션 생성
+      // 새 입금 트랜잭션 생성
       const incoming = await tx.transaction.create({
         data: {
           type: 'transfer',
@@ -702,7 +595,7 @@ export class TransactionsService {
         },
       });
 
-      // ✅ 기존 출금 트랜잭션 수정
+      // 기존 출금 트랜잭션 업데이트
       const outgoing = await tx.transaction.update({
         where: { id },
         data: {
@@ -714,39 +607,20 @@ export class TransactionsService {
           date: getUTCDate(date, timezone),
           note,
           description,
-          categoryId: null, // ✅ 안전 초기화
+          categoryId: null,
         },
       });
 
-      // ✅ 잔액 수정 (기존 → 롤백 후 → 새로운 반영)
-      const newFromBalance = fromIsCard
-        ? fromAccount.balance - original.amount + amount
-        : fromAccount.balance + original.amount - amount;
-
-      const newToBalance = toIsCard
-        ? toAccount.balance + original.amount - amount
-        : toAccount.balance - original.amount + amount;
-
+      // ✅ 잔액 재계산
       await Promise.all([
-        tx.account.update({
-          where: { id: fromAccountId },
-          data: { balance: newFromBalance },
-        }),
-        tx.account.update({
-          where: { id: toAccountId },
-          data: { balance: newToBalance },
-        }),
+        this.recalculateAccountBalanceInTx(tx, fromAccountId),
+        this.recalculateAccountBalanceInTx(tx, toAccountId),
       ]);
 
       return { updatedOutgoing: outgoing, updatedIncoming: incoming };
     });
   }
-
   async deleteTransfer(userId: string, id: string) {
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user) throw new Error('User not found');
-
-    // ✅ 원본(출금) 트랜잭션 조회
     const outgoing = await this.prisma.transaction.findUnique({
       where: { id },
       include: { account: true },
@@ -760,39 +634,16 @@ export class TransactionsService {
       throw new NotFoundException('삭제할 트랜잭션을 찾을 수 없습니다.');
     }
 
-    // ✅ 연결된 입금 트랜잭션 조회
     const incoming = await this.prisma.transaction.findUnique({
       where: { id: outgoing.linkedTransferId ?? undefined },
       include: { account: true },
     });
 
     if (!incoming) {
-      throw new NotFoundException('연결된 트랜잭션이 없습니다.');
+      throw new NotFoundException('연결된 입금 트랜잭션을 찾을 수 없습니다.');
     }
 
-    return await this.prisma.$transaction(async (tx) => {
-      // ✅ 계좌 조회 (잔액 계산용)
-      const [fromAccount, toAccount] = await Promise.all([
-        tx.account.findUnique({ where: { id: outgoing.accountId } }),
-        tx.account.findUnique({ where: { id: incoming.accountId } }),
-      ]);
-
-      if (!fromAccount || !toAccount) {
-        throw new NotFoundException('계좌 정보를 찾을 수 없습니다.');
-      }
-
-      const fromIsCard = fromAccount.type === 'CARD';
-      const toIsCard = toAccount.type === 'CARD';
-
-      // ✅ 잔액 복원: 기존 트랜스퍼를 "되돌리기"
-      const newFromBalance = fromIsCard
-        ? fromAccount.balance + outgoing.amount
-        : fromAccount.balance + outgoing.amount;
-
-      const newToBalance = toIsCard
-        ? toAccount.balance - incoming.amount
-        : toAccount.balance - incoming.amount;
-
+    await this.prisma.$transaction(async (tx) => {
       // ✅ 트랜잭션 삭제
       await tx.transaction.deleteMany({
         where: {
@@ -800,20 +651,14 @@ export class TransactionsService {
         },
       });
 
-      // ✅ 잔액 수정 (되돌리기)
+      // ✅ 잔액 재계산
       await Promise.all([
-        tx.account.update({
-          where: { id: fromAccount.id },
-          data: { balance: newFromBalance },
-        }),
-        tx.account.update({
-          where: { id: toAccount.id },
-          data: { balance: newToBalance },
-        }),
+        this.recalculateAccountBalanceInTx(tx, outgoing.accountId),
+        this.recalculateAccountBalanceInTx(tx, incoming.accountId),
       ]);
-
-      return { success: true };
     });
+
+    return { success: true };
   }
 
   async recalculateAccountBalance(accountId: string) {
@@ -855,5 +700,41 @@ export class TransactionsService {
     });
 
     return newBalance;
+  }
+
+  private async recalculateAccountBalanceInTx(
+    tx: Prisma.TransactionClient,
+    accountId: string,
+  ) {
+    const transactions = await tx.transaction.findMany({
+      where: {
+        OR: [{ accountId }, { toAccountId: accountId }],
+      },
+    });
+
+    let balance = 0;
+
+    for (const tx of transactions) {
+      if (tx.type === 'income' && tx.accountId === accountId) {
+        balance += tx.amount;
+      } else if (tx.type === 'expense' && tx.accountId === accountId) {
+        balance -= tx.amount;
+      } else if (tx.type === 'transfer') {
+        if (tx.accountId === accountId && tx.toAccountId) {
+          // 출금 트랜스퍼
+          balance -= tx.amount;
+        } else if (tx.toAccountId === accountId) {
+          // 입금 트랜스퍼
+          balance += tx.amount;
+        }
+      }
+    }
+
+    await tx.account.update({
+      where: { id: accountId },
+      data: { balance },
+    });
+
+    return balance;
   }
 }

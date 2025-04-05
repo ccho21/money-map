@@ -16,7 +16,6 @@ import { getUserTimezone } from '@/libs/timezone';
 import {
   getDateRangeAndLabelByGroup,
   getLocalDate,
-  getUTCDate,
   getValidDay,
   toUTC,
 } from '@/libs/date.util';
@@ -100,13 +99,12 @@ export class AccountsService {
     const account = await this.prisma.account.findUnique({
       where: { id: accountId },
     });
+    if (!account) throw new NotFoundException('Account not found');
+
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new Error('User not found');
-    const timezone = getUserTimezone(user);
 
-    if (!account) {
-      throw new Error('Account not found');
-    }
+    const timezone = getUserTimezone(user);
     const now = toZonedTime(new Date(), timezone);
     const year = now.getFullYear();
     const month = now.getMonth() + 1;
@@ -127,11 +125,12 @@ export class AccountsService {
       autoPayment = dto.autoPayment ?? false;
     }
 
-    return this.prisma.account.update({
+    // ✅ 계좌 정보 업데이트
+    const updated = await this.prisma.account.update({
       where: { id: accountId },
       data: {
         name: dto.name,
-        balance: Number(dto.balance),
+        balance: Number(dto.balance), // ← 이건 잔액 백업용, 계산은 트랜잭션으로
         description: dto.description ?? null,
         type: dto.type,
         color: dto.color ?? '#2196F3',
@@ -140,6 +139,20 @@ export class AccountsService {
         autoPayment,
       },
     });
+
+    // ✅ Opening Deposit 트랜잭션 찾아서 amount 업데이트
+    await this.prisma.transaction.updateMany({
+      where: {
+        accountId: accountId,
+        type: 'income',
+        note: 'Opening Balance',
+      },
+      data: {
+        amount: Number(dto.balance),
+      },
+    });
+
+    return updated;
   }
 
   async findAll(userId: string) {

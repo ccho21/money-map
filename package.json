@@ -10,7 +10,6 @@
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
     "start:dev": "nest start --watch",
-    "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "test": "jest",
@@ -21,7 +20,8 @@
     "reset": "npx tsx prisma/reset.ts",
     "seed": "npx tsx prisma/seed.ts",
     "refresh": "npm run reset && npm run seed",
-    "dev:init": "npx prisma migrate reset && npx prisma generate && npm run refresh"
+    "dev:init": "npx prisma migrate reset && npx prisma generate && npm run refresh",
+    "start:debug": "node --inspect -r ts-node/register -r tsconfig-paths/register src/main.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
