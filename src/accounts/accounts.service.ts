@@ -7,7 +7,10 @@ import {
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateAccountDTO } from './dto/create-account.dto';
 import { UpdateAccountDTO } from './dto/update-account.dto';
-import { TransactionDTO } from 'src/transactions/dto/transaction.dto';
+import {
+  TransactionDTO,
+  TransactionSummaryDTO,
+} from 'src/transactions/dto/transaction.dto';
 import {
   AccountTransactionFilterQueryDTO,
   AccountTransactionSummaryDTO,
@@ -16,6 +19,8 @@ import { getUserTimezone } from '@/libs/timezone';
 import {
   getDateRangeAndLabelByGroup,
   getUTCDate,
+  getUTCEndDate,
+  getUTCStartDate,
   getValidDay,
   toUTC,
 } from '@/libs/date.util';
@@ -24,8 +29,9 @@ import {
   AccountDashboardResponseDTO,
 } from './dto/account-dashboard-response.dto';
 import { toZonedTime } from 'date-fns-tz';
-import { subMonths } from 'date-fns';
+import { format, subMonths } from 'date-fns';
 import { Prisma, TransactionType } from '@prisma/client';
+import { FilterAccountSummaryDto } from './dto/filter-account-summary.dto';
 
 @Injectable()
 export class AccountsService {
@@ -442,6 +448,145 @@ export class AccountsService {
       this.logger.error('📉 [getAccountsDashboard] 실패:', err);
       throw new Error('계좌 요약 정보를 불러오는 데 실패했습니다.');
     }
+  }
+
+  async getAccountSummary(
+    accountId: string,
+    userId: string,
+    filter: FilterAccountSummaryDto,
+  ): Promise<TransactionSummaryDTO> {
+    const { startDate, endDate, groupBy } = filter;
+
+    // 1️⃣ 유저 확인 및 타임존 설정
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new Error('User not found');
+    const timezone = getUserTimezone(user);
+    const utcStart = getUTCStartDate(startDate, timezone);
+    const utcEnd = getUTCEndDate(endDate, timezone);
+
+    // 2️⃣ 관련 트랜잭션 조회 (transfer 제외 조건 포함)
+    const allTx = await this.prisma.transaction.findMany({
+      where: {
+        userId,
+        accountId,
+        date: { gte: utcStart, lte: utcEnd },
+        OR: [
+          { type: TransactionType.income },
+          { type: TransactionType.expense },
+          { type: TransactionType.transfer },
+        ],
+      },
+      orderBy: { date: 'asc' },
+      include: {
+        category: true,
+        account: true,
+        toAccount: true,
+      },
+    });
+
+    // 3️⃣ transfer 중 toAccountId === null (입금) 제거
+    const filteredTx = allTx.filter(
+      (tx) => tx.type !== TransactionType.transfer || tx.toAccountId !== null,
+    );
+
+    // 4️⃣ 그룹별로 트랜잭션 분류
+    const grouped = new Map<
+      string,
+      {
+        rangeStart: string;
+        rangeEnd: string;
+        transactions: TransactionSummaryDTO['data'][number]['transactions'];
+      }
+    >();
+
+    for (const tx of filteredTx) {
+      const { label, rangeStart, rangeEnd } = getDateRangeAndLabelByGroup(
+        tx.date,
+        groupBy,
+        timezone,
+      );
+
+      if (!grouped.has(label)) {
+        grouped.set(label, {
+          rangeStart: format(rangeStart, 'yyyy-MM-dd'),
+          rangeEnd: format(rangeEnd, 'yyyy-MM-dd'),
+          transactions: [],
+        });
+      }
+
+      grouped.get(label)!.transactions.push({
+        id: tx.id,
+        type: tx.type,
+        amount: tx.amount,
+        note: tx.note ?? '',
+        description: tx.description ?? '',
+        accountId: tx.accountId,
+        toAccountId: tx.toAccountId ?? undefined,
+        linkedTransferId: tx.linkedTransferId ?? undefined,
+        date: tx.date.toISOString(),
+        createdAt: tx.createdAt.toISOString(),
+        category: tx.category
+          ? {
+              id: tx.category.id,
+              name: tx.category.name,
+              icon: tx.category.icon,
+              type: tx.category.type,
+              color: tx.category.color ?? '',
+            }
+          : undefined,
+        account: {
+          id: tx.account.id,
+          name: tx.account.name,
+          type: tx.account.type,
+          color: tx.account.color ?? undefined,
+        },
+        toAccount: tx.toAccount
+          ? {
+              id: tx.toAccount.id,
+              name: tx.toAccount.name,
+              type: tx.toAccount.type,
+              color: tx.toAccount.color ?? undefined,
+            }
+          : undefined,
+      });
+    }
+
+    // 5️⃣ 그룹 요약 데이터 계산
+    const data: TransactionSummaryDTO['data'] = [];
+    let incomeTotal = 0;
+    let expenseTotal = 0;
+
+    for (const [label, { rangeStart, rangeEnd, transactions }] of grouped) {
+      const income = transactions
+        .filter((t) => t.type === TransactionType.income)
+        .reduce((sum, t) => sum + t.amount, 0);
+
+      const expense = transactions
+        .filter((t) => t.type === TransactionType.expense)
+        .reduce((sum, t) => sum + t.amount, 0);
+
+      incomeTotal += income;
+      expenseTotal += expense;
+
+      data.push({
+        label,
+        rangeStart,
+        rangeEnd,
+        incomeTotal: income,
+        expenseTotal: expense,
+        transactions,
+      });
+    }
+
+    // 6️⃣ 최종 결과 반환
+    return {
+      type: groupBy,
+      startDate,
+      endDate,
+      incomeTotal,
+      expenseTotal,
+      data,
+    };
   }
 
   private getTransactionDelta(

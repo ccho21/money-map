@@ -38,6 +38,15 @@ export function fromUTC(utcDate: Date, timeZone: string): Date {
 /**
  * get local timezoned date with 00:00
  */
+export function getUTCStartDate(dateStr: string, timeZone: string) {
+  const startLocal = startOfDay(new Date(dateStr));
+  return fromZonedTime(startLocal, timeZone);
+}
+export function getUTCEndDate(dateStr: string, timeZone: string) {
+  const startLocal = startOfDay(new Date(dateStr));
+  return fromZonedTime(startLocal, timeZone);
+}
+
 export function getLocalDate(dateStr: string, timeZone: string) {
   const startLocal = startOfDay(new Date(dateStr));
   return toZonedTime(startLocal, timeZone);
