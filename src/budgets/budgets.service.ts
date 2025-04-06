@@ -19,7 +19,8 @@ import {
   BudgetCategoryGroupResponseDTO,
 } from './dto/budget-group.dto';
 import { isSameDay, parseISO } from 'date-fns';
-import { getDateRangeList, getLocalDate, toUTC } from '@/libs/date.util';
+import { getDateRangeList, getUTCStartDate } from '@/libs/date.util';
+import { getUserTimezone } from '@/libs/timezone';
 
 @Injectable()
 export class BudgetsService {
@@ -55,11 +56,8 @@ export class BudgetsService {
 
     const timezone = user.timezone || 'America/Toronto';
 
-    const start = getLocalDate(query.startDate, timezone);
-    const end = getLocalDate(query.endDate, timezone);
-
-    const startUTC = toUTC(start, timezone);
-    const endUTC = toUTC(end, timezone);
+    const start = getUTCStartDate(query.startDate, timezone);
+    const end = getUTCStartDate(query.endDate, timezone);
 
     const budgetCategories = await this.prisma.budgetCategory.findMany({
       where: {
@@ -81,8 +79,8 @@ export class BudgetsService {
           type: 'expense',
           categoryId: bc.categoryId,
           date: {
-            gte: startUTC,
-            lte: endUTC,
+            gte: start,
+            lte: end,
           },
         },
         _sum: { amount: true },
@@ -127,8 +125,8 @@ export class BudgetsService {
     const timezone = user.timezone || 'Asia/Seoul';
 
     const { startDate, endDate } = query;
-    const start = toUTC(getLocalDate(startDate, timezone), timezone);
-    const end = toUTC(getLocalDate(endDate, timezone), timezone);
+    const start = getUTCStartDate(startDate, timezone);
+    const end = getUTCStartDate(endDate, timezone);
     const categories = await this.prisma.category.findMany({
       where: { userId },
     });
@@ -179,11 +177,11 @@ export class BudgetsService {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new NotFoundException('User not found');
 
-    const timezone = user.timezone || 'Asia/Seoul';
+    const timezone = getUserTimezone(user);
 
     // ✅ 날짜 변환: Local 기준 00시 → UTC
-    const startUTC = toUTC(getLocalDate(startDate, timezone), timezone);
-    const endUTC = toUTC(getLocalDate(endDate, timezone), timezone);
+    const start = getUTCStartDate(startDate, timezone);
+    const end = getUTCStartDate(endDate, timezone);
 
     const [budget] = await this.prisma.budget.findMany({
       where: { userId },
@@ -205,8 +203,8 @@ export class BudgetsService {
       where: {
         budgetId: budget.id,
         categoryId,
-        startDate: startUTC,
-        endDate: endUTC,
+        startDate: start,
+        endDate: end,
       },
     });
 
@@ -221,8 +219,8 @@ export class BudgetsService {
         budgetId: budget.id,
         categoryId,
         amount,
-        startDate: startUTC,
-        endDate: endUTC,
+        startDate: start,
+        endDate: end,
       },
     });
 
@@ -252,19 +250,19 @@ export class BudgetsService {
     const timezone = user.timezone || 'Asia/Seoul';
 
     // ✅ 날짜 변환
-    const startUTC = dto.startDate
-      ? toUTC(getLocalDate(dto.startDate, timezone), timezone)
+    const start = dto.startDate
+      ? getUTCStartDate(dto.startDate, timezone)
       : undefined;
-    const endUTC = dto.endDate
-      ? toUTC(getLocalDate(dto.endDate, timezone), timezone)
+    const end = dto.endDate
+      ? getUTCStartDate(dto.endDate, timezone)
       : undefined;
 
     const updated = await this.prisma.budgetCategory.update({
       where: { id: budgetId },
       data: {
         ...(dto.amount !== undefined && { amount: dto.amount }),
-        ...(startUTC && { startDate: startUTC }),
-        ...(endUTC && { endDate: endUTC }),
+        ...(start && { startDate: start }),
+        ...(end && { endDate: end }),
       },
     });
 
@@ -291,18 +289,15 @@ export class BudgetsService {
     const baseDate = parseISO(startDate);
     const ranges = getDateRangeList(baseDate, groupBy, timezone); // ✅ 중심 기준으로 12개 구간 생성
 
-    const startUTC = toUTC(
-      getLocalDate(ranges[0].startDate, timezone),
-      timezone,
-    );
-    const endUTC = toUTC(getLocalDate(ranges[11].endDate, timezone), timezone);
+    const start = getUTCStartDate(ranges[0].startDate, timezone);
+    const end = getUTCStartDate(ranges[11].endDate, timezone);
 
     const allBudgetCategories = await this.prisma.budgetCategory.findMany({
       where: {
         categoryId,
         category: { userId },
-        startDate: { gte: startUTC },
-        endDate: { lte: endUTC },
+        startDate: { gte: start },
+        endDate: { lte: end },
       },
       include: {
         category: true,
@@ -319,8 +314,8 @@ export class BudgetsService {
     for (const range of ranges) {
       const match = allBudgetCategories.find(
         (b) =>
-          isSameDay(b.startDate, getLocalDate(range.startDate, timezone)) &&
-          isSameDay(b.endDate, getLocalDate(range.endDate, timezone)),
+          isSameDay(b.startDate, getUTCStartDate(range.startDate, timezone)) &&
+          isSameDay(b.endDate, getUTCStartDate(range.endDate, timezone)),
       );
       if (match) {
         defaultAmount = match.amount;
@@ -331,8 +326,8 @@ export class BudgetsService {
     const budgets: BudgetCategoryGroupItemDTO[] = ranges.map((range) => {
       const matched = allBudgetCategories.find((b) => {
         return (
-          isSameDay(b.startDate, getLocalDate(range.startDate, timezone)) &&
-          isSameDay(b.endDate, getLocalDate(range.endDate, timezone))
+          isSameDay(b.startDate, getUTCStartDate(range.startDate, timezone)) &&
+          isSameDay(b.endDate, getUTCStartDate(range.endDate, timezone))
         );
       });
 

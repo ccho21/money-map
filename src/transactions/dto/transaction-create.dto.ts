@@ -1,4 +1,4 @@
-import { CategoryType, TransactionType } from '@prisma/client';
+import { TransactionType } from '@prisma/client';
 import {
   IsUUID,
   IsEnum,

@@ -15,7 +15,11 @@ import { StatsByNote, StatsByNoteDTO } from './dto/stats-by-note.dto';
 import { TransactionSummaryDTO } from '@/transactions/dto/transaction.dto';
 import { getUserTimezone } from '@/libs/timezone';
 import { groupTransactions } from './util/group-transactions';
-import { toUTC, fromUTC, getDateRangeAndLabelByGroup } from '@/libs/date.util';
+import {
+  getUTCStartDate,
+  fromUTC,
+  getDateRangeAndLabelByGroup,
+} from '@/libs/date.util';
 import { parseISO } from 'date-fns';
 
 @Injectable()
@@ -33,8 +37,8 @@ export class StatsService {
     if (!user) throw new NotFoundException('User not found');
     const timezone = getUserTimezone(user);
 
-    const start = toUTC(startDate, timezone);
-    const end = toUTC(endDate, timezone);
+    const start = getUTCStartDate(startDate, timezone);
+    const end = getUTCStartDate(endDate, timezone);
 
     const grouped = await this.prisma.transaction.groupBy({
       by: ['categoryId'],
@@ -108,8 +112,8 @@ export class StatsService {
     if (!user) throw new NotFoundException('User not found');
     const timezone = getUserTimezone(user);
 
-    const start = toUTC(startDate, timezone);
-    const end = toUTC(endDate, timezone);
+    const start = getUTCStartDate(startDate, timezone);
+    const end = getUTCStartDate(endDate, timezone);
 
     const transactions = await this.prisma.transaction.groupBy({
       by: ['categoryId'],
@@ -175,8 +179,8 @@ export class StatsService {
     if (!user) throw new NotFoundException('User not found');
     const timezone = getUserTimezone(user);
 
-    const start = toUTC(startDate, timezone);
-    const end = toUTC(endDate, timezone);
+    const start = getUTCStartDate(startDate, timezone);
+    const end = getUTCStartDate(endDate, timezone);
 
     const transactions = await this.prisma.transaction.findMany({
       where: {
@@ -225,8 +229,8 @@ export class StatsService {
     if (!user) throw new NotFoundException('User not found');
     const timezone = getUserTimezone(user);
 
-    const start = toUTC(startDate, timezone);
-    const end = toUTC(endDate, timezone);
+    const start = getUTCStartDate(startDate, timezone);
+    const end = getUTCStartDate(endDate, timezone);
 
     const transactions = await this.prisma.transaction.findMany({
       where: {
@@ -268,8 +272,8 @@ export class StatsService {
     if (!user) throw new NotFoundException('User not found');
     const timezone = getUserTimezone(user);
 
-    const start = toUTC(startDate, timezone);
-    const end = toUTC(endDate, timezone);
+    const start = getUTCStartDate(startDate, timezone);
+    const end = getUTCStartDate(endDate, timezone);
 
     const budgetCategory = await this.prisma.budgetCategory.findUnique({
       where: { id: budgetCategoryId },

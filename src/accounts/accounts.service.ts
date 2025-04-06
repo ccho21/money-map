@@ -18,7 +18,6 @@ import {
 import { getUserTimezone } from '@/libs/timezone';
 import {
   getDateRangeAndLabelByGroup,
-  getUTCDate,
   getUTCEndDate,
   getUTCStartDate,
   getValidDay,
@@ -43,10 +42,9 @@ export class AccountsService {
     if (!user) throw new Error('User not found');
 
     const timezone = getUserTimezone(user);
-    const now = toZonedTime(new Date(), timezone).toISOString();
-    const nowUTC = getUTCDate(now, timezone);
-    const year = nowUTC.getFullYear();
-    const month = nowUTC.getMonth() + 1;
+    const now = toZonedTime(new Date(), timezone);
+    const year = now.getFullYear();
+    const month = now.getMonth() + 1;
 
     let settlementDate: number | null = null;
     let paymentDate: number | null = null;
@@ -87,7 +85,7 @@ export class AccountsService {
             accountId: account.id,
             type: 'income',
             amount: Number(dto.balance),
-            date: nowUTC, // 타임존 기반 UTC
+            date: now, // 타임존 기반 UTC
             note: 'Opening Balance',
             description: 'Account created with initial balance',
             isOpening: true,
@@ -257,8 +255,8 @@ export class AccountsService {
     if (!user) throw new Error('User not found');
 
     const timezone = getUserTimezone(user);
-    const startUTC = toUTC(startDate, timezone);
-    const endUTC = toUTC(endDate, timezone);
+    const startUTC = getUTCStartDate(startDate, timezone);
+    const endUTC = getUTCStartDate(endDate, timezone);
 
     const accounts = await this.prisma.account.findMany({
       where: { userId },
