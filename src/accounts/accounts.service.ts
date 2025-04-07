@@ -5,13 +5,13 @@ import {
   Logger,
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { CreateAccountDTO } from './dto/create-account.dto';
-import { UpdateAccountDTO } from './dto/update-account.dto';
+import { AccountCreateDTO } from './dto/account-create.dto';
+import { AccountUpdateDTO } from './dto/account-update.dto';
 import {
   TransactionDTO,
   TransactionSummaryDTO,
 } from 'src/transactions/dto/transaction.dto';
-import { AccountTransactionSummaryDTO } from './dto/account-grouped-transactions';
+import { AccountTransactionSummaryDTO } from './dto/account-transaction-summary.dto';
 import { getUserTimezone } from '@/libs/timezone';
 import {
   getDateRangeAndLabelByGroup,
@@ -36,7 +36,7 @@ export class AccountsService {
   private readonly logger = new Logger(AccountsService.name);
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(userId: string, dto: CreateAccountDTO) {
+  async create(userId: string, dto: AccountCreateDTO) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new Error('User not found');
 
@@ -99,7 +99,7 @@ export class AccountsService {
     });
   }
 
-  async update(userId: string, accountId: string, dto: UpdateAccountDTO) {
+  async update(userId: string, accountId: string, dto: AccountUpdateDTO) {
     const account = await this.prisma.account.findUnique({
       where: { id: accountId },
     });

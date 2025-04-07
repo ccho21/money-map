@@ -3,7 +3,7 @@ import { Type } from 'class-transformer';
 import { IsArray, IsInt, ValidateNested } from 'class-validator';
 import { CreateBudgetCategoryDTO } from './budget-category.dto';
 
-export class UpdateBudgetDto {
+export class BudgetUpdateDTO {
   @ApiPropertyOptional({ example: 600000, description: '수정할 총 예산' })
   @IsInt()
   total?: number;

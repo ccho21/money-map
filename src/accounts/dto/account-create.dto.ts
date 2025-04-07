@@ -10,7 +10,7 @@ import {
 } from 'class-validator';
 import { AccountType } from '@prisma/client';
 
-export class CreateAccountDTO {
+export class AccountCreateDTO {
   @IsString()
   @IsNotEmpty()
   name: string;

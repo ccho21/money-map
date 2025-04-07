@@ -13,8 +13,8 @@ import { JwtAuthGuard } from 'src/common/guards/jwt.guard';
 import { CategoriesService } from './categories.service';
 import { GetUser } from 'src/common/decorators/get-user.decorator';
 import { UserPayload } from 'src/auth/types/user-payload.type';
-import { UpdateCategoryDto } from './dto/update-category.dto';
-import { CreateCategoryDto } from './dto/create-category.dto';
+import { CategoryUpdateDTO } from './dto/category-update.dto';
+import { CategoryCreateDTO } from './dto/category-create.dto';
 
 @ApiTags('Categories')
 @ApiBearerAuth('access-token')
@@ -24,7 +24,7 @@ export class CategoriesController {
   constructor(private readonly categoriesService: CategoriesService) {}
 
   @Post()
-  create(@GetUser() user: UserPayload, @Body() dto: CreateCategoryDto) {
+  create(@GetUser() user: UserPayload, @Body() dto: CategoryCreateDTO) {
     return this.categoriesService.create(user.id, dto);
   }
 
@@ -42,7 +42,7 @@ export class CategoriesController {
   update(
     @GetUser() user: UserPayload,
     @Param('id') id: string,
-    @Body() dto: UpdateCategoryDto,
+    @Body() dto: CategoryUpdateDTO,
   ) {
     return this.categoriesService.update(user.id, id, dto);
   }

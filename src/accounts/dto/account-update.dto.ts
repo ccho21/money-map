@@ -10,7 +10,7 @@ import {
   Min,
 } from 'class-validator';
 
-export class UpdateAccountDTO {
+export class AccountUpdateDTO {
   @IsNotEmpty()
   name: string;
 

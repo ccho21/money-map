@@ -14,9 +14,9 @@ import { JwtAuthGuard } from 'src/common/guards/jwt.guard';
 import { UserPayload } from 'src/auth/types/user-payload.type';
 import { GetUser } from 'src/common/decorators/get-user.decorator';
 import { ApiOkResponse, ApiQuery, ApiTags } from '@nestjs/swagger';
-import { AccountTransactionSummaryDTO } from './dto/account-grouped-transactions';
-import { CreateAccountDTO } from './dto/create-account.dto';
-import { UpdateAccountDTO } from './dto/update-account.dto';
+import { AccountTransactionSummaryDTO } from './dto/account-transaction-summary.dto';
+import { AccountCreateDTO } from './dto/account-create.dto';
+import { AccountUpdateDTO } from './dto/account-update.dto';
 import { AccountDashboardResponseDTO } from './dto/account-dashboard-response.dto';
 import { TransactionSummaryDTO } from '@/transactions/dto/transaction.dto';
 import { DateQueryDTO } from '@/common/dto/date-query.dto';
@@ -29,7 +29,7 @@ export class AccountsController {
   constructor(private readonly accountsService: AccountsService) {}
 
   @Post()
-  create(@Body() dto: CreateAccountDTO, @GetUser() user: UserPayload) {
+  create(@Body() dto: AccountCreateDTO, @GetUser() user: UserPayload) {
     return this.accountsService.create(user.id, dto);
   }
 
@@ -89,7 +89,7 @@ export class AccountsController {
   update(
     @GetUser() user: UserPayload,
     @Param('id') id: string,
-    @Body() dto: UpdateAccountDTO,
+    @Body() dto: AccountUpdateDTO,
   ) {
     return this.accountsService.update(user.id, id, dto);
   }

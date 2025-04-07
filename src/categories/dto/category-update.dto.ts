@@ -2,7 +2,8 @@ import { IsString, IsOptional } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { CategoryType } from '@prisma/client';
 
-export class CreateCategoryDto {
+export class CategoryUpdateDTO {
+  @ApiProperty({ example: '식비', description: '카테고리 이름' })
   @ApiProperty({ example: '식비', description: '카테고리 이름' })
   @IsString()
   name: string;
