@@ -64,23 +64,3 @@ export class TransactionFilterDTO {
   @Max(100)
   limit?: number = 20;
 }
-
-export class BaseDateQueryDTO {
-  @Type(() => Number)
-  @IsInt()
-  year: number;
-
-  @Type(() => Number)
-  @IsOptional()
-  @IsInt()
-  @Min(1)
-  @Max(12)
-  month?: number;
-
-  @Type(() => Number)
-  @IsOptional()
-  @IsInt()
-  @Min(1)
-  @Max(31)
-  day?: number;
-}

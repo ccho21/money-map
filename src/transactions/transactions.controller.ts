@@ -24,11 +24,9 @@ import { TransactionSummaryDTO } from './dto/transaction.dto';
 import { TransactionUpdateDTO } from './dto/transaction-update.dto';
 import { TransactionTransferDTO } from './dto/transaction-transfer.dto';
 import { DateRangeWithGroupQueryDTO } from '@/common/dto/date-range-with-group.dto';
-import {
-  BaseDateQueryDTO,
-  TransactionFilterDTO,
-} from './dto/transaction-filter.dto';
+import { TransactionFilterDTO } from './dto/transaction-filter.dto';
 import { GroupBy } from '@/common/types/types';
+import { BaseDateQueryDTO } from '@/common/dto/baseDate.dto';
 
 @ApiTags('Transactions')
 @UseGuards(JwtAuthGuard)

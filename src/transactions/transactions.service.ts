@@ -15,20 +15,18 @@ import {
   TransactionSummaryDTO,
 } from './dto/transaction.dto';
 
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { toZonedTime } from 'date-fns-tz';
 
 import { getUserTimezone } from '@/libs/timezone';
 import { TransactionCreateDTO } from './dto/transaction-create.dto';
 import { TransactionUpdateDTO } from './dto/transaction-update.dto';
-import {
-  BaseDateQueryDTO,
-  TransactionFilterDTO,
-} from './dto/transaction-filter.dto';
+import { TransactionFilterDTO } from './dto/transaction-filter.dto';
 import { TransactionTransferDTO } from './dto/transaction-transfer.dto';
 import { getDateRangeAndLabelByGroup, getUTCStartDate } from '@/libs/date.util';
 import { DateRangeWithGroupQueryDTO } from '@/common/dto/date-range-with-group.dto';
 import { GroupBy } from '@/common/types/types';
+import { BaseDateQueryDTO } from '@/common/dto/baseDate.dto';
 import { recalculateAccountBalanceInTx } from './utils/recalculateAccountBalanceInTx.util';
 
 export type TransactionFilterWhereInput = Prisma.TransactionWhereInput;
@@ -415,10 +413,9 @@ export class TransactionsService {
     }
     const timezone = getUserTimezone(user);
 
-    const { year, month } = query;
-    const base = new Date(Number(year), Number(month) - 1);
+    const { date } = query;
     const { rangeStart, rangeEnd } = getDateRangeAndLabelByGroup(
-      base,
+      parseISO(date),
       GroupBy.MONTHLY,
       timezone,
     );

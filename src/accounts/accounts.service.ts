@@ -26,10 +26,12 @@ import {
 } from './dto/account-dashboard-response.dto';
 import { toZonedTime } from 'date-fns-tz';
 import { format, subMonths } from 'date-fns';
-import { Prisma, TransactionType } from '@prisma/client';
+import { TransactionType } from '@prisma/client';
 import { DateQueryDTO } from '@/common/dto/date-query.dto';
 import { DateRangeWithGroupQueryDTO } from '@/common/dto/date-range-with-group.dto';
 import { GroupBy } from '@/common/types/types';
+import { recalculateAccountBalanceInTx } from '@/transactions/utils/recalculateAccountBalanceInTx.util';
+import { getTransactionDelta } from '@/transactions/utils/getTransactionDelta.util';
 
 @Injectable()
 export class AccountsService {
@@ -93,7 +95,7 @@ export class AccountsService {
       }
 
       // ✅ 계좌 잔액 재계산
-      await this.recalculateAccountBalanceInTx(tx, account.id);
+      await recalculateAccountBalanceInTx(tx, account.id);
 
       return account;
     });
@@ -177,7 +179,7 @@ export class AccountsService {
     }
 
     // ✅ 항상 잔액 재계산
-    await this.recalculateAccountBalanceInTx(this.prisma, accountId);
+    await recalculateAccountBalanceInTx(this.prisma, accountId);
 
     return updated;
   }
@@ -442,7 +444,7 @@ export class AccountsService {
             const balancePayable = cardTxs
               .filter((t) => t.date >= settleStart && t.date <= settleEnd)
               .reduce(
-                (sum, tx) => sum + this.getTransactionDelta(tx, account.id),
+                (sum, tx) => sum + getTransactionDelta(tx, account.id),
                 0,
               );
 
@@ -450,7 +452,7 @@ export class AccountsService {
             const outstandingBalance = cardTxs
               .filter((t) => t.date > settleEnd && t.date <= nowUTC)
               .reduce(
-                (sum, tx) => sum + this.getTransactionDelta(tx, account.id),
+                (sum, tx) => sum + getTransactionDelta(tx, account.id),
                 0,
               );
 
@@ -608,79 +610,5 @@ export class AccountsService {
       expenseTotal,
       data,
     };
-  }
-
-  private getTransactionDelta(
-    tx: {
-      type: TransactionType;
-      amount: number;
-      accountId: string;
-      toAccountId?: string | null;
-    },
-    targetAccountId: string,
-  ): number {
-    if (tx.type === 'expense' && tx.accountId === targetAccountId)
-      return -tx.amount;
-
-    if (tx.type === 'income' && tx.accountId === targetAccountId)
-      return tx.amount;
-
-    if (tx.type === 'transfer') {
-      if (tx.accountId === targetAccountId && tx.toAccountId) return -tx.amount; // 출금
-      if (tx.accountId === targetAccountId && !tx.toAccountId) return tx.amount; // 입금 (linked)
-      if (tx.toAccountId === targetAccountId) return tx.amount; // 입금
-    }
-
-    return 0;
-  }
-
-  async recalculateAccountBalanceInTx(
-    tx: Prisma.TransactionClient,
-    accountId: string,
-  ): Promise<number> {
-    const account = await tx.account.findUnique({
-      where: { id: accountId },
-    });
-
-    if (!account) {
-      throw new NotFoundException('계좌를 찾을 수 없습니다.');
-    }
-
-    const transactions = await tx.transaction.findMany({
-      where: {
-        OR: [
-          { accountId },
-          { toAccountId: accountId }, // 입금용 transfer도 포함
-        ],
-      },
-    });
-
-    let newBalance = 0;
-
-    for (const txItem of transactions) {
-      const { type, amount } = txItem;
-
-      if (type === 'income' && txItem.accountId === accountId) {
-        newBalance += amount;
-      } else if (type === 'expense' && txItem.accountId === accountId) {
-        newBalance -= amount;
-      } else if (type === 'transfer') {
-        if (txItem.accountId === accountId && txItem.toAccountId) {
-          // 출금 → 마이너스
-          newBalance -= amount;
-        } else if (txItem.toAccountId === accountId) {
-          // 입금 → 플러스
-          newBalance += amount;
-        }
-      }
-    }
-
-    // ✅ DB에 최신 balance 반영
-    await tx.account.update({
-      where: { id: accountId },
-      data: { balance: newBalance },
-    });
-
-    return newBalance;
   }
 }
