@@ -14,7 +14,7 @@ import { StatsByBudget, StatsByBudgetDTO } from './dto/stats-by-budget.dto';
 import { StatsByNote, StatsByNoteDTO } from './dto/stats-by-note.dto';
 import { TransactionSummaryDTO } from '@/transactions/dto/transaction.dto';
 import { getUserTimezone } from '@/libs/timezone';
-import { groupTransactions } from './util/group-transactions';
+import { groupTransactions } from './util/groupTransactions.util';
 import { getUTCStartDate } from '@/libs/date.util';
 
 @Injectable()

@@ -29,6 +29,7 @@ import { TransactionTransferDTO } from './dto/transaction-transfer.dto';
 import { getDateRangeAndLabelByGroup, getUTCStartDate } from '@/libs/date.util';
 import { DateRangeWithGroupQueryDTO } from '@/common/dto/date-range-with-group.dto';
 import { GroupBy } from '@/common/types/types';
+import { recalculateAccountBalanceInTx } from './utils/recalculateAccountBalanceInTx.util';
 
 export type TransactionFilterWhereInput = Prisma.TransactionWhereInput;
 
@@ -75,7 +76,7 @@ export class TransactionsService {
       });
 
       // ✅ 계좌 잔액 재계산
-      await this.recalculateAccountBalanceInTx(tx, dto.accountId);
+      await recalculateAccountBalanceInTx(tx, dto.accountId);
 
       return created;
     });
@@ -141,11 +142,11 @@ export class TransactionsService {
       });
 
       // ✅ 기존 계좌 잔액 재계산
-      await this.recalculateAccountBalanceInTx(tx, existing.accountId);
+      await recalculateAccountBalanceInTx(tx, existing.accountId);
 
       // ✅ 계좌가 변경된 경우 새 계좌도 재계산
       if (dto.accountId && dto.accountId !== existing.accountId) {
-        await this.recalculateAccountBalanceInTx(tx, dto.accountId);
+        await recalculateAccountBalanceInTx(tx, dto.accountId);
       }
 
       return updated;
@@ -174,11 +175,11 @@ export class TransactionsService {
       });
 
       // ✅ 잔액 재계산 (기존 계좌)
-      await this.recalculateAccountBalanceInTx(tx, existing.accountId);
+      await recalculateAccountBalanceInTx(tx, existing.accountId);
 
       // ✅ transfer인 경우 입금 계좌도 재계산 필요
       if (existing.type === 'transfer' && existing.toAccountId) {
-        await this.recalculateAccountBalanceInTx(tx, existing.toAccountId);
+        await recalculateAccountBalanceInTx(tx, existing.toAccountId);
       }
     });
   }
@@ -455,8 +456,8 @@ export class TransactionsService {
       throw new BadRequestException('같은 계좌 간 이체는 허용되지 않습니다.');
     }
 
-    return await this.prisma
-      .$transaction(async (tx) => {
+    try {
+      const result = await this.prisma.$transaction(async (tx) => {
         // ✅ 계좌 확인
         const [fromAccount, toAccount] = await Promise.all([
           tx.account.findUnique({ where: { id: fromAccountId } }),
@@ -473,12 +474,11 @@ export class TransactionsService {
           throw new ForbiddenException('본인의 계좌만 사용할 수 있습니다.');
         }
 
-        // ✅ 자산 계좌 출금 시 잔액 체크
         if (fromAccount.type !== 'CARD' && fromAccount.balance < amount) {
           throw new BadRequestException('출금 계좌의 잔액이 부족합니다.');
         }
 
-        // ✅ 트랜스퍼 트랜잭션 생성 (출금 → 입금)
+        // ✅ 트랜스퍼 생성
         const outTx = await tx.transaction.create({
           data: {
             type: 'transfer',
@@ -486,7 +486,7 @@ export class TransactionsService {
             userId,
             accountId: fromAccountId,
             toAccountId,
-            date, // getUTCStartDate(date, timezone),
+            date,
             note,
             description,
           },
@@ -506,27 +506,25 @@ export class TransactionsService {
           },
         });
 
-        // ✅ 상호 연결
         await tx.transaction.update({
           where: { id: outTx.id },
           data: { linkedTransferId: inTx.id },
         });
 
-        return { outgoing: outTx, incoming: inTx };
-      })
-      .then(async (result) => {
-        // ✅ 트랜잭션 후 잔액 재계산 (유틸 활용)
+        // ✅ 트랜잭션 후 잔액 재계산
         await Promise.all([
-          this.recalculateAccountBalance(fromAccountId),
-          this.recalculateAccountBalance(toAccountId),
+          recalculateAccountBalanceInTx(tx, fromAccountId),
+          recalculateAccountBalanceInTx(tx, toAccountId),
         ]);
 
-        return result;
-      })
-      .catch((err) => {
-        this.logger.error('❌ createTransfer 실패:', err);
-        throw new Error('이체 중 오류가 발생했습니다.');
+        return { outgoing: outTx, incoming: inTx };
       });
+
+      return result;
+    } catch (err) {
+      this.logger.error('❌ createTransfer 실패:', err);
+      throw new Error('이체 중 오류가 발생했습니다.');
+    }
   }
 
   async updateTransfer(
@@ -615,8 +613,8 @@ export class TransactionsService {
 
       // ✅ 잔액 재계산
       await Promise.all([
-        this.recalculateAccountBalanceInTx(tx, fromAccountId),
-        this.recalculateAccountBalanceInTx(tx, toAccountId),
+        recalculateAccountBalanceInTx(tx, fromAccountId),
+        recalculateAccountBalanceInTx(tx, toAccountId),
       ]);
 
       return { updatedOutgoing: outgoing, updatedIncoming: incoming };
@@ -655,8 +653,8 @@ export class TransactionsService {
 
       // ✅ 잔액 재계산
       await Promise.all([
-        this.recalculateAccountBalanceInTx(tx, outgoing.accountId),
-        this.recalculateAccountBalanceInTx(tx, incoming.accountId),
+        recalculateAccountBalanceInTx(tx, outgoing.accountId),
+        recalculateAccountBalanceInTx(tx, incoming.accountId),
       ]);
     });
 
@@ -702,41 +700,5 @@ export class TransactionsService {
     });
 
     return newBalance;
-  }
-
-  private async recalculateAccountBalanceInTx(
-    tx: Prisma.TransactionClient,
-    accountId: string,
-  ) {
-    const transactions = await tx.transaction.findMany({
-      where: {
-        OR: [{ accountId }, { toAccountId: accountId }],
-      },
-    });
-
-    let balance = 0;
-
-    for (const tx of transactions) {
-      if (tx.type === 'income' && tx.accountId === accountId) {
-        balance += tx.amount;
-      } else if (tx.type === 'expense' && tx.accountId === accountId) {
-        balance -= tx.amount;
-      } else if (tx.type === 'transfer') {
-        if (tx.accountId === accountId && tx.toAccountId) {
-          // 출금 트랜스퍼
-          balance -= tx.amount;
-        } else if (tx.toAccountId === accountId) {
-          // 입금 트랜스퍼
-          balance += tx.amount;
-        }
-      }
-    }
-
-    await tx.account.update({
-      where: { id: accountId },
-      data: { balance },
-    });
-
-    return balance;
   }
 }
