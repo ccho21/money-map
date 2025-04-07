@@ -20,6 +20,7 @@ import {
   lastDayOfMonth,
   subMonths,
 } from 'date-fns';
+import { GroupBy } from '@/common/types/types';
 
 /**
  * 유저 타임존 기준 → UTC로 변환해서 DB 저장 시 사용
@@ -67,7 +68,7 @@ export function getValidDay(year: number, month: number, day: number): number {
 
 export function getDateRangeAndLabelByGroup(
   date: Date,
-  groupBy: string,
+  groupBy: GroupBy,
   timezone: string,
 ) {
   let rangeStart: Date;
@@ -75,22 +76,22 @@ export function getDateRangeAndLabelByGroup(
   let label: string;
   const zonedDate = toZonedTime(date, timezone);
   switch (groupBy) {
-    case 'daily':
+    case GroupBy.DAILY:
       rangeStart = startOfDay(zonedDate);
       rangeEnd = endOfDay(zonedDate);
       label = format(rangeStart, 'yyyy-MM-dd');
       break;
-    case 'weekly':
+    case GroupBy.WEEKLY:
       rangeStart = startOfWeek(zonedDate, { weekStartsOn: 0 });
       rangeEnd = endOfWeek(zonedDate, { weekStartsOn: 0 });
       label = format(rangeStart, 'yyyy-MM-dd');
       break;
-    case 'monthly':
+    case GroupBy.MONTHLY:
       rangeStart = startOfMonth(zonedDate);
       rangeEnd = endOfMonth(zonedDate);
       label = format(rangeStart, 'yyyy-MM');
       break;
-    case 'yearly':
+    case GroupBy.YEARLY:
       rangeStart = startOfYear(zonedDate);
       rangeEnd = endOfYear(zonedDate);
       label = format(rangeStart, 'yyyy');
@@ -103,7 +104,7 @@ export function getDateRangeAndLabelByGroup(
 
 export function getDateRangeList(
   date: Date,
-  groupBy: 'daily' | 'weekly' | 'monthly' | 'yearly',
+  groupBy: GroupBy,
   timezone: string,
 ) {
   const centerDate = toZonedTime(date, timezone);
@@ -122,7 +123,7 @@ export function getDateRangeList(
     let isCurrent = false;
 
     switch (groupBy) {
-      case 'daily':
+      case GroupBy.DAILY:
         current = addDays(centerDate, i);
         startDate = startOfDay(current);
         endDate = endOfDay(current);
@@ -130,7 +131,7 @@ export function getDateRangeList(
         isCurrent = isSameDay(current, centerDate);
         break;
 
-      case 'weekly':
+      case GroupBy.WEEKLY:
         current = addWeeks(centerDate, i);
         startDate = startOfWeek(current, { weekStartsOn: 0 });
         endDate = endOfWeek(current, { weekStartsOn: 0 });
@@ -138,7 +139,7 @@ export function getDateRangeList(
         isCurrent = isSameWeek(current, centerDate, { weekStartsOn: 0 });
         break;
 
-      case 'monthly':
+      case GroupBy.MONTHLY:
         current = addMonths(centerDate, i);
         startDate = startOfMonth(current);
         endDate = endOfMonth(current);
@@ -146,7 +147,7 @@ export function getDateRangeList(
         isCurrent = isSameMonth(current, centerDate);
         break;
 
-      case 'yearly':
+      case GroupBy.YEARLY:
         current = addYears(centerDate, i);
         startDate = startOfYear(current);
         endDate = endOfYear(current);

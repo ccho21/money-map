@@ -22,12 +22,13 @@ import { getUserTimezone } from '@/libs/timezone';
 import { TransactionCreateDTO } from './dto/transaction-create.dto';
 import { TransactionUpdateDTO } from './dto/transaction-update.dto';
 import {
-  DateQueryDTO,
-  SummaryRangeQueryDTO,
+  BaseDateQueryDTO,
   TransactionFilterDTO,
 } from './dto/transaction-filter.dto';
 import { TransactionTransferDTO } from './dto/transaction-transfer.dto';
 import { getDateRangeAndLabelByGroup, getUTCStartDate } from '@/libs/date.util';
+import { DateRangeWithGroupQueryDTO } from '@/common/dto/date-range-with-group.dto';
+import { GroupBy } from '@/common/types/types';
 
 export type TransactionFilterWhereInput = Prisma.TransactionWhereInput;
 
@@ -273,7 +274,7 @@ export class TransactionsService {
 
   async getTransactionSummary(
     userId: string,
-    query: SummaryRangeQueryDTO,
+    query: DateRangeWithGroupQueryDTO,
   ): Promise<TransactionSummaryDTO> {
     const { groupBy, startDate, endDate } = query;
 
@@ -405,7 +406,7 @@ export class TransactionsService {
 
   async getTransactionCalendarView(
     userId: string,
-    query: DateQueryDTO,
+    query: BaseDateQueryDTO,
   ): Promise<TransactionCalendarItem[]> {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
@@ -417,7 +418,7 @@ export class TransactionsService {
     const base = new Date(Number(year), Number(month) - 1);
     const { rangeStart, rangeEnd } = getDateRangeAndLabelByGroup(
       base,
-      'monthly',
+      GroupBy.MONTHLY,
       timezone,
     );
 

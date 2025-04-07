@@ -13,11 +13,11 @@ import { JwtAuthGuard } from '../common/guards/jwt.guard';
 import { GetUser } from '../common/decorators/get-user.decorator';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { UserPayload } from 'src/auth/types/user-payload.type';
-import { BudgetQueryDto } from './dto/budget-query.dto';
 import {
   CreateBudgetCategoryDTO,
   UpdateBudgetCategoryDTO,
 } from './dto/budget-category.dto';
+import { DateRangeWithGroupQueryDTO } from '@/common/dto/date-range-with-group.dto';
 
 @ApiTags('Budgets')
 @ApiBearerAuth('access-token')
@@ -39,14 +39,17 @@ export class BudgetsController {
   @Get('summary')
   getBudgetSummary(
     @GetUser() user: UserPayload,
-    @Query() query: BudgetQueryDto,
+    @Query() query: DateRangeWithGroupQueryDTO,
   ) {
     return this.budgetsService.getBudgetSummary(user.id, query);
   }
 
   @Get('by-category')
   @UseGuards(JwtAuthGuard)
-  getByCategory(@GetUser() user: UserPayload, @Query() query: BudgetQueryDto) {
+  getByCategory(
+    @GetUser() user: UserPayload,
+    @Query() query: DateRangeWithGroupQueryDTO,
+  ) {
     return this.budgetsService.getBudgetCategories(user.id, query);
   }
 
@@ -64,7 +67,7 @@ export class BudgetsController {
   async getBudgetCategoryByCategoryId(
     @GetUser() user: UserPayload,
     @Param('categoryId') categoryId: string,
-    @Body() body: BudgetQueryDto,
+    @Body() body: DateRangeWithGroupQueryDTO,
   ) {
     return this.budgetsService.getGroupedBudgetCategories(
       user.id,

@@ -11,10 +11,7 @@ import {
   TransactionDTO,
   TransactionSummaryDTO,
 } from 'src/transactions/dto/transaction.dto';
-import {
-  AccountTransactionFilterQueryDTO,
-  AccountTransactionSummaryDTO,
-} from './dto/account-grouped-transactions';
+import { AccountTransactionSummaryDTO } from './dto/account-grouped-transactions';
 import { getUserTimezone } from '@/libs/timezone';
 import {
   getDateRangeAndLabelByGroup,
@@ -30,7 +27,9 @@ import {
 import { toZonedTime } from 'date-fns-tz';
 import { format, subMonths } from 'date-fns';
 import { Prisma, TransactionType } from '@prisma/client';
-import { FilterAccountSummaryDto } from './dto/filter-account-summary.dto';
+import { DateQueryDTO } from '@/common/dto/date-query.dto';
+import { DateRangeWithGroupQueryDTO } from '@/common/dto/date-range-with-group.dto';
+import { GroupBy } from '@/common/types/types';
 
 @Injectable()
 export class AccountsService {
@@ -130,12 +129,11 @@ export class AccountsService {
       autoPayment = dto.autoPayment ?? false;
     }
 
-    // ✅ 계좌 정보 업데이트
+    // ✅ 계좌 메타 정보 업데이트 (balance 제외)
     const updated = await this.prisma.account.update({
       where: { id: accountId },
       data: {
         name: dto.name,
-        balance: Number(dto.balance), // ← 이건 잔액 백업용, 계산은 트랜잭션으로
         description: dto.description ?? null,
         type: dto.type,
         color: dto.color ?? '#2196F3',
@@ -145,16 +143,41 @@ export class AccountsService {
       },
     });
 
-    // ✅ Opening Deposit 트랜잭션 찾아서 amount 업데이트
-    await this.prisma.transaction.updateMany({
-      where: {
-        accountId: accountId,
-        isOpening: true,
-      },
-      data: {
-        amount: Number(dto.balance),
-      },
-    });
+    // ✅ Opening 트랜잭션이 있다면 금액만 업데이트
+    if (dto.balance !== undefined) {
+      const openingTx = await this.prisma.transaction.findFirst({
+        where: {
+          accountId,
+          isOpening: true,
+        },
+      });
+
+      if (openingTx) {
+        await this.prisma.transaction.update({
+          where: { id: openingTx.id },
+          data: {
+            amount: Number(dto.balance),
+          },
+        });
+      } else if (Number(dto.balance) > 0) {
+        // ✅ 없는데 초기 금액이 있다면 새로 생성
+        await this.prisma.transaction.create({
+          data: {
+            userId,
+            accountId,
+            type: 'income',
+            amount: Number(dto.balance),
+            date: now,
+            note: 'Opening Balance',
+            description: 'Account updated with initial balance',
+            isOpening: true,
+          },
+        });
+      }
+    }
+
+    // ✅ 항상 잔액 재계산
+    await this.recalculateAccountBalanceInTx(this.prisma, accountId);
 
     return updated;
   }
@@ -198,7 +221,7 @@ export class AccountsService {
     const baseDate = new Date(year, month - 1, 1);
     const { rangeStart, rangeEnd } = getDateRangeAndLabelByGroup(
       baseDate,
-      'monthly',
+      GroupBy.MONTHLY,
       timezone,
     );
 
@@ -247,7 +270,7 @@ export class AccountsService {
 
   async getGroupedTransactions(
     userId: string,
-    query: AccountTransactionFilterQueryDTO,
+    query: DateQueryDTO,
   ): Promise<AccountTransactionSummaryDTO[]> {
     const { startDate, endDate } = query;
 
@@ -451,7 +474,7 @@ export class AccountsService {
   async getAccountSummary(
     accountId: string,
     userId: string,
-    filter: FilterAccountSummaryDto,
+    filter: DateRangeWithGroupQueryDTO,
   ): Promise<TransactionSummaryDTO> {
     const { startDate, endDate, groupBy } = filter;
 

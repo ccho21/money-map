@@ -15,12 +15,7 @@ import { StatsByNote, StatsByNoteDTO } from './dto/stats-by-note.dto';
 import { TransactionSummaryDTO } from '@/transactions/dto/transaction.dto';
 import { getUserTimezone } from '@/libs/timezone';
 import { groupTransactions } from './util/group-transactions';
-import {
-  getUTCStartDate,
-  fromUTC,
-  getDateRangeAndLabelByGroup,
-} from '@/libs/date.util';
-import { parseISO } from 'date-fns';
+import { getUTCStartDate } from '@/libs/date.util';
 
 @Injectable()
 export class StatsService {
@@ -252,7 +247,7 @@ export class StatsService {
     const expenseTotal = grouped.reduce((sum, d) => sum + d.expenseTotal, 0);
 
     return {
-      type: groupBy as 'daily' | 'weekly' | 'monthly' | 'yearly',
+      type: groupBy,
       startDate,
       endDate,
       incomeTotal,
@@ -306,7 +301,7 @@ export class StatsService {
     const expenseTotal = grouped.reduce((sum, d) => sum + d.expenseTotal, 0);
 
     return {
-      type: groupBy as 'daily' | 'weekly' | 'monthly' | 'yearly',
+      type: groupBy,
       startDate,
       endDate,
       incomeTotal,

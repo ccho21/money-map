@@ -13,6 +13,7 @@ import { StatsByCategoryDTO } from './dto/stats-by-category.dto';
 import { StatsQuery } from './dto/stats-query.dto';
 import { StatsByNoteDTO } from './dto/stats-by-note.dto';
 import { TransactionSummaryDTO } from '@/transactions/dto/transaction.dto';
+import { GroupBy } from '@/common/types/types';
 
 @ApiTags('Stats')
 @ApiBearerAuth('access-token')
@@ -50,7 +51,7 @@ export class StatsController {
   @ApiQuery({ name: 'type', enum: ['income', 'expense'], required: true })
   @ApiQuery({
     name: 'groupBy',
-    enum: ['daily', 'weekly', 'monthly', 'yearly'],
+    enum: GroupBy,
     required: true,
   })
   getStatsCategory(
@@ -69,7 +70,7 @@ export class StatsController {
   @ApiQuery({ name: 'type', enum: ['income', 'expense'], required: true })
   @ApiQuery({
     name: 'groupBy',
-    enum: ['daily', 'weekly', 'monthly', 'yearly'],
+    enum: GroupBy,
     required: true,
   })
   getStatsBudgetCategory(

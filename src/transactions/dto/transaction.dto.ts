@@ -1,4 +1,5 @@
 import { CategoryDTO } from '@/categories/dto/category.dto';
+import { GroupBy } from '@/common/types/types';
 import { ApiProperty } from '@nestjs/swagger';
 import { IsNotEmpty } from 'class-validator';
 
@@ -110,7 +111,7 @@ export class TransactionSummary {
 }
 
 export class TransactionSummaryDTO {
-  type: 'daily' | 'weekly' | 'monthly' | 'yearly';
+  type: GroupBy;
   startDate: string;
   endDate: string;
   incomeTotal: number;

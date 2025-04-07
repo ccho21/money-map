@@ -20,14 +20,15 @@ import {
 } from '@nestjs/swagger';
 import { UserPayload } from 'src/auth/types/user-payload.type';
 import { TransactionCreateDTO } from './dto/transaction-create.dto';
-import {
-  DateQueryDTO,
-  SummaryRangeQueryDTO,
-  TransactionFilterDTO,
-} from './dto/transaction-filter.dto';
 import { TransactionSummaryDTO } from './dto/transaction.dto';
 import { TransactionUpdateDTO } from './dto/transaction-update.dto';
 import { TransactionTransferDTO } from './dto/transaction-transfer.dto';
+import { DateRangeWithGroupQueryDTO } from '@/common/dto/date-range-with-group.dto';
+import {
+  BaseDateQueryDTO,
+  TransactionFilterDTO,
+} from './dto/transaction-filter.dto';
+import { GroupBy } from '@/common/types/types';
 
 @ApiTags('Transactions')
 @UseGuards(JwtAuthGuard)
@@ -50,14 +51,14 @@ export class TransactionsController {
   @Get('summary')
   @ApiQuery({
     name: 'groupBy',
-    enum: ['daily', 'weekly', 'monthly', 'yearly'],
+    enum: GroupBy,
     required: true,
   })
   @ApiQuery({ name: 'startDate', type: String, required: true })
   @ApiQuery({ name: 'endDate', type: String, required: true })
   getTransactionSummary(
     @GetUser() user: UserPayload,
-    @Query() query: SummaryRangeQueryDTO,
+    @Query() query: DateRangeWithGroupQueryDTO,
   ): Promise<TransactionSummaryDTO> {
     return this.transactionService.getTransactionSummary(user.id, query);
   }
@@ -73,7 +74,10 @@ export class TransactionsController {
   }
 
   @Get('calendar')
-  getCalendarView(@GetUser() user: UserPayload, @Query() query: DateQueryDTO) {
+  getCalendarView(
+    @GetUser() user: UserPayload,
+    @Query() query: BaseDateQueryDTO,
+  ) {
     return this.transactionService.getTransactionCalendarView(user.id, query);
   }
 

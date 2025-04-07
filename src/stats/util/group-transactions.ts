@@ -1,3 +1,4 @@
+import { GroupBy } from '@/common/types/types';
 import {
   TransactionDTO,
   TransactionSummary,
@@ -24,7 +25,7 @@ type GroupTransactionInput = Transaction & {
 
 export function groupTransactions(
   transactions: GroupTransactionInput[],
-  groupBy: 'daily' | 'weekly' | 'monthly' | 'yearly',
+  groupBy: GroupBy,
   timezone: string,
 ): TransactionSummary[] {
   const grouped = new Map<
@@ -39,22 +40,22 @@ export function groupTransactions(
     let rangeEnd: Date;
 
     switch (groupBy) {
-      case 'daily':
+      case GroupBy.DAILY:
         rangeStart = startOfDay(zonedTx);
         rangeEnd = endOfDay(zonedTx);
         label = format(rangeStart, 'yyyy-MM-dd');
         break;
-      case 'weekly':
+      case GroupBy.WEEKLY:
         rangeStart = startOfWeek(zonedTx, { weekStartsOn: 0 });
         rangeEnd = endOfWeek(zonedTx, { weekStartsOn: 0 });
         label = format(rangeStart, 'yyyy-MM-dd');
         break;
-      case 'monthly':
+      case GroupBy.MONTHLY:
         rangeStart = startOfMonth(zonedTx);
         rangeEnd = endOfMonth(zonedTx);
         label = format(rangeStart, 'yyyy-MM');
         break;
-      case 'yearly':
+      case GroupBy.YEARLY:
         rangeStart = startOfYear(zonedTx);
         rangeEnd = endOfYear(zonedTx);
         label = format(rangeStart, 'yyyy');

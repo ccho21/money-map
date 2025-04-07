@@ -84,15 +84,3 @@ export class BaseDateQueryDTO {
   @Max(31)
   day?: number;
 }
-export class DateQueryDTO extends BaseDateQueryDTO {}
-
-export class SummaryRangeQueryDTO {
-  @IsEnum(['daily', 'weekly', 'monthly', 'yearly'])
-  groupBy: 'daily' | 'weekly' | 'monthly' | 'yearly';
-
-  @IsDateString()
-  startDate: string;
-
-  @IsDateString()
-  endDate: string;
-}

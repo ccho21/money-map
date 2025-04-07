@@ -5,7 +5,6 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { BudgetQueryDto } from './dto/budget-query.dto';
 import { BudgetDTO, BudgetSummary, BudgetSummaryDTO } from './dto/budget.dto';
 import {
   BudgetCategoryListDTO,
@@ -21,6 +20,7 @@ import {
 import { isSameDay, parseISO } from 'date-fns';
 import { getDateRangeList, getUTCStartDate } from '@/libs/date.util';
 import { getUserTimezone } from '@/libs/timezone';
+import { DateRangeWithGroupQueryDTO } from '@/common/dto/date-range-with-group.dto';
 
 @Injectable()
 export class BudgetsService {
@@ -49,7 +49,7 @@ export class BudgetsService {
 
   async getBudgetSummary(
     userId: string,
-    query: BudgetQueryDto,
+    query: DateRangeWithGroupQueryDTO,
   ): Promise<BudgetSummaryDTO> {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new NotFoundException('User not found');
@@ -115,7 +115,7 @@ export class BudgetsService {
 
   async getBudgetCategories(
     userId: string,
-    query: BudgetQueryDto,
+    query: DateRangeWithGroupQueryDTO,
   ): Promise<BudgetCategoryListDTO> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -274,7 +274,7 @@ export class BudgetsService {
   async getGroupedBudgetCategories(
     userId: string,
     categoryId: string,
-    query: BudgetQueryDto,
+    query: DateRangeWithGroupQueryDTO,
   ): Promise<BudgetCategoryGroupResponseDTO> {
     const { startDate, endDate, groupBy } = query;
 
