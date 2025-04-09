@@ -153,7 +153,7 @@ export class TransactionsService {
     return updatedTransaction;
   }
 
-  async delete(userId: string, id: string): Promise<void> {
+  async delete(userId: string, id: string): Promise<{ message: string }> {
     const existing = await this.prisma.transaction.findFirst({
       where: { id, userId },
     });
@@ -180,6 +180,8 @@ export class TransactionsService {
         await recalculateAccountBalanceInTx(tx, existing.toAccountId);
       }
     });
+
+    return { message: '삭제 완료' };
   }
 
   async getTransactionById(userId: string, transactionId: string) {
