@@ -32,3 +32,13 @@ export class AccountDTO {
   @IsString()
   color?: string;
 }
+
+export class AccountSummaryDTO {
+  accountId: string;
+  accountName: string;
+  balance: number;
+  incomeTotal: number;
+  expenseTotal: number;
+  rangeStart: string; // 2025-03-01
+  rangeEnd: string // 2025-03-31
+}

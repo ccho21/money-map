@@ -3,6 +3,7 @@ import {
   NotFoundException,
   ForbiddenException,
   Logger,
+  BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { AccountCreateDTO } from './dto/account-create.dto';
@@ -32,6 +33,7 @@ import { DateRangeWithGroupQueryDTO } from '@/common/dto/date-range-with-group.d
 import { GroupBy } from '@/common/types/types';
 import { recalculateAccountBalanceInTx } from '@/transactions/utils/recalculateAccountBalanceInTx.util';
 import { getTransactionDelta } from '@/transactions/utils/getTransactionDelta.util';
+import { AccountSummaryDTO } from './dto/account.dto';
 
 @Injectable()
 export class AccountsService {
@@ -213,61 +215,119 @@ export class AccountsService {
   }
 
   // ✅ 요약 API - 타임존 로직 개선
-  async getSummary(userId: string, year?: number, month?: number) {
-    if (!year || !month) return undefined;
-
+  async getSummary(
+    userId: string,
+    { startDate, endDate, groupBy }: DateRangeWithGroupQueryDTO,
+  ): Promise<AccountSummaryDTO[]> {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new Error('User not found');
-    const timezone = getUserTimezone(user);
 
-    const baseDate = new Date(year, month - 1, 1);
-    const { rangeStart, rangeEnd } = getDateRangeAndLabelByGroup(
-      baseDate,
-      GroupBy.MONTHLY,
-      timezone,
-    );
+    if (!startDate || !endDate || !groupBy) {
+      throw new BadRequestException(
+        'startDate, endDate, groupBy are required.',
+      );
+    }
+
+    const timezone = getUserTimezone(user);
+    const from = getUTCStartDate(startDate, timezone);
+    const to = getUTCEndDate(endDate, timezone);
+
+    const transactions = await this.prisma.transaction.findMany({
+      where: {
+        userId,
+        date: {
+          gte: from,
+          lte: to,
+        },
+      },
+      select: {
+        accountId: true,
+        amount: true,
+        type: true,
+        date: true,
+      },
+    });
 
     const accounts = await this.prisma.account.findMany({
       where: { userId },
-      orderBy: { createdAt: 'asc' },
+      select: {
+        id: true,
+        name: true,
+        balance: true,
+      },
     });
 
-    const summaries = await Promise.all(
-      accounts.map(async (account) => {
-        const [income, expense] = await Promise.all([
-          this.prisma.transaction.aggregate({
-            _sum: { amount: true },
-            where: {
-              userId,
-              accountId: account.id,
-              type: 'income',
-              date: { gte: rangeStart, lte: rangeEnd },
-            },
-          }),
-          this.prisma.transaction.aggregate({
-            _sum: { amount: true },
-            where: {
-              userId,
-              accountId: account.id,
-              type: 'expense',
-              date: { gte: rangeStart, lte: rangeEnd },
-            },
-          }),
-        ]);
+    // Create grouping buckets: accountId + groupKey → totals
+    type SummaryBucket = {
+      incomeTotal: number;
+      expenseTotal: number;
+      rangeStart: string;
+      rangeEnd: string;
+    };
 
-        return {
+    const summaryMap = new Map<string, SummaryBucket>();
+
+    for (const tx of transactions) {
+      const zoned = toZonedTime(tx.date, timezone);
+      let key = '';
+      const { rangeStart, rangeEnd } = getDateRangeAndLabelByGroup(
+        zoned,
+        groupBy,
+        timezone,
+      );
+
+      const compositeKey = `${tx.accountId}-${key}`;
+      if (!summaryMap.has(compositeKey)) {
+        summaryMap.set(compositeKey, {
+          incomeTotal: 0,
+          expenseTotal: 0,
+          rangeStart: format(rangeStart, 'yyyy-MM-dd'),
+          rangeEnd: format(rangeEnd, 'yyyy-MM-dd'),
+        });
+      }
+
+      const summary = summaryMap.get(compositeKey)!;
+      if (tx.type === 'income') {
+        summary.incomeTotal += tx.amount;
+      } else if (tx.type === 'expense') {
+        summary.expenseTotal += tx.amount;
+      }
+    }
+
+    const result: AccountSummaryDTO[] = [];
+
+    for (const account of accounts) {
+      const keys = Array.from(summaryMap.keys()).filter((k) =>
+        k.startsWith(account.id),
+      );
+      if (keys.length === 0) {
+        // No transactions, still return empty summary
+        result.push({
           accountId: account.id,
-          name: account.name,
-          type: account.type,
-          color: account.color,
-          totalIncome: income._sum.amount ?? 0,
-          totalExpense: expense._sum.amount ?? 0,
-          balance: (income._sum.amount ?? 0) - (expense._sum.amount ?? 0),
-        };
-      }),
-    );
+          accountName: account.name,
+          balance: account.balance,
+          incomeTotal: 0,
+          expenseTotal: 0,
+          rangeStart: format(from, 'yyyy-MM-dd'),
+          rangeEnd: format(to, 'yyyy-MM-dd'),
+        });
+      } else {
+        for (const key of keys) {
+          const summary = summaryMap.get(key)!;
+          result.push({
+            accountId: account.id,
+            accountName: account.name,
+            balance: account.balance,
+            incomeTotal: summary.incomeTotal,
+            expenseTotal: summary.expenseTotal,
+            rangeStart: summary.rangeStart,
+            rangeEnd: summary.rangeEnd,
+          });
+        }
+      }
+    }
 
-    return summaries;
+    return result;
   }
 
   async getGroupedTransactions(

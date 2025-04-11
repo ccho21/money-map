@@ -41,7 +41,7 @@ export class BudgetsController {
     @GetUser() user: UserPayload,
     @Query() query: DateRangeWithGroupQueryDTO,
   ) {
-    return this.budgetsService.getBudgetSummary(user.id, query);
+    return this.budgetsService.getSummary(user.id, query);
   }
 
   @Get('by-category')

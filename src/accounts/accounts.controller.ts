@@ -63,12 +63,9 @@ export class AccountsController {
   @Get('summary')
   getSummary(
     @GetUser() user: UserPayload,
-    @Query('year') year?: string,
-    @Query('month') month?: string,
+    @Query() filter: DateRangeWithGroupQueryDTO,
   ) {
-    const y = year ? parseInt(year) : undefined;
-    const m = month ? parseInt(month) : undefined;
-    return this.accountsService.getSummary(user.id, y, m);
+    return this.accountsService.getSummary(user.id, filter);
   }
 
   @Get(':accountId/summary')

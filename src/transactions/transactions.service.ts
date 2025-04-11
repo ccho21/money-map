@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventsGateway } from 'src/events/events.gateway';
-import { Prisma } from '@prisma/client';
+import { CategoryType, Prisma, TransactionType } from '@prisma/client';
 import {
   TransactionCalendarItem,
   TransactionDTO,
@@ -23,7 +23,11 @@ import { TransactionCreateDTO } from './dto/transaction-create.dto';
 import { TransactionUpdateDTO } from './dto/transaction-update.dto';
 import { TransactionFilterDTO } from './dto/transaction-filter.dto';
 import { TransactionTransferDTO } from './dto/transaction-transfer.dto';
-import { getDateRangeAndLabelByGroup, getUTCStartDate } from '@/libs/date.util';
+import {
+  getDateRangeAndLabelByGroup,
+  getUTCEndDate,
+  getUTCStartDate,
+} from '@/libs/date.util';
 import { DateRangeWithGroupQueryDTO } from '@/common/dto/date-range-with-group.dto';
 import { GroupBy } from '@/common/types/types';
 import { BaseDateQueryDTO } from '@/common/dto/baseDate.dto';
@@ -285,7 +289,7 @@ export class TransactionsService {
 
     const timezone = getUserTimezone(user);
     const start = getUTCStartDate(startDate, timezone);
-    const end = getUTCStartDate(endDate, timezone);
+    const end = getUTCEndDate(endDate, timezone);
 
     // 2️⃣ 해당 기간의 모든 트랜잭션 조회 (income/expense/transfer만)
     const allTx = await this.prisma.transaction.findMany({
@@ -328,9 +332,6 @@ export class TransactionsService {
         });
       }
 
-      console.log('### TX', tx);
-      console.log('### tx.date.toISOString()', tx.date.toISOString());
-      console.log('### tx.createdAt.toISOString()', tx.createdAt.toISOString());
       grouped.get(label)!.transactions.push({
         id: tx.id,
         type: tx.type,
@@ -375,10 +376,10 @@ export class TransactionsService {
 
     for (const [label, { rangeStart, rangeEnd, transactions }] of grouped) {
       const income = transactions
-        .filter((t) => t.type === 'income')
+        .filter((t) => t.type === TransactionType.income)
         .reduce((sum, t) => sum + t.amount, 0);
       const expense = transactions
-        .filter((t) => t.type === 'expense')
+        .filter((t) => t.type === TransactionType.expense)
         .reduce((sum, t) => sum + t.amount, 0);
 
       incomeTotal += income;

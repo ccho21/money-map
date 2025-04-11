@@ -53,6 +53,6 @@ export class BudgetSummaryDTO {
   @ApiProperty({ example: 40, description: '예산 사용률 (%)' })
   rate: number;
 
-  @ApiProperty({ description: '카테고리별 예산 리스트' })
-  data: BudgetSummary[];
+  rangeStart: string; // 2025-03-01
+  rangeEnd: string; // 2025-03-31
 }

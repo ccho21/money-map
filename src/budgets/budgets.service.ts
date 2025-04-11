@@ -17,10 +17,16 @@ import {
   BudgetCategoryGroupItemDTO,
   BudgetCategoryGroupResponseDTO,
 } from './dto/budget-group.dto';
-import { isSameDay, parseISO } from 'date-fns';
-import { getDateRangeList, getUTCStartDate } from '@/libs/date.util';
+import { format, isSameDay, parseISO } from 'date-fns';
+import {
+  getDateRangeAndLabelByGroup,
+  getDateRangeList,
+  getUTCEndDate,
+  getUTCStartDate,
+} from '@/libs/date.util';
 import { getUserTimezone } from '@/libs/timezone';
 import { DateRangeWithGroupQueryDTO } from '@/common/dto/date-range-with-group.dto';
+import { toZonedTime } from 'date-fns-tz';
 
 @Injectable()
 export class BudgetsService {
@@ -47,61 +53,37 @@ export class BudgetsService {
     }));
   }
 
-  async getBudgetSummary(
+  async getSummary(
     userId: string,
-    query: DateRangeWithGroupQueryDTO,
+    { startDate, endDate, groupBy }: DateRangeWithGroupQueryDTO,
   ): Promise<BudgetSummaryDTO> {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new NotFoundException('User not found');
 
     const timezone = user.timezone || 'America/Toronto';
-
-    const start = getUTCStartDate(query.startDate, timezone);
-    const end = getUTCStartDate(query.endDate, timezone);
+    const from = getUTCStartDate(startDate, timezone);
+    const to = getUTCEndDate(endDate, timezone);
 
     const budgetCategories = await this.prisma.budgetCategory.findMany({
-      where: {
-        budget: { userId },
-      },
-      include: {
-        category: true,
-      },
+      where: { budget: { userId } },
+      select: { amount: true },
     });
 
-    const data: BudgetSummary[] = [];
-    let totalBudget = 0;
-    let totalExpense = 0;
+    const totalBudget = budgetCategories.reduce(
+      (sum, bc) => sum + bc.amount,
+      0,
+    );
 
-    for (const bc of budgetCategories) {
-      const used = await this.prisma.transaction.aggregate({
-        where: {
-          userId,
-          type: 'expense',
-          categoryId: bc.categoryId,
-          date: {
-            gte: start,
-            lte: end,
-          },
-        },
-        _sum: { amount: true },
-      });
+    const expenses = await this.prisma.transaction.findMany({
+      where: {
+        userId,
+        type: 'expense',
+        date: { gte: from, lte: to },
+      },
+      select: { amount: true },
+    });
 
-      const usedAmount = used._sum.amount ?? 0;
-      const percent =
-        bc.amount === 0 ? 0 : Math.round((usedAmount / bc.amount) * 100);
-
-      totalBudget += bc.amount;
-      totalExpense += usedAmount;
-
-      data.push({
-        categoryId: bc.categoryId,
-        categoryName: bc.category.name,
-        budgetAmount: bc.amount,
-        usedAmount,
-        rate: percent,
-      });
-    }
-
+    const totalExpense = expenses.reduce((sum, tx) => sum + tx.amount, 0);
     const rate =
       totalBudget === 0 ? 0 : Math.round((totalExpense / totalBudget) * 100);
 
@@ -109,7 +91,8 @@ export class BudgetsService {
       totalBudget,
       totalExpense,
       rate,
-      data,
+      rangeStart: format(from, 'yyyy-MM-dd'),
+      rangeEnd: format(to, 'yyyy-MM-dd'),
     };
   }
 
