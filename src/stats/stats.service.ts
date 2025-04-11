@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   Logger,
@@ -28,6 +29,10 @@ export class StatsService {
     query: StatsQuery,
   ): Promise<StatsByCategoryDTO> {
     const { startDate, endDate, type } = query;
+    if (!startDate || !endDate || !type) {
+      throw new BadRequestException('startDate, endDate, type are required.');
+    }
+
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new NotFoundException('User not found');
     const timezone = getUserTimezone(user);
@@ -35,6 +40,7 @@ export class StatsService {
     const start = getUTCStartDate(startDate, timezone);
     const end = getUTCStartDate(endDate, timezone);
 
+    // 1. 거래 집계 (카테고리별 합계)
     const grouped = await this.prisma.transaction.groupBy({
       by: ['categoryId'],
       where: {
@@ -54,11 +60,30 @@ export class StatsService {
     }
 
     const categoryIds = grouped.map((g) => g.categoryId!);
+
+    // 2. 카테고리 정보
     const categories = await this.prisma.category.findMany({
       where: { id: { in: categoryIds } },
     });
     const categoryMap = new Map(categories.map((c) => [c.id, c]));
 
+    // ✅ 3. BudgetCategory (해당 기간에 유효한 예산만 가져옴)
+    const budgetCategories = await this.prisma.budgetCategory.findMany({
+      where: {
+        categoryId: { in: categoryIds },
+        startDate: { lte: end },
+        endDate: { gte: start },
+      },
+    });
+
+    const budgetMap = new Map(
+      budgetCategories.map((b) => [
+        b.categoryId,
+        { budgetId: b.budgetId, amount: b.amount },
+      ]),
+    );
+
+    // 4. 총합 계산
     const totalSpent = grouped.reduce(
       (sum, g) => sum + (g._sum.amount ?? 0),
       0,
@@ -67,13 +92,21 @@ export class StatsService {
     let totalIncome = 0;
     let totalExpense = 0;
 
+    // 5. 결과 매핑
     const result: StatsByCategory[] = grouped.map((group) => {
       const category = categoryMap.get(group.categoryId!);
       const amount = group._sum.amount ?? 0;
+      const budget = budgetMap.get(group.categoryId!);
+
       const rate =
         type === 'expense' && totalSpent > 0
           ? Math.min((amount / totalSpent) * 100, 999)
           : 0;
+
+      const budgetRate =
+        budget && budget.amount > 0
+          ? Math.min((amount / budget.amount) * 100, 999)
+          : undefined;
 
       if (category?.type === 'income') totalIncome += amount;
       if (category?.type === 'expense') totalExpense += amount;
@@ -85,6 +118,11 @@ export class StatsService {
         color: category?.color ?? '#999999',
         expense: amount,
         rate,
+        ...(budget && {
+          budgetId: budget.budgetId,
+          amount: budget.amount,
+          budgetRate,
+        }),
       };
     });
 

@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { BudgetDTO, BudgetSummary, BudgetSummaryDTO } from './dto/budget.dto';
+import { BudgetDTO, BudgetSummaryDTO } from './dto/budget.dto';
 import {
   BudgetCategoryListDTO,
   CreateBudgetCategoryDTO,
@@ -19,14 +19,12 @@ import {
 } from './dto/budget-group.dto';
 import { format, isSameDay, parseISO } from 'date-fns';
 import {
-  getDateRangeAndLabelByGroup,
   getDateRangeList,
   getUTCEndDate,
   getUTCStartDate,
 } from '@/libs/date.util';
 import { getUserTimezone } from '@/libs/timezone';
 import { DateRangeWithGroupQueryDTO } from '@/common/dto/date-range-with-group.dto';
-import { toZonedTime } from 'date-fns-tz';
 
 @Injectable()
 export class BudgetsService {
@@ -55,7 +53,7 @@ export class BudgetsService {
 
   async getSummary(
     userId: string,
-    { startDate, endDate, groupBy }: DateRangeWithGroupQueryDTO,
+    { startDate, endDate }: DateRangeWithGroupQueryDTO,
   ): Promise<BudgetSummaryDTO> {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new NotFoundException('User not found');

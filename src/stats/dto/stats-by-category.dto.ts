@@ -1,6 +1,12 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { CategoryType } from '@prisma/client';
-import { IsEnum, IsNumber, IsOptional, IsString } from 'class-validator';
+import {
+  IsEnum,
+  IsNumber,
+  IsOptional,
+  IsString,
+  IsUUID,
+} from 'class-validator';
 
 export class StatsByCategory {
   @ApiProperty({
@@ -27,6 +33,22 @@ export class StatsByCategory {
   })
   @IsNumber()
   rate: number;
+
+  @ApiProperty({
+    example: 'cl3m2kxyd0000vavfb2gnxr4m',
+    description: '카테고리 ID',
+  })
+  @IsString()
+  @IsUUID()
+  budgetId?: string;
+
+  @ApiProperty({ example: 200000, description: '예산 금액' })
+  @IsOptional()
+  budget?: number;
+
+  @ApiProperty({ example: 25.0, description: '예산 대비 소비율' })
+  @IsOptional()
+  budgetRate?: number;
 
   @ApiProperty({ example: '#FF8A00', description: '카테고리 색상' })
   @IsString()
