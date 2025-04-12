@@ -25,7 +25,7 @@ export class StatsByCategory {
 
   @ApiProperty({ example: 150000, description: '실제 지출된 금액' })
   @IsNumber()
-  expense: number;
+  amount: number;
 
   @ApiProperty({
     example: 50.0,

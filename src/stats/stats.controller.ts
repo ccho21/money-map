@@ -14,6 +14,8 @@ import { StatsQuery } from './dto/stats-query.dto';
 import { StatsByNoteDTO } from './dto/stats-by-note.dto';
 import { TransactionSummaryDTO } from '@/transactions/dto/transaction.dto';
 import { GroupBy } from '@/common/types/types';
+import { StatsSummaryByCategoryDTO } from './dto/stats-summary-by-category.dto';
+import { StatsSummaryByBudgetDTO } from './dto/stats-summary-by-budget.dto';
 
 @ApiTags('Stats')
 @ApiBearerAuth('access-token')
@@ -62,6 +64,29 @@ export class StatsController {
     return this.statsService.getStatsCategory(user.id, categoryId, query);
   }
 
+  @Get('/category/:categoryId/summary')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: '카테고리 기준 통계 조회' })
+  @ApiQuery({ name: 'startDate', type: String, required: true })
+  @ApiQuery({ name: 'endDate', type: String, required: true })
+  @ApiQuery({ name: 'type', enum: ['income', 'expense'], required: true })
+  @ApiQuery({
+    name: 'groupBy',
+    enum: GroupBy,
+    required: true,
+  })
+  getStatsCategorySummary(
+    @GetUser() user: UserPayload,
+    @Param('categoryId') categoryId: string,
+    @Query() query: StatsQuery,
+  ): Promise<StatsSummaryByCategoryDTO> {
+    return this.statsService.getStatsCategorySummary(
+      user.id,
+      categoryId,
+      query,
+    );
+  }
+
   @Get('/budget/:categoryId')
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: '카테고리 기준 통계 조회' })
@@ -79,5 +104,24 @@ export class StatsController {
     @Query() query: StatsQuery,
   ): Promise<TransactionSummaryDTO> {
     return this.statsService.getStatsBudgetCategory(user.id, categoryId, query);
+  }
+
+  @Get('/budget/:categoryId/summary')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: '카테고리 기준 통계 조회' })
+  @ApiQuery({ name: 'startDate', type: String, required: true })
+  @ApiQuery({ name: 'endDate', type: String, required: true })
+  @ApiQuery({ name: 'type', enum: ['income', 'expense'], required: true })
+  @ApiQuery({
+    name: 'groupBy',
+    enum: GroupBy,
+    required: true,
+  })
+  getStatsBudgetSummary(
+    @GetUser() user: UserPayload,
+    @Param('categoryId') categoryId: string,
+    @Query() query: StatsQuery,
+  ): Promise<StatsSummaryByBudgetDTO> {
+    return this.statsService.getStatsBudgetSummary(user.id, categoryId, query);
   }
 }
