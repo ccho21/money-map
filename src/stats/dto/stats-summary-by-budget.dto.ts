@@ -16,6 +16,7 @@ export interface StatsSummaryByBudgetDTO {
   categoryName: string;
   color: string;
   totalExpense: number;
+  totalIncome: number;
   totalBudget?: number;
   totalRemaining?: number;
   isOver?: boolean;

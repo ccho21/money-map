@@ -239,7 +239,7 @@ export class StatsService {
       .filter((item) => item.hasBudget)
       .reduce((acc, item) => acc + item.spent, 0);
 
-    const totalRemaining = totalBudget - totalSpent;
+    // const totalRemaining = totalBudget - totalSpent;
 
     return {
       totalBudget,
@@ -411,7 +411,7 @@ export class StatsService {
     const timezone = getUserTimezone(user);
 
     const start = getUTCStartDate(startDate, timezone);
-    const end = getUTCStartDate(endDate, timezone);
+    // const end = getUTCStartDate(endDate, timezone);
 
     // ✅ 1. 구간 생성
     const ranges = getDateRangeList(start, groupBy, timezone);
@@ -544,15 +544,30 @@ export class StatsService {
       const rangeStart = parseISO(range.startDate);
       const rangeEnd = parseISO(range.endDate);
 
-      const expenseTotal = txList
-        .filter((tx) => {
-          const zoned = toZonedTime(tx.date, timezone);
-          return isWithinInterval(zoned, {
-            start: startOfDay(rangeStart),
-            end: endOfDay(rangeEnd),
-          });
-        })
-        .reduce((sum, tx) => sum + tx.amount, 0);
+      let expense = 0;
+      let income = 0;
+
+      if (type === 'expense') {
+        expense = txList
+          .filter((tx) => {
+            const zoned = toZonedTime(tx.date, timezone);
+            return isWithinInterval(zoned, {
+              start: startOfDay(rangeStart),
+              end: endOfDay(rangeEnd),
+            });
+          })
+          .reduce((sum, tx) => sum + tx.amount, 0);
+      } else if (type === 'income') {
+        income = txList
+          .filter((tx) => {
+            const zoned = toZonedTime(tx.date, timezone);
+            return isWithinInterval(zoned, {
+              start: startOfDay(rangeStart),
+              end: endOfDay(rangeEnd),
+            });
+          })
+          .reduce((sum, tx) => sum + tx.amount, 0);
+      }
 
       const budget = budgetList.find(
         (b) =>
@@ -568,24 +583,37 @@ export class StatsService {
 
       const budgetAmount = budget?.amount;
       const remaining =
-        budgetAmount !== undefined ? budgetAmount - expenseTotal : undefined;
+        budgetAmount !== undefined ? budgetAmount - expense : undefined;
       const isOver = remaining !== undefined && remaining < 0;
 
       return {
         label: range.label,
         startDate: range.startDate,
         endDate: range.endDate,
-        expenseTotal,
-        incomeTotal: 0, // ✅ 타입에 따라 추후 확장 가능
+        expense,
+        income,
         budgetAmount,
         remaining,
         isOver,
-        isCurrent: range.isCurrent, // ✅ 현재 구간 여부
+        isCurrent: range.isCurrent,
       };
     });
 
-    const totalExpense = data.reduce((sum, d) => sum + d.expenseTotal, 0);
-    const totalBudget = data.reduce((sum, d) => sum + (d.budgetAmount ?? 0), 0);
+    // ✅ 선택된 기간 내의 range만 필터링하여 합계 계산
+    const filtered = data.filter(
+      (d) => parseISO(d.startDate) >= start && parseISO(d.endDate) <= end,
+    );
+
+    const totalExpense =
+      type === 'expense' ? filtered.reduce((sum, d) => sum + d.expense, 0) : 0;
+
+    const totalIncome =
+      type === 'income' ? filtered.reduce((sum, d) => sum + d.income, 0) : 0;
+
+    const totalBudget = filtered.reduce(
+      (sum, d) => sum + (d.budgetAmount ?? 0),
+      0,
+    );
     const totalRemaining = totalBudget - totalExpense;
     const isOver = totalRemaining < 0;
 
@@ -594,6 +622,7 @@ export class StatsService {
       categoryName: category.name,
       color: category.color ?? '#999999',
       totalExpense,
+      totalIncome,
       totalBudget,
       totalRemaining,
       isOver,

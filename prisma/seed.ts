@@ -1,17 +1,17 @@
 import {
   PrismaClient,
   CategoryType,
-  TransactionType,
   AccountType,
+  TransactionType,
 } from '@prisma/client';
 import bcrypt from 'bcrypt';
+import { set } from 'date-fns';
 
 const prisma = new PrismaClient();
 
 async function main() {
   const hashedPassword = await bcrypt.hash('secure123', 10);
 
-  // ✅ 1. Create user
   const user = await prisma.user.upsert({
     where: { email: 'seeduser@example.com' },
     update: {},
@@ -22,7 +22,6 @@ async function main() {
     },
   });
 
-  // ✅ 2. Create accounts
   const [cashAccount, cardAccount] = await Promise.all([
     prisma.account.create({
       data: {
@@ -47,7 +46,6 @@ async function main() {
     }),
   ]);
 
-  // ✅ 3. Create categories
   const categoryData = [
     {
       name: 'Pay',
@@ -61,170 +59,103 @@ async function main() {
       type: CategoryType.expense,
       color: '#F97316',
     },
-    { name: 'Ride', icon: 'Car', type: CategoryType.expense, color: '#EF4444' },
+    {
+      name: 'Ride',
+      icon: 'Car',
+      type: CategoryType.expense,
+      color: '#EF4444',
+    },
   ];
 
   const categories = await Promise.all(
-    categoryData.map((data) =>
+    categoryData.map((cat) =>
       prisma.category.create({
         data: {
-          ...data,
+          ...cat,
           userId: user.id,
         },
       }),
     ),
   );
 
-  // ✅ 4. Create budget
+  const [payCategory, foodCategory, rideCategory] = categories;
+
+  const makeDate = (month: number, day: number) =>
+    set(new Date(), { month: month - 1, date: day, hours: 12 });
+
+  const allTransactions: {
+    userId: string;
+    accountId: string;
+    type: TransactionType;
+    amount: number;
+    date: Date;
+    description?: string;
+    categoryId?: string;
+  }[] = [];
+
+  for (let month = 1; month <= 4; month++) {
+    allTransactions.push(
+      {
+        userId: user.id,
+        accountId: cashAccount.id,
+        type: TransactionType.income,
+        categoryId: payCategory.id,
+        amount: 2500 + month * 100,
+        date: makeDate(month, 5),
+        description: `Salary for month ${month}`,
+      },
+      {
+        userId: user.id,
+        accountId: cardAccount.id,
+        type: TransactionType.expense,
+        categoryId: foodCategory.id,
+        amount: 40 + month * 2,
+        date: makeDate(month, 10),
+        description: `Dinner in month ${month}`,
+      },
+      {
+        userId: user.id,
+        accountId: cardAccount.id,
+        type: TransactionType.expense,
+        categoryId: rideCategory.id,
+        amount: 18 + month,
+        date: makeDate(month, 15),
+        description: `Ride in month ${month}`,
+      },
+    );
+  }
+
+  await prisma.transaction.createMany({ data: allTransactions });
+
   const budget = await prisma.budget.create({
     data: {
       userId: user.id,
-      total: 3000,
+      total: 4000,
     },
   });
 
-  // ✅ 5. Create budget categories (Feb~Apr)
-  const months = [
-    {
-      start: new Date(Date.UTC(2025, 1, 1)),
-      end: new Date(Date.UTC(2025, 1, 28)),
-    }, // Feb
-    {
-      start: new Date(Date.UTC(2025, 2, 1)),
-      end: new Date(Date.UTC(2025, 2, 31)),
-    }, // Mar
-    {
-      start: new Date(Date.UTC(2025, 3, 1)),
-      end: new Date(Date.UTC(2025, 3, 30)),
-    }, // Apr
-  ];
+  const today = new Date();
 
-  for (const month of months) {
-    for (const category of categories.filter((c) => c.type === 'expense')) {
-      await prisma.budgetCategory.create({
-        data: {
-          budgetId: budget.id,
-          categoryId: category.id,
-          amount: 1000,
-          startDate: month.start,
-          endDate: month.end,
-        },
-      });
-    }
-  }
-
-  // ✅ 6. Opening Balance transactions (realistic)
-  await prisma.transaction.createMany({
+  await prisma.budgetCategory.createMany({
     data: [
       {
-        type: TransactionType.income,
-        amount: 500,
-        userId: user.id,
-        accountId: cashAccount.id,
-        categoryId: categories.find((c) => c.name === 'Pay')?.id,
-        date: new Date(Date.UTC(2025, 1, 1)),
-        note: 'Opening Balance',
-        isOpening: true,
+        budgetId: budget.id,
+        categoryId: foodCategory.id,
+        amount: 200,
+        startDate: new Date(today.getFullYear(), today.getMonth(), 1),
+        endDate: new Date(today.getFullYear(), today.getMonth() + 1, 0),
       },
       {
-        type: TransactionType.income,
+        budgetId: budget.id,
+        categoryId: rideCategory.id,
         amount: 100,
-        userId: user.id,
-        accountId: cardAccount.id,
-        categoryId: categories.find((c) => c.name === 'Pay')?.id,
-        date: new Date(Date.UTC(2025, 1, 1)),
-        note: 'Opening Balance',
-        isOpening: true,
+        startDate: new Date(today.getFullYear(), today.getMonth(), 1),
+        endDate: new Date(today.getFullYear(), today.getMonth() + 1, 0),
       },
     ],
   });
 
-  // ✅ 7. Random transactions (2월~4월, realistic CAD)
-  const notes = [
-    'Starbucks coffee',
-    'Grocery run',
-    'Uber downtown',
-    'Dinner out',
-    'Gym fee',
-    'Transfer to card',
-    'Credit card payment',
-    'Salary received',
-    'Late night snack',
-    'Quick taxi ride',
-  ];
-
-  function getRandom<T>(arr: T[]): T {
-    return arr[Math.floor(Math.random() * arr.length)];
-  }
-
-  function getRandomAmount(min: number, max: number): number {
-    return Math.floor(Math.random() * (max - min + 1)) + min;
-  }
-
-  async function generateTransactions(month: number, year: number) {
-    const txs: Promise<unknown>[] = [];
-
-    for (let i = 0; i < 10; i++) {
-      const date = new Date(
-        Date.UTC(year, month, Math.floor(Math.random() * 28) + 1),
-      );
-      const random = Math.random();
-
-      if (random < 0.6) {
-        const cat = getRandom(categories.filter((c) => c.type === 'expense'));
-        txs.push(
-          prisma.transaction.create({
-            data: {
-              type: TransactionType.expense,
-              amount: getRandomAmount(5, 100),
-              userId: user.id,
-              accountId: cashAccount.id,
-              categoryId: cat.id,
-              date,
-              note: getRandom(notes),
-            },
-          }),
-        );
-      } else if (random < 0.85) {
-        const cat = getRandom(categories.filter((c) => c.type === 'income'));
-        txs.push(
-          prisma.transaction.create({
-            data: {
-              type: TransactionType.income,
-              amount: getRandomAmount(100, 1000),
-              userId: user.id,
-              accountId: cashAccount.id,
-              categoryId: cat.id,
-              date,
-              note: getRandom(notes),
-            },
-          }),
-        );
-      } else {
-        txs.push(
-          prisma.transaction.create({
-            data: {
-              type: TransactionType.transfer,
-              amount: getRandomAmount(20, 300),
-              userId: user.id,
-              accountId: cashAccount.id,
-              toAccountId: cardAccount.id,
-              date,
-              note: getRandom(notes),
-            },
-          }),
-        );
-      }
-    }
-
-    await Promise.all(txs);
-  }
-
-  await generateTransactions(1, 2025); // Feb
-  await generateTransactions(2, 2025); // Mar
-  await generateTransactions(3, 2025); // Apr
-
-  console.log('✅ Seed completed with realistic CAD data!');
+  console.log('✅ Seed with monthly data completed.');
 }
 
 main()
