@@ -83,9 +83,9 @@ model Transaction {
   account   Account  @relation(fields: [accountId], references: [id])
   toAccount Account? @relation("ToAccount", fields: [toAccountId], references: [id])
 
-  dueDate DateTime? // 카드 결제 예정일
-  paidAt  DateTime? // 실제 결제 완료일
-  isOpening        Boolean      @default(false)
+  dueDate   DateTime? // 카드 결제 예정일
+  paidAt    DateTime? // 실제 결제 완료일
+  isOpening Boolean   @default(false)
 }
 
 model Category {
@@ -117,8 +117,9 @@ model BudgetCategory {
   categoryId String
   amount     Int
 
-  startDate DateTime // ✅ 추가
-  endDate   DateTime // ✅ 추가
+  startDate DateTime
+  endDate   DateTime
+  type      CategoryType
 
   budget   Budget   @relation(fields: [budgetId], references: [id])
   category Category @relation(fields: [categoryId], references: [id])

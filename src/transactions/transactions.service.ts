@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventsGateway } from 'src/events/events.gateway';
-import { CategoryType, Prisma, TransactionType } from '@prisma/client';
+import { Prisma, TransactionType } from '@prisma/client';
 import {
   TransactionCalendarItem,
   TransactionDTO,

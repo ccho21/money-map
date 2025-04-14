@@ -51,6 +51,10 @@ export class StatsByBudget {
   @IsNumber()
   spent: number;
 
+  @ApiProperty({ example: 150000, description: '실제 수입' })
+  @IsNumber()
+  income: number;
+
   @ApiProperty({ example: 150000, description: '남은 예산 (budget - spent)' })
   @IsNumber()
   remaining: number;
@@ -72,6 +76,10 @@ export class StatsByBudgetDTO {
   @ApiProperty({ example: 1750000, description: '전체 지출 합계' })
   @IsNumber()
   totalSpent: number;
+
+  @ApiProperty({ example: 1750000, description: '전체 수입 합계' })
+  @IsNumber()
+  totalIncome: number;
 
   @ApiProperty({ example: 1250000, description: '전체 남은 예산' })
   @IsNumber()

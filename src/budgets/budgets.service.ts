@@ -159,8 +159,6 @@ export class BudgetsService {
     if (!user) throw new NotFoundException('User not found');
 
     const timezone = getUserTimezone(user);
-
-    // ✅ 날짜 변환: Local 기준 00시 → UTC
     const start = getUTCStartDate(startDate, timezone);
     const end = getUTCStartDate(endDate, timezone);
 
@@ -168,7 +166,6 @@ export class BudgetsService {
       where: { userId },
       take: 1,
     });
-
     if (!budget) {
       throw new NotFoundException('No budget record found for user.');
     }
@@ -188,7 +185,6 @@ export class BudgetsService {
         endDate: end,
       },
     });
-
     if (exists) {
       throw new ConflictException(
         'Budget already exists for this category and period.',
@@ -202,6 +198,7 @@ export class BudgetsService {
         amount,
         startDate: start,
         endDate: end,
+        type: category.type, // ✅ 카테고리에서 type을 가져와 명시적으로 저장
       },
     });
 
@@ -218,7 +215,10 @@ export class BudgetsService {
   ): Promise<UpdateBudgetCategoryResponseDTO> {
     const budget = await this.prisma.budgetCategory.findUnique({
       where: { id: budgetId },
-      include: { budget: true },
+      include: {
+        budget: true,
+        category: true, // ✅ category.type을 사용하기 위함
+      },
     });
 
     if (!budget || budget.budget.userId !== userId) {
@@ -230,7 +230,6 @@ export class BudgetsService {
 
     const timezone = user.timezone || 'Asia/Seoul';
 
-    // ✅ 날짜 변환
     const start = dto.startDate
       ? getUTCStartDate(dto.startDate, timezone)
       : undefined;
@@ -244,6 +243,7 @@ export class BudgetsService {
         ...(dto.amount !== undefined && { amount: dto.amount }),
         ...(start && { startDate: start }),
         ...(end && { endDate: end }),
+        type: budget.category.type, // ✅ type은 반드시 포함되어야 하므로 기존 값 사용
       },
     });
 
@@ -252,6 +252,7 @@ export class BudgetsService {
       message: 'Budget updated successfully.',
     };
   }
+
   async getGroupedBudgetCategories(
     userId: string,
     categoryId: string,
@@ -265,10 +266,10 @@ export class BudgetsService {
 
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new NotFoundException('User not found');
-    const timezone = user.timezone || 'Asia/Seoul';
 
+    const timezone = user.timezone || 'Asia/Seoul';
     const baseDate = parseISO(startDate);
-    const ranges = getDateRangeList(baseDate, groupBy, timezone); // ✅ 중심 기준으로 12개 구간 생성
+    const ranges = getDateRangeList(baseDate, groupBy, timezone);
 
     const start = getUTCStartDate(ranges[0].startDate, timezone);
     const end = getUTCStartDate(ranges[11].endDate, timezone);
@@ -290,6 +291,7 @@ export class BudgetsService {
     }
 
     const categoryInfo = allBudgetCategories[0].category;
+    const categoryType = categoryInfo.type;
 
     let defaultAmount = 0;
     for (const range of ranges) {
@@ -321,6 +323,7 @@ export class BudgetsService {
         budgetAmount: amount,
         isCurrent: range.isCurrent,
         categoryId: matched ? matched.categoryId : null,
+        type: categoryType, // ✅ 추가: 예산 타입 포함
       };
     });
 

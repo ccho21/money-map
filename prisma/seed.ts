@@ -1,7 +1,7 @@
 import {
   PrismaClient,
-  CategoryType,
   AccountType,
+  CategoryType,
   TransactionType,
 } from '@prisma/client';
 import bcrypt from 'bcrypt';
@@ -93,6 +93,22 @@ async function main() {
     categoryId?: string;
   }[] = [];
 
+  const budgetCategoryData: {
+    budgetId: string;
+    categoryId: string;
+    amount: number;
+    startDate: Date;
+    endDate: Date;
+    type: CategoryType;
+  }[] = [];
+
+  const budget = await prisma.budget.create({
+    data: {
+      userId: user.id,
+      total: 4000,
+    },
+  });
+
   for (let month = 1; month <= 4; month++) {
     allTransactions.push(
       {
@@ -123,39 +139,36 @@ async function main() {
         description: `Ride in month ${month}`,
       },
     );
-  }
 
-  await prisma.transaction.createMany({ data: allTransactions });
+    const startDate = new Date(new Date().getFullYear(), month - 1, 1);
+    const endDate = new Date(new Date().getFullYear(), month, 0);
 
-  const budget = await prisma.budget.create({
-    data: {
-      userId: user.id,
-      total: 4000,
-    },
-  });
-
-  const today = new Date();
-
-  await prisma.budgetCategory.createMany({
-    data: [
+    budgetCategoryData.push(
       {
         budgetId: budget.id,
         categoryId: foodCategory.id,
-        amount: 200,
-        startDate: new Date(today.getFullYear(), today.getMonth(), 1),
-        endDate: new Date(today.getFullYear(), today.getMonth() + 1, 0),
+        amount: 200 + month * 10,
+        startDate,
+        endDate,
+        type: CategoryType.expense,
       },
       {
         budgetId: budget.id,
         categoryId: rideCategory.id,
-        amount: 100,
-        startDate: new Date(today.getFullYear(), today.getMonth(), 1),
-        endDate: new Date(today.getFullYear(), today.getMonth() + 1, 0),
+        amount: 100 + month * 5,
+        startDate,
+        endDate,
+        type: CategoryType.expense,
       },
-    ],
-  });
+    );
+  }
 
-  console.log('✅ Seed with monthly data completed.');
+  await prisma.transaction.createMany({ data: allTransactions });
+  await prisma.budgetCategory.createMany({ data: budgetCategoryData });
+
+  console.log(
+    '✅ Seed with monthly transactions & budget categories completed.',
+  );
 }
 
 main()

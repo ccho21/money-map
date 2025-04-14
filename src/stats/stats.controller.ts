@@ -16,6 +16,7 @@ import { TransactionSummaryDTO } from '@/transactions/dto/transaction.dto';
 import { GroupBy } from '@/common/types/types';
 import { StatsSummaryByCategoryDTO } from './dto/stats-summary-by-category.dto';
 import { StatsSummaryByBudgetDTO } from './dto/stats-summary-by-budget.dto';
+import { StatsSummaryByNoteDTO } from './dto/stats-summary-by-note.dto';
 
 @ApiTags('Stats')
 @ApiBearerAuth('access-token')
@@ -38,11 +39,11 @@ export class StatsController {
 
   @Get('by-note')
   @UseGuards(JwtAuthGuard)
-  async getByNote(
+  async getStatsByNoteSummary(
     @GetUser() user: UserPayload,
     @Query() query: StatsQuery,
   ): Promise<StatsByNoteDTO> {
-    return this.statsService.getByNote(user.id, query);
+    return this.statsService.getStatsByNoteSummary(user.id, query);
   }
 
   @Get('/category/:categoryId')
@@ -123,5 +124,43 @@ export class StatsController {
     @Query() query: StatsQuery,
   ): Promise<StatsSummaryByBudgetDTO> {
     return this.statsService.getStatsBudgetSummary(user.id, categoryId, query);
+  }
+
+  @Get('/note/:note')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: '노트 기준 상세 통계 (구간별 트랜잭션 요약)' })
+  @ApiQuery({ name: 'startDate', type: String, required: true })
+  @ApiQuery({ name: 'endDate', type: String, required: true })
+  @ApiQuery({ name: 'type', enum: ['income', 'expense'], required: true })
+  @ApiQuery({
+    name: 'groupBy',
+    enum: GroupBy,
+    required: true,
+  })
+  getStatsNoteDetail(
+    @GetUser() user: UserPayload,
+    @Param('note') note: string,
+    @Query() query: StatsQuery,
+  ): Promise<TransactionSummaryDTO> {
+    return this.statsService.getStatsNoteDetail(user.id, note, query);
+  }
+
+  @Get('/note/:note/summary')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: '노트 기반 통계 상세 조회 (1년치 + 트랜잭션 포함)' })
+  @ApiQuery({ name: 'startDate', type: String, required: true })
+  @ApiQuery({ name: 'endDate', type: String, required: true })
+  @ApiQuery({ name: 'type', enum: ['income', 'expense'], required: true })
+  @ApiQuery({
+    name: 'groupBy',
+    enum: GroupBy,
+    required: true,
+  })
+  getStatsNoteSummary(
+    @GetUser() user: UserPayload,
+    @Param('note') note: string,
+    @Query() query: StatsQuery,
+  ): Promise<StatsSummaryByNoteDTO> {
+    return this.statsService.getStatsNoteSummary(user.id, note, query);
   }
 }

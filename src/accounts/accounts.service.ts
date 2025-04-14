@@ -30,7 +30,6 @@ import { format, subMonths } from 'date-fns';
 import { TransactionType } from '@prisma/client';
 import { DateQueryDTO } from '@/common/dto/date-query.dto';
 import { DateRangeWithGroupQueryDTO } from '@/common/dto/date-range-with-group.dto';
-import { GroupBy } from '@/common/types/types';
 import { recalculateAccountBalanceInTx } from '@/transactions/utils/recalculateAccountBalanceInTx.util';
 import { getTransactionDelta } from '@/transactions/utils/getTransactionDelta.util';
 import { AccountSummaryDTO } from './dto/account.dto';
@@ -269,14 +268,13 @@ export class AccountsService {
 
     for (const tx of transactions) {
       const zoned = toZonedTime(tx.date, timezone);
-      let key = '';
       const { rangeStart, rangeEnd } = getDateRangeAndLabelByGroup(
         zoned,
         groupBy,
         timezone,
       );
 
-      const compositeKey = `${tx.accountId}-${key}`;
+      const compositeKey = `${tx.accountId}`;
       if (!summaryMap.has(compositeKey)) {
         summaryMap.set(compositeKey, {
           incomeTotal: 0,

@@ -42,6 +42,9 @@ export class BudgetCategoryGroupItemDTO {
   @ApiProperty({ example: 'abc123', description: '카테고리 ID' })
   @IsString()
   categoryId?: string | null;
+
+  @IsString()
+  type: CategoryType; // ✅ 여기에 포함되어야 합니다.
 }
 
 export class BudgetCategoryGroupResponseDTO {

@@ -27,11 +27,28 @@ export function groupTransactions(
   transactions: GroupTransactionInput[],
   groupBy: GroupBy,
   timezone: string,
+  fixedRanges?: {
+    label: string;
+    startDate: string;
+    endDate: string;
+    isCurrent: boolean;
+  }[],
 ): TransactionSummary[] {
   const grouped = new Map<
     string,
     { rangeStart: string; rangeEnd: string; transactions: TransactionDTO[] }
   >();
+
+  // ✅ 고정 구간이 있을 경우 미리 초기화
+  if (fixedRanges) {
+    for (const r of fixedRanges) {
+      grouped.set(r.label, {
+        rangeStart: r.startDate,
+        rangeEnd: r.endDate,
+        transactions: [],
+      });
+    }
+  }
 
   for (const tx of transactions) {
     const zonedTx = toZonedTime(tx.date, timezone);
@@ -130,5 +147,6 @@ export function groupTransactions(
     });
   }
 
-  return data;
+  // ✅ 라벨 순 정렬 보장
+  return data.sort((a, b) => a.rangeStart.localeCompare(b.rangeStart));
 }

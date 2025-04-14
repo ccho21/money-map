@@ -99,6 +99,20 @@ export class TransactionDTO {
     example: 'tx456',
   })
   linkedTransferId?: string;
+
+  @ApiProperty({
+    example: '2025-04-10T00:00:00.000Z',
+    description: '결제 예정일 (카드만)',
+    required: false,
+  })
+  dueDate?: string | null;
+
+  @ApiProperty({
+    example: '2025-04-15T00:00:00.000Z',
+    description: '실제 결제일 (카드만)',
+    required: false,
+  })
+  paidAt?: string | null;
 }
 
 export class TransactionSummary {
@@ -107,6 +121,7 @@ export class TransactionSummary {
   rangeEnd: string;
   incomeTotal: number;
   expenseTotal: number;
+  isCurrent?: boolean;
   transactions: TransactionDTO[]; // ✅ 해당 날짜 or 월 or 연도에 속한 거래 목록
 }
 
