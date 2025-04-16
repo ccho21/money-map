@@ -8,8 +8,8 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
-import { SignupDto } from './dto/signup.dto';
-import { SigninDto } from './dto/signin.dto';
+import { SignupDTO } from './dto/signup.dto';
+import { SigninDTO } from './dto/signin.dto';
 import { AuthGuard } from '@nestjs/passport';
 import { UserPayload } from './types/user-payload.type';
 import { Response } from 'express';
@@ -40,12 +40,12 @@ export class AuthController {
   }
 
   @Post('signup')
-  signup(@Body() dto: SignupDto, @Res({ passthrough: true }) res: Response) {
+  signup(@Body() dto: SignupDTO, @Res({ passthrough: true }) res: Response) {
     return this.authService.signup(dto, res);
   }
 
   @Post('signin')
-  signin(@Body() dto: SigninDto, @Res({ passthrough: true }) res: Response) {
+  signin(@Body() dto: SigninDTO, @Res({ passthrough: true }) res: Response) {
     return this.authService.signin(dto, res);
   }
   @Get('google')

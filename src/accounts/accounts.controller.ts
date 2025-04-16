@@ -15,12 +15,12 @@ import { UserPayload } from 'src/auth/types/user-payload.type';
 import { GetUser } from 'src/common/decorators/get-user.decorator';
 import { ApiOkResponse, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { AccountTransactionSummaryDTO } from './dto/account-transaction-summary.dto';
-import { AccountCreateDTO } from './dto/account-create.dto';
-import { AccountUpdateDTO } from './dto/account-update.dto';
-import { AccountDashboardResponseDTO } from './dto/account-dashboard-response.dto';
-import { TransactionSummaryDTO } from '@/transactions/dto/transaction.dto';
-import { DateQueryDTO } from '@/common/dto/date-query.dto';
-import { DateRangeWithGroupQueryDTO } from '@/common/dto/date-range-with-group.dto';
+import { AccountCreateRequestDTO } from './dto/account-create-request.dto';
+import { AccountUpdateRequestDTO } from './dto/account-update-request.dto';
+import { AccountDashboardDTO } from './dto/account-dashboard.dto';
+import { DateQueryDTO } from '@/common/dto/filter/date-query.dto';
+import { DateRangeWithGroupQueryDTO } from '@/common/dto/filter/date-range-with-group-query.dto';
+import { TransactionGroupSummaryDTO } from '@/transactions/dto/transaction-group-summary.dto';
 
 @ApiTags('Accounts')
 @UseGuards(JwtAuthGuard)
@@ -29,17 +29,12 @@ export class AccountsController {
   constructor(private readonly accountsService: AccountsService) {}
 
   @Post()
-  create(@Body() dto: AccountCreateDTO, @GetUser() user: UserPayload) {
+  create(@Body() dto: AccountCreateRequestDTO, @GetUser() user: UserPayload) {
     return this.accountsService.create(user.id, dto);
   }
 
   @Get()
   findAll(@GetUser() user: UserPayload) {
-    return this.accountsService.findAll(user.id);
-  }
-
-  @Get()
-  find(@GetUser() user: UserPayload) {
     return this.accountsService.findAll(user.id);
   }
 
@@ -54,10 +49,10 @@ export class AccountsController {
   }
 
   @Get('dashboard')
-  @ApiOkResponse({ type: [AccountDashboardResponseDTO] })
+  @ApiOkResponse({ type: [AccountDashboardDTO] })
   getAccountsDashboard(
     @GetUser() user: UserPayload,
-  ): Promise<AccountDashboardResponseDTO> {
+  ): Promise<AccountDashboardDTO> {
     return this.accountsService.getAccountsDashboard(user.id);
   }
   @Get('summary')
@@ -73,7 +68,7 @@ export class AccountsController {
     @Param('accountId') accountId: string,
     @Query() filter: DateRangeWithGroupQueryDTO,
     @GetUser() user: UserPayload,
-  ): Promise<TransactionSummaryDTO> {
+  ): Promise<TransactionGroupSummaryDTO> {
     return this.accountsService.getAccountSummary(accountId, user.id, filter);
   }
 
@@ -86,7 +81,7 @@ export class AccountsController {
   update(
     @GetUser() user: UserPayload,
     @Param('id') id: string,
-    @Body() dto: AccountUpdateDTO,
+    @Body() dto: AccountUpdateRequestDTO,
   ) {
     return this.accountsService.update(user.id, id, dto);
   }

@@ -13,11 +13,10 @@ import { JwtAuthGuard } from '../common/guards/jwt.guard';
 import { GetUser } from '../common/decorators/get-user.decorator';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { UserPayload } from 'src/auth/types/user-payload.type';
-import {
-  CreateBudgetCategoryDTO,
-  UpdateBudgetCategoryDTO,
-} from './dto/budget-category.dto';
-import { DateRangeWithGroupQueryDTO } from '@/common/dto/date-range-with-group.dto';
+
+import { DateRangeWithGroupQueryDTO } from '@/common/dto/filter/date-range-with-group-query.dto';
+import { BudgetCategoryUpdateRequestDTO } from './dto/budget-category-update-request.dto';
+import { BudgetCategoryCreateRequestDTO } from './dto/budget-category-create-request.dto';
 
 @ApiTags('Budgets')
 @ApiBearerAuth('access-token')
@@ -57,7 +56,7 @@ export class BudgetsController {
   @UseGuards(JwtAuthGuard)
   createBudgetCategory(
     @GetUser() user: UserPayload,
-    @Body() dto: CreateBudgetCategoryDTO,
+    @Body() dto: BudgetCategoryCreateRequestDTO,
   ) {
     return this.budgetsService.createBudgetCategory(user.id, dto);
   }
@@ -81,7 +80,7 @@ export class BudgetsController {
   updateBudgetCategory(
     @GetUser() user: UserPayload,
     @Param('id') budgetId: string,
-    @Body() dto: UpdateBudgetCategoryDTO,
+    @Body() dto: BudgetCategoryUpdateRequestDTO,
   ) {
     return this.budgetsService.updateBudgetCategory(user.id, budgetId, dto);
   }

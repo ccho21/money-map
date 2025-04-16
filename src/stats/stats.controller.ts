@@ -9,14 +9,14 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { UserPayload } from 'src/auth/types/user-payload.type';
-import { StatsByCategoryDTO } from './dto/stats-by-category.dto';
 import { StatsQuery } from './dto/stats-query.dto';
-import { StatsByNoteDTO } from './dto/stats-by-note.dto';
-import { TransactionSummaryDTO } from '@/transactions/dto/transaction.dto';
 import { GroupBy } from '@/common/types/types';
-import { StatsSummaryByCategoryDTO } from './dto/stats-summary-by-category.dto';
-import { StatsSummaryByBudgetDTO } from './dto/stats-summary-by-budget.dto';
-import { StatsSummaryByNoteDTO } from './dto/stats-summary-by-note.dto';
+import { CategoryStatsGroupDTO } from './dto/category-stats-group.dto';
+import { NoteStatsGroupDTO } from './dto/note-stats-group.dto';
+import { TransactionGroupSummaryDTO } from '@/transactions/dto/transaction-group-summary.dto';
+import { CategoryGroupSummaryResponseDTO } from './dto/category-group-summary-response.dto';
+import { NoteGroupSummaryResponseDTO } from './dto/note-group-summary-response.dto';
+import { BudgetGroupSummaryResponseDTO } from './dto/budget-group-summary-response.dto';
 
 @ApiTags('Stats')
 @ApiBearerAuth('access-token')
@@ -28,7 +28,7 @@ export class StatsController {
   async getByCategory(
     @GetUser() user: UserPayload,
     @Query() query: StatsQuery,
-  ): Promise<StatsByCategoryDTO> {
+  ): Promise<CategoryStatsGroupDTO> {
     return this.statsService.getByCategory(user.id, query);
   }
 
@@ -42,7 +42,7 @@ export class StatsController {
   async getStatsByNoteSummary(
     @GetUser() user: UserPayload,
     @Query() query: StatsQuery,
-  ): Promise<StatsByNoteDTO> {
+  ): Promise<NoteStatsGroupDTO> {
     return this.statsService.getStatsByNoteSummary(user.id, query);
   }
 
@@ -61,7 +61,7 @@ export class StatsController {
     @GetUser() user: UserPayload,
     @Param('categoryId') categoryId: string,
     @Query() query: StatsQuery,
-  ): Promise<TransactionSummaryDTO> {
+  ): Promise<TransactionGroupSummaryDTO> {
     return this.statsService.getStatsCategory(user.id, categoryId, query);
   }
 
@@ -80,7 +80,7 @@ export class StatsController {
     @GetUser() user: UserPayload,
     @Param('categoryId') categoryId: string,
     @Query() query: StatsQuery,
-  ): Promise<StatsSummaryByCategoryDTO> {
+  ): Promise<CategoryGroupSummaryResponseDTO> {
     return this.statsService.getStatsCategorySummary(
       user.id,
       categoryId,
@@ -103,7 +103,7 @@ export class StatsController {
     @GetUser() user: UserPayload,
     @Param('categoryId') categoryId: string,
     @Query() query: StatsQuery,
-  ): Promise<TransactionSummaryDTO> {
+  ): Promise<TransactionGroupSummaryDTO> {
     return this.statsService.getStatsBudgetCategory(user.id, categoryId, query);
   }
 
@@ -122,7 +122,7 @@ export class StatsController {
     @GetUser() user: UserPayload,
     @Param('categoryId') categoryId: string,
     @Query() query: StatsQuery,
-  ): Promise<StatsSummaryByBudgetDTO> {
+  ): Promise<BudgetGroupSummaryResponseDTO> {
     return this.statsService.getStatsBudgetSummary(user.id, categoryId, query);
   }
 
@@ -141,7 +141,7 @@ export class StatsController {
     @GetUser() user: UserPayload,
     @Param('note') note: string,
     @Query() query: StatsQuery,
-  ): Promise<TransactionSummaryDTO> {
+  ): Promise<TransactionGroupSummaryDTO> {
     return this.statsService.getStatsNoteDetail(user.id, note, query);
   }
 
@@ -160,7 +160,7 @@ export class StatsController {
     @GetUser() user: UserPayload,
     @Param('note') note: string,
     @Query() query: StatsQuery,
-  ): Promise<StatsSummaryByNoteDTO> {
+  ): Promise<NoteGroupSummaryResponseDTO> {
     return this.statsService.getStatsNoteSummary(user.id, note, query);
   }
 }

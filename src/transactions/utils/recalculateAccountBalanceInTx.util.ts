@@ -1,52 +1,35 @@
-import { NotFoundException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { PrismaClient, TransactionType } from '@prisma/client';
+export type PrismaTransactionClient = Parameters<
+  Parameters<PrismaClient['$transaction']>[0]
+>[0];
 
+/**
+ * 계좌의 잔액을 재계산하여 반영합니다.
+ * - 수입: +
+ * - 지출: -
+ * - 이체: 차감/추가 (상대 계좌에 따라 반영)
+ */
 export const recalculateAccountBalanceInTx = async (
-  tx: Prisma.TransactionClient,
+  tx: PrismaTransactionClient,
   accountId: string,
-): Promise<number> => {
-  const account = await tx.account.findUnique({
-    where: { id: accountId },
-  });
-
-  if (!account) {
-    throw new NotFoundException('계좌를 찾을 수 없습니다.');
-  }
-
+  userId: string,
+): Promise<void> => {
   const transactions = await tx.transaction.findMany({
     where: {
-      OR: [
-        { accountId },
-        { toAccountId: accountId }, // 입금용 transfer도 포함
-      ],
+      accountId,
+      userId,
+      isOpening: false,
     },
   });
 
-  let newBalance = 0;
+  const balance = transactions.reduce((acc, tx) => {
+    if (tx.type === TransactionType.income) return acc + tx.amount;
+    if (tx.type === TransactionType.expense) return acc - tx.amount;
+    return acc; // transfer는 from/to로 나뉘어 있기 때문에 여기선 무시 (계좌 2개 기준 따로 처리됨)
+  }, 0);
 
-  for (const txItem of transactions) {
-    const { type, amount } = txItem;
-
-    if (type === 'income' && txItem.accountId === accountId) {
-      newBalance += amount;
-    } else if (type === 'expense' && txItem.accountId === accountId) {
-      newBalance -= amount;
-    } else if (type === 'transfer') {
-      if (txItem.accountId === accountId && txItem.toAccountId) {
-        // 출금 → 마이너스
-        newBalance -= amount;
-      } else if (txItem.toAccountId === accountId) {
-        // 입금 → 플러스
-        newBalance += amount;
-      }
-    }
-  }
-
-  // ✅ DB에 최신 balance 반영
   await tx.account.update({
     where: { id: accountId },
-    data: { balance: newBalance },
+    data: { balance },
   });
-
-  return newBalance;
 };

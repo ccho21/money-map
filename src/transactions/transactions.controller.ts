@@ -19,14 +19,15 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { UserPayload } from 'src/auth/types/user-payload.type';
-import { TransactionCreateDTO } from './dto/transaction-create.dto';
-import { TransactionSummaryDTO } from './dto/transaction.dto';
-import { TransactionUpdateDTO } from './dto/transaction-update.dto';
-import { TransactionTransferDTO } from './dto/transaction-transfer.dto';
-import { DateRangeWithGroupQueryDTO } from '@/common/dto/date-range-with-group.dto';
-import { TransactionFilterDTO } from './dto/transaction-filter.dto';
+import {
+  TransactionCreateRequestDTO,
+  TransactionUpdateRequestDTO,
+  TransactionTransferRequestDTO,
+} from '@/transactions/dto/transaction-request.dto';
+import { DateRangeWithGroupQueryDTO } from '@/common/dto/filter/date-range-with-group-query.dto';
 import { GroupBy } from '@/common/types/types';
-import { BaseDateQueryDTO } from '@/common/dto/baseDate.dto';
+import { BaseDateQueryDTO } from '@/common/dto/filter/base-date-query.dto';
+import { TransactionGroupSummaryDTO } from './dto/transaction-group-summary.dto';
 
 @ApiTags('Transactions')
 @UseGuards(JwtAuthGuard)
@@ -36,14 +37,11 @@ export class TransactionsController {
   constructor(private readonly transactionService: TransactionsService) {}
 
   @Post()
-  create(@GetUser() user: UserPayload, @Body() dto: TransactionCreateDTO) {
+  create(
+    @GetUser() user: UserPayload,
+    @Body() dto: TransactionCreateRequestDTO,
+  ) {
     return this.transactionService.create(user.id, dto);
-  }
-
-  @Get()
-  @ApiQuery({ type: TransactionFilterDTO })
-  findAll(@GetUser() user: UserPayload, @Query() query: TransactionFilterDTO) {
-    return this.transactionService.findFiltered(user.id, query);
   }
 
   @Get('summary')
@@ -57,7 +55,7 @@ export class TransactionsController {
   getTransactionSummary(
     @GetUser() user: UserPayload,
     @Query() query: DateRangeWithGroupQueryDTO,
-  ): Promise<TransactionSummaryDTO> {
+  ): Promise<TransactionGroupSummaryDTO> {
     return this.transactionService.getTransactionSummary(user.id, query);
   }
 
@@ -65,7 +63,7 @@ export class TransactionsController {
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: '계좌 간 이체 생성' })
   createTransfer(
-    @Body() createTransferDto: TransactionTransferDTO,
+    @Body() createTransferDto: TransactionTransferRequestDTO,
     @GetUser() user: UserPayload,
   ) {
     return this.transactionService.createTransfer(user.id, createTransferDto);
@@ -84,7 +82,7 @@ export class TransactionsController {
   @ApiOperation({ summary: '이체 트랜잭션 수정' })
   updateTransfer(
     @Param('id') id: string,
-    @Body() dto: TransactionTransferDTO,
+    @Body() dto: TransactionTransferRequestDTO,
     @GetUser() user: UserPayload,
   ) {
     return this.transactionService.updateTransfer(user.id, id, dto);
@@ -106,7 +104,7 @@ export class TransactionsController {
   update(
     @GetUser() user: UserPayload,
     @Param('id') id: string,
-    @Body() dto: TransactionUpdateDTO,
+    @Body() dto: TransactionUpdateRequestDTO,
   ) {
     return this.transactionService.update(user.id, id, dto);
   }

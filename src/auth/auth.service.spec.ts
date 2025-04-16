@@ -8,13 +8,13 @@ import { Response } from 'express';
 
 import {
   mockSignupDto,
-  mockUser,
   mockResponse,
   mockSigninDto,
 } from '@/tests/mocks/auth.mockHelpers';
 import { AuthService } from './auth.service';
 import { generateTokens } from './helpers/token.helper';
 import { setAuthCookies } from './helpers/set-cookie.helper';
+import { mockUser } from '@/tests/mocks/mockHelpers';
 
 // helper 함수 mocking
 jest.mock('./helpers/token.helper', () => ({
@@ -109,9 +109,11 @@ describe('AuthService', () => {
     it('should signin successfully and return message', async () => {
       jest.spyOn(prisma.user, 'findUnique').mockResolvedValue(mockUser);
       jest.spyOn(bcrypt, 'compare').mockImplementation(() => true);
+
       const updateSpy = jest
         .spyOn(prisma.user, 'update')
         .mockResolvedValue({ ...mockUser, hashedRefreshToken: 'hashed' });
+
       jest
         .spyOn(bcrypt, 'hash')
         .mockImplementation(() => void Promise.resolve('hashed-refresh-token'));
@@ -122,6 +124,94 @@ describe('AuthService', () => {
       expect(generateTokens).toHaveBeenCalled();
       expect(setAuthCookies).toHaveBeenCalled();
       expect(result).toEqual({ message: 'Signin successful' });
+    });
+  });
+
+  xdescribe('signout', () => {
+    it('should clear refresh token for the user', async () => {
+      // const updateSpy = jest
+      //   .spyOn(prisma.user, 'update')
+      //   .mockResolvedValue({ ...mockUser, hashedRefreshToken: null });
+      // await service.signout(mockUser.id);
+      // expect(updateSpy).toHaveBeenCalledWith({
+      //   where: { id: mockUser.id },
+      //   data: { hashedRefreshToken: null },
+      // });
+    });
+  });
+
+  describe('refreshAccessToken', () => {
+    it('should throw ForbiddenException if user not found', async () => {
+      jest.spyOn(prisma.user, 'findUnique').mockResolvedValue(null);
+
+      await expect(
+        service.refreshAccessToken(mockUser.id, res),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should refresh access token and set cookies', async () => {
+      jest.spyOn(prisma.user, 'findUnique').mockResolvedValue(mockUser);
+      jest
+        .spyOn(bcrypt, 'hash')
+        .mockImplementation(async () => 'hashed-refresh');
+
+      const updateSpy = jest
+        .spyOn(prisma.user, 'update')
+        .mockResolvedValue({ ...mockUser });
+
+      const result = await service.refreshAccessToken(mockUser.id, res);
+
+      expect(updateSpy).toHaveBeenCalled();
+      expect(generateTokens).toHaveBeenCalled();
+      expect(result).toEqual({ message: 'Access token refreshed' });
+    });
+  });
+
+  describe('googleSignin', () => {
+    it('should create a new user and return success message if not found', async () => {
+      const payload = {
+        id: 'user-123',
+        email: 'test@example.com',
+        timezone: 'Asia/Seoul',
+      };
+
+      jest.spyOn(prisma.user, 'findUnique').mockResolvedValue(null); // 유저 없음
+      const createSpy = jest
+        .spyOn(prisma.user, 'create')
+        .mockResolvedValue(mockUser);
+      const updateSpy = jest.spyOn(prisma.user, 'update').mockResolvedValue({
+        ...mockUser,
+        hashedRefreshToken: 'hashed-token',
+      });
+
+      jest.spyOn(bcrypt, 'hash').mockImplementation(async () => 'hashed-token');
+
+      const result = await service.googleSignin(payload, res);
+
+      expect(createSpy).toHaveBeenCalled();
+      expect(updateSpy).toHaveBeenCalled();
+      expect(generateTokens).toHaveBeenCalled();
+      expect(setAuthCookies).toHaveBeenCalled();
+      expect(result).toEqual({ message: 'Google login successful' });
+    });
+
+    it('should use existing user and return success message if found', async () => {
+      jest.spyOn(prisma.user, 'findUnique').mockResolvedValue(mockUser); // 유저 있음
+      const createSpy = jest.spyOn(prisma.user, 'create');
+      const updateSpy = jest.spyOn(prisma.user, 'update').mockResolvedValue({
+        ...mockUser,
+        hashedRefreshToken: 'hashed-token',
+      });
+
+      jest.spyOn(bcrypt, 'hash').mockImplementation(async () => 'hashed-token');
+
+      const result = await service.googleSignin(mockUser, res);
+
+      expect(createSpy).not.toHaveBeenCalled();
+      expect(updateSpy).toHaveBeenCalled();
+      expect(generateTokens).toHaveBeenCalled();
+      expect(setAuthCookies).toHaveBeenCalled();
+      expect(result).toEqual({ message: 'Google login successful' });
     });
   });
 });

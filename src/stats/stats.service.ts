@@ -6,12 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { StatsQuery } from './dto/stats-query.dto';
-import {
-  StatsByCategory,
-  StatsByCategoryDTO,
-} from './dto/stats-by-category.dto';
-import { StatsByBudget, StatsByBudgetDTO } from './dto/stats-by-budget.dto';
-import { StatsByNoteDTO } from './dto/stats-by-note.dto';
+
 import { getUserTimezone } from '@/libs/timezone';
 import { groupTransactions } from './util/groupTransactions.util';
 import {
@@ -19,19 +14,23 @@ import {
   getUTCEndDate,
   getUTCStartDate,
 } from '@/libs/date.util';
-import {
-  StatsSummaryByCategory,
-  StatsSummaryByCategoryDTO,
-} from './dto/stats-summary-by-category.dto';
 import { toZonedTime } from 'date-fns-tz';
 import { endOfDay, isWithinInterval, parseISO, startOfDay } from 'date-fns';
-import {
-  StatsSummaryByBudget,
-  StatsSummaryByBudgetDTO,
-} from './dto/stats-summary-by-budget.dto';
-import { StatsSummaryByNoteDTO } from './dto/stats-summary-by-note.dto';
-import { TransactionSummaryDTO } from '@/transactions/dto/transaction.dto';
 import { PrismaService } from '@/prisma/prisma.service';
+import { CategoryStatsGroupDTO } from './dto/category-stats-group.dto';
+import { BudgetStatsGroupDTO } from './dto/budget-stats-group.dto';
+import { BudgetStatsItemDTO } from './dto/budget-stats-item.dto';
+import { NoteStatsGroupDTO } from './dto/note-stats-group.dto';
+import { TransactionGroupSummaryDTO } from '@/transactions/dto/transaction-group-summary.dto';
+import { CategoryGroupSummaryResponseDTO } from './dto/category-group-summary-response.dto';
+import { CategoryGroupSummaryDTO } from './dto/category-group-summary.dto';
+import { BudgetGroupSummaryResponseDTO } from './dto/budget-group-summary-response.dto';
+import { BudgetGroupSummaryDTO } from './dto/budget-group-summary.dto';
+import { NoteGroupSummaryResponseDTO } from './dto/note-group-summary-response.dto';
+import { CategoryStatsItemDTO } from './dto/category-stats-item.dto';
+import { NoteSummaryItemNoteDTO } from './dto/note-summary-item-note.dto';
+import { NoteStatsGroupItemDTO } from './dto/note-stats-group-item.dto';
+import { NoteGroupSummaryDTO } from './dto/note-group-summary.dto';
 
 @Injectable()
 export class StatsService {
@@ -42,7 +41,7 @@ export class StatsService {
   async getByCategory(
     userId: string,
     query: StatsQuery,
-  ): Promise<StatsByCategoryDTO> {
+  ): Promise<CategoryStatsGroupDTO> {
     const { startDate, endDate, type } = query;
     if (!startDate || !endDate || !type) {
       throw new BadRequestException('startDate, endDate, type are required.');
@@ -101,7 +100,7 @@ export class StatsService {
     );
 
     // ✅ 결과 매핑 (모든 카테고리 포함)
-    const data: StatsByCategory[] = categories.map((category) => {
+    const data: CategoryStatsItemDTO[] = categories.map((category) => {
       const amount = amountMap.get(category.id) ?? 0;
       const budget = budgetMap.get(category.id);
       const rate =
@@ -112,9 +111,9 @@ export class StatsService {
           : undefined;
 
       return {
-        categoryId: category.id,
-        categoryName: category.name,
-        categoryType: category.type,
+        id: category.id,
+        name: category.name,
+        type: category.type,
         color: category.color ?? '#999999',
         amount,
         rate,
@@ -139,7 +138,7 @@ export class StatsService {
   async getByBudget(
     userId: string,
     query: StatsQuery,
-  ): Promise<StatsByBudgetDTO> {
+  ): Promise<BudgetStatsGroupDTO> {
     const { startDate, endDate, type } = query;
     if (!startDate || !endDate || !type) {
       throw new BadRequestException('startDate, endDate, type are required.');
@@ -190,7 +189,7 @@ export class StatsService {
     );
 
     // ✅ 모든 카테고리 포함하여 구성
-    const data: StatsByBudget[] = categories.map((category) => {
+    const data: BudgetStatsItemDTO[] = categories.map((category) => {
       const amount = txMap.get(category.id) ?? 0;
       const budget = budgetMap.get(category.id);
       const budgetAmount = budget?.amount ?? 0;
@@ -202,11 +201,12 @@ export class StatsService {
         budgetAmount > 0 ? Math.min((amount / budgetAmount) * 100, 999) : 0;
 
       return {
-        categoryId: category.id,
-        categoryName: category.name,
-        categoryType: category.type,
+        id: category.id,
+        name: category.name,
+        type: category.type,
         icon: category.icon,
         color: category.color ?? '#999999',
+        amount: amount,
         budget: budgetAmount,
         spent,
         income,
@@ -235,7 +235,7 @@ export class StatsService {
   async getStatsByNoteSummary(
     userId: string,
     query: StatsQuery,
-  ): Promise<StatsByNoteDTO> {
+  ): Promise<NoteStatsGroupDTO> {
     const { startDate, endDate, groupBy, type } = query;
 
     if (!startDate || !endDate || !groupBy || !type) {
@@ -269,8 +269,10 @@ export class StatsService {
       orderBy: { date: 'asc' },
     });
 
+    type TxWithRelations = (typeof transactions)[number];
     // ✅ 노트 기준으로 그룹핑
-    const noteMap = new Map<string, typeof transactions>();
+    const noteMap = new Map<string, TxWithRelations[]>();
+
     for (const tx of transactions) {
       const note = tx.note?.trim() || '';
       if (!noteMap.has(note)) {
@@ -282,7 +284,7 @@ export class StatsService {
     let totalIncome = 0;
     let totalExpense = 0;
 
-    const data: StatsByNoteDTO['data'] = [];
+    const data: NoteStatsGroupItemDTO[] = [];
 
     for (const [note, txList] of noteMap.entries()) {
       const grouped = groupTransactions(txList, groupBy, timezone); // ✅ returns TransactionSummary[]
@@ -293,7 +295,7 @@ export class StatsService {
       totalIncome += incomeSum;
       totalExpense += expenseSum;
 
-      const summarized = grouped.map((g) => ({
+      const summarized: NoteSummaryItemNoteDTO[] = grouped.map((g) => ({
         label: g.label,
         startDate: g.rangeStart, // ✅ field name 맞춤
         endDate: g.rangeEnd, // ✅ field name 맞춤
@@ -303,7 +305,6 @@ export class StatsService {
       }));
 
       data.push({
-        note,
         count: txList.length, // ✅ 트랜잭션 수 추가
         totalIncome: incomeSum,
         totalExpense: expenseSum,
@@ -327,7 +328,7 @@ export class StatsService {
     userId: string,
     categoryId: string,
     query: StatsQuery,
-  ): Promise<TransactionSummaryDTO> {
+  ): Promise<TransactionGroupSummaryDTO> {
     const { startDate, endDate, groupBy, type } = query;
 
     if (!startDate || !endDate || !groupBy || !type) {
@@ -366,17 +367,17 @@ export class StatsService {
     const grouped = groupTransactions(transactions, groupBy, timezone);
 
     // ✅ 총합 계산
-    const incomeTotal = grouped.reduce((sum, d) => sum + d.incomeTotal, 0);
-    const expenseTotal = grouped.reduce((sum, d) => sum + d.expenseTotal, 0);
+    const totalIncome = grouped.reduce((sum, d) => sum + d.incomeTotal, 0);
+    const totalExpense = grouped.reduce((sum, d) => sum + d.expenseTotal, 0);
 
     // ✅ DTO 반환
     return {
-      type: groupBy,
-      startDate,
-      endDate,
-      incomeTotal,
-      expenseTotal,
       data: grouped,
+      totalIncome,
+      totalExpense,
+      groupBy: groupBy,
+      startDate: startDate,
+      endDate: endDate,
     };
   }
 
@@ -384,7 +385,7 @@ export class StatsService {
     userId: string,
     budgetCategoryId: string,
     query: StatsQuery,
-  ): Promise<TransactionSummaryDTO> {
+  ): Promise<TransactionGroupSummaryDTO> {
     const { startDate, endDate, type, groupBy } = query;
 
     // ✅ 필수 파라미터 확인
@@ -443,31 +444,31 @@ export class StatsService {
     const grouped = groupTransactions(transactions, groupBy, timezone);
 
     // ✅ 총합 계산
-    const incomeTotal =
+    const totalIncome =
       type === 'income'
         ? grouped.reduce((sum, d) => sum + d.incomeTotal, 0)
         : 0;
 
-    const expenseTotal =
+    const totalExpense =
       type === 'expense'
         ? grouped.reduce((sum, d) => sum + d.expenseTotal, 0)
         : 0;
 
     // ✅ 최종 응답
     return {
-      type: groupBy,
-      startDate,
-      endDate,
-      incomeTotal,
-      expenseTotal,
       data: grouped,
+      totalIncome,
+      totalExpense,
+      groupBy: groupBy,
+      startDate: startDate,
+      endDate: endDate,
     };
   }
   async getStatsCategorySummary(
     userId: string,
     categoryId: string,
     query: StatsQuery,
-  ): Promise<StatsSummaryByCategoryDTO> {
+  ): Promise<CategoryGroupSummaryResponseDTO> {
     const { startDate, endDate, groupBy } = query;
     if (!startDate || !endDate || !groupBy) {
       throw new BadRequestException(
@@ -533,7 +534,7 @@ export class StatsService {
 
     // ✅ 4. 응답 데이터 매핑
     let total = 0;
-    const data: StatsSummaryByCategory[] = ranges.map((range) => {
+    const data: CategoryGroupSummaryDTO[] = ranges.map((range) => {
       const sum = bucketMap.get(range.label) ?? 0;
       total += sum;
 
@@ -549,11 +550,14 @@ export class StatsService {
     });
 
     return {
+      data,
+      totalIncome: type === 'income' ? total : 0,
+      totalExpense: type === 'expense' ? total : 0,
+      groupBy: groupBy,
+      startDate: startDate,
+      endDate: endDate,
       categoryId,
       categoryName: category.name,
-      data,
-      incomeTotal: type === 'income' ? total : 0,
-      expenseTotal: type === 'expense' ? total : 0,
     };
   }
 
@@ -561,7 +565,7 @@ export class StatsService {
     userId: string,
     categoryId: string,
     query: StatsQuery,
-  ): Promise<StatsSummaryByBudgetDTO> {
+  ): Promise<BudgetGroupSummaryResponseDTO> {
     const { startDate, endDate, groupBy } = query;
 
     if (!startDate || !endDate || !groupBy) {
@@ -610,7 +614,7 @@ export class StatsService {
       },
     });
 
-    const data: StatsSummaryByBudget[] = ranges.map((range) => {
+    const data: BudgetGroupSummaryDTO[] = ranges.map((range) => {
       const rangeStart = parseISO(range.startDate);
       const rangeEnd = parseISO(range.endDate);
 
@@ -673,15 +677,18 @@ export class StatsService {
     const isOver = totalRemaining < 0;
 
     return {
+      data,
+      totalExpense,
+      totalIncome,
+      groupBy: groupBy,
+      startDate: startDate,
+      endDate: endDate,
       categoryId,
       categoryName: category.name,
       color: category.color ?? '#999999',
-      totalExpense,
-      totalIncome,
       totalBudget,
       totalRemaining,
       isOver,
-      data,
     };
   }
 
@@ -689,7 +696,7 @@ export class StatsService {
     userId: string,
     encodedNote: string,
     query: StatsQuery,
-  ): Promise<TransactionSummaryDTO> {
+  ): Promise<TransactionGroupSummaryDTO> {
     const { startDate, endDate, type, groupBy } = query;
 
     // ✅ 필수 파라미터 확인
@@ -731,22 +738,22 @@ export class StatsService {
     const grouped = groupTransactions(transactions, groupBy, timezone);
 
     // ✅ 총합 계산
-    const incomeTotal =
+    const totalIncome =
       type === 'income'
-        ? grouped.reduce((sum, d) => sum + d.incomeTotal, 0)
+        ? grouped.reduce((sum, d) => sum + d.totalIncome, 0)
         : 0;
 
-    const expenseTotal =
+    const totalExpense =
       type === 'expense'
-        ? grouped.reduce((sum, d) => sum + d.expenseTotal, 0)
+        ? grouped.reduce((sum, d) => sum + d.totalExpense, 0)
         : 0;
 
     return {
-      type: groupBy,
+      groupBy: groupBy,
       startDate,
       endDate,
-      incomeTotal,
-      expenseTotal,
+      totalIncome,
+      totalExpense,
       data: grouped,
     };
   }
@@ -755,7 +762,7 @@ export class StatsService {
     userId: string,
     encodedNote: string,
     query: StatsQuery,
-  ): Promise<StatsSummaryByNoteDTO> {
+  ): Promise<NoteGroupSummaryResponseDTO> {
     const { startDate, endDate, groupBy, type } = query;
 
     if (!startDate || !endDate || !groupBy || !type) {
@@ -813,7 +820,7 @@ export class StatsService {
     }
 
     let total = 0;
-    const data: StatsSummaryByNoteDTO['data'] = ranges.map((range) => {
+    const data: NoteGroupSummaryDTO[] = ranges.map((range) => {
       const sum = bucketMap.get(range.label) ?? 0;
       total += sum;
 
@@ -827,10 +834,11 @@ export class StatsService {
       };
     });
 
-    console.log('### DATA', data);
-
     return {
       note,
+      groupBy: groupBy,
+      startDate: startDate,
+      endDate: endDate,
       totalIncome: type === 'income' ? total : 0,
       totalExpense: type === 'expense' ? total : 0,
       data,

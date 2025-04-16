@@ -1,4 +1,4 @@
-import { DateRangeWithGroupQueryDTO } from '@/common/dto/date-range-with-group.dto';
+import { DateRangeWithGroupQueryDTO } from '@/common/dto/filter/date-range-with-group-query.dto';
 import { CategoryType } from '@prisma/client';
 import { IsEnum } from 'class-validator';
 

@@ -1,30 +1,24 @@
-// 📄 src/tests/mocks/auth.mockHelpers.ts
 
-import { SigninDto } from '@/auth/dto/signin.dto';
-import { SignupDto } from '@/auth/dto/signup.dto';
-import { User } from '@prisma/client';
+// 📄 Refactored auth.mockHelpers.ts (DTO 중심, 중복 제거)
+
+import { SigninDTO } from '@/auth/dto/signin.dto';
+import { SignupDTO } from '@/auth/dto/signup.dto';
 import { Response } from 'express';
 
-export const mockSignupDto: SignupDto = {
+// ✅ Signup용 DTO mock
+export const mockSignupDto: SignupDTO = {
   email: 'test@example.com',
   password: 'securePassword123!',
   timezone: 'Asia/Seoul',
 };
 
-export const mockUser: User = {
-  id: 'user-123',
+// ✅ Signin용 DTO mock
+export const mockSigninDto: SigninDTO = {
   email: 'test@example.com',
-  password: 'hashed-password',
-  timezone: 'Asia/Seoul',
-  createdAt: new Date(),
-  hashedRefreshToken: null,
+  password: 'securePassword123!',
 };
 
-export const mockTokens = {
-  accessToken: 'mock-access-token',
-  refreshToken: 'mock-refresh-token',
-};
-
+// ✅ mock 응답 객체
 export const mockResponse = (): Response => {
   const res: Partial<Response> = {
     cookie: jest.fn().mockReturnThis(),
@@ -33,10 +27,11 @@ export const mockResponse = (): Response => {
     json: jest.fn().mockReturnThis(),
     sendStatus: jest.fn().mockReturnThis(),
   };
-  return res as unknown as Response;
+  return res as Response;
 };
 
-export const mockSigninDto: SigninDto = {
-  email: 'test@example.com',
-  password: 'securePassword123!',
+// ✅ mock 토큰 데이터
+export const mockTokens = {
+  accessToken: 'mock-access-token',
+  refreshToken: 'mock-refresh-token',
 };

@@ -5,9 +5,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { CategoryCreateDTO } from './dto/category-create.dto';
-import { CategoryUpdateDTO } from './dto/category-update.dto';
-
+import { CategoryCreateRequestDTO } from './dto/category-create-request.dto';
+import { CategoryUpdateRequestDTO } from './dto/category-update-request.dto';
 @Injectable()
 export class CategoriesService {
   private readonly logger = new Logger(CategoriesService.name);
@@ -15,7 +14,7 @@ export class CategoriesService {
   constructor(private readonly prisma: PrismaService) {}
 
   // 카테고리 생성
-  async create(userId: string, dto: CategoryCreateDTO) {
+  async create(userId: string, dto: CategoryCreateRequestDTO) {
     this.logger.debug(`📂 Creating category: ${dto.name} for user: ${userId}`);
 
     const category = await this.prisma.category.create({
@@ -54,7 +53,7 @@ export class CategoriesService {
   }
 
   // 카테고리 수정
-  async update(userId: string, id: string, dto: CategoryUpdateDTO) {
+  async update(userId: string, id: string, dto: CategoryUpdateRequestDTO) {
     this.logger.debug(`✏️ Updating category ${id} for user: ${userId}`);
 
     const category = await this.prisma.category.findUnique({ where: { id } });

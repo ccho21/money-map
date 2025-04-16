@@ -6,13 +6,6 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { AccountCreateDTO } from './dto/account-create.dto';
-import { AccountUpdateDTO } from './dto/account-update.dto';
-import {
-  TransactionDTO,
-  TransactionSummaryDTO,
-} from 'src/transactions/dto/transaction.dto';
-import { AccountTransactionSummaryDTO } from './dto/account-transaction-summary.dto';
 import { getUserTimezone } from '@/libs/timezone';
 import {
   getDateRangeAndLabelByGroup,
@@ -23,23 +16,32 @@ import {
 } from '@/libs/date.util';
 import {
   AccountDashboardItemDTO,
-  AccountDashboardResponseDTO,
-} from './dto/account-dashboard-response.dto';
+  AccountDashboardDTO,
+} from '@/accounts/dto/account-dashboard.dto';
 import { toZonedTime } from 'date-fns-tz';
 import { format, subMonths } from 'date-fns';
 import { TransactionType } from '@prisma/client';
-import { DateQueryDTO } from '@/common/dto/date-query.dto';
-import { DateRangeWithGroupQueryDTO } from '@/common/dto/date-range-with-group.dto';
+import { DateQueryDTO } from '@/common/dto/filter/date-query.dto';
+import { DateRangeWithGroupQueryDTO } from '@/common/dto/filter/date-range-with-group-query.dto';
 import { recalculateAccountBalanceInTx } from '@/transactions/utils/recalculateAccountBalanceInTx.util';
-import { getTransactionDelta } from '@/transactions/utils/getTransactionDelta.util';
-import { AccountSummaryDTO } from './dto/account.dto';
+import { TransactionDetailDTO } from '@/transactions/dto/transaction-detail.dto';
+import { TransactionGroupSummaryDTO } from '@/transactions/dto/transaction-group-summary.dto';
+import { getTransactionDeltaByAccount } from '@/transactions/utils/getTransactionDeltaByAccount.util';
+import { AccountTransactionSummaryDTO } from './dto/account-transaction-summary.dto';
+
+import {
+  AccountCreateRequestDTO,
+  AccountUpdateRequestDTO,
+} from './dto/account-request.dto';
+import { AccountTransactionItemDTO } from './dto/account-transaction-item.dto';
+import { GroupBy } from '@/common/types/types';
 
 @Injectable()
 export class AccountsService {
   private readonly logger = new Logger(AccountsService.name);
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(userId: string, dto: AccountCreateDTO) {
+  async create(userId: string, dto: AccountCreateRequestDTO) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new Error('User not found');
 
@@ -96,13 +98,17 @@ export class AccountsService {
       }
 
       // ✅ 계좌 잔액 재계산
-      await recalculateAccountBalanceInTx(tx, account.id);
+      await recalculateAccountBalanceInTx(tx, account.id, userId);
 
       return account;
     });
   }
 
-  async update(userId: string, accountId: string, dto: AccountUpdateDTO) {
+  async update(
+    userId: string,
+    accountId: string,
+    dto: AccountUpdateRequestDTO,
+  ) {
     const account = await this.prisma.account.findUnique({
       where: { id: accountId },
     });
@@ -180,7 +186,7 @@ export class AccountsService {
     }
 
     // ✅ 항상 잔액 재계산
-    await recalculateAccountBalanceInTx(this.prisma, accountId);
+    await recalculateAccountBalanceInTx(this.prisma, accountId, userId);
 
     return updated;
   }
@@ -217,7 +223,7 @@ export class AccountsService {
   async getSummary(
     userId: string,
     { startDate, endDate, groupBy }: DateRangeWithGroupQueryDTO,
-  ): Promise<AccountSummaryDTO[]> {
+  ): Promise<AccountTransactionSummaryDTO> {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new Error('User not found');
 
@@ -292,7 +298,7 @@ export class AccountsService {
       }
     }
 
-    const result: AccountSummaryDTO[] = [];
+    const result: AccountTransactionItemDTO[] = [];
 
     for (const account of accounts) {
       const keys = Array.from(summaryMap.keys()).filter((k) =>
@@ -301,6 +307,7 @@ export class AccountsService {
       if (keys.length === 0) {
         // No transactions, still return empty summary
         result.push({
+          label: groupBy,
           accountId: account.id,
           accountName: account.name,
           balance: account.balance,
@@ -313,6 +320,7 @@ export class AccountsService {
         for (const key of keys) {
           const summary = summaryMap.get(key)!;
           result.push({
+            label: groupBy,
             accountId: account.id,
             accountName: account.name,
             balance: account.balance,
@@ -325,13 +333,18 @@ export class AccountsService {
       }
     }
 
-    return result;
+    return {
+      startDate: startDate,
+      endDate: endDate,
+      groupBy: groupBy,
+      data: result,
+    };
   }
 
   async getGroupedTransactions(
     userId: string,
     query: DateQueryDTO,
-  ): Promise<AccountTransactionSummaryDTO[]> {
+  ): Promise<AccountTransactionSummaryDTO> {
     const { startDate, endDate } = query;
 
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
@@ -346,7 +359,7 @@ export class AccountsService {
       orderBy: { createdAt: 'asc' },
     });
 
-    const results: AccountTransactionSummaryDTO[] = [];
+    const results: AccountTransactionItemDTO[] = [];
 
     for (const account of accounts) {
       const transactions = await this.prisma.transaction.findMany({
@@ -359,7 +372,7 @@ export class AccountsService {
         include: { category: true, account: true },
       });
 
-      const txDtos: TransactionDTO[] = transactions.map((tx) => ({
+      const txDtos: TransactionDetailDTO[] = transactions.map((tx) => ({
         id: tx.id,
         type: tx.type as 'income' | 'expense',
         amount: tx.amount,
@@ -393,6 +406,9 @@ export class AccountsService {
         .reduce((sum, t) => sum + t.amount, 0);
 
       results.push({
+        label: '',
+        rangeStart: '',
+        rangeEnd: '',
         accountId: account.id,
         accountName: account.name,
         balance: account.balance,
@@ -402,12 +418,15 @@ export class AccountsService {
       });
     }
 
-    return results;
+    return {
+      startDate: startDate,
+      endDate: endDate,
+      groupBy: 'monthly' as GroupBy,
+      data: results,
+    };
   }
 
-  async getAccountsDashboard(
-    userId: string,
-  ): Promise<AccountDashboardResponseDTO> {
+  async getAccountsDashboard(userId: string): Promise<AccountDashboardDTO> {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new Error('User not found');
 
@@ -438,7 +457,7 @@ export class AccountsService {
           }),
         ]);
 
-        const response: AccountDashboardResponseDTO = {
+        const response: AccountDashboardDTO = {
           asset: 0,
           liability: 0,
           total: 0,
@@ -502,7 +521,7 @@ export class AccountsService {
             const balancePayable = cardTxs
               .filter((t) => t.date >= settleStart && t.date <= settleEnd)
               .reduce(
-                (sum, tx) => sum + getTransactionDelta(tx, account.id),
+                (sum, tx) => sum + getTransactionDeltaByAccount(tx, account.id),
                 0,
               );
 
@@ -510,7 +529,7 @@ export class AccountsService {
             const outstandingBalance = cardTxs
               .filter((t) => t.date > settleEnd && t.date <= nowUTC)
               .reduce(
-                (sum, tx) => sum + getTransactionDelta(tx, account.id),
+                (sum, tx) => sum + getTransactionDeltaByAccount(tx, account.id),
                 0,
               );
 
@@ -535,7 +554,7 @@ export class AccountsService {
     accountId: string,
     userId: string,
     filter: DateRangeWithGroupQueryDTO,
-  ): Promise<TransactionSummaryDTO> {
+  ): Promise<TransactionGroupSummaryDTO> {
     const { startDate, endDate, groupBy } = filter;
 
     // 1️⃣ 유저 확인 및 타임존 설정
@@ -576,7 +595,7 @@ export class AccountsService {
       {
         rangeStart: string;
         rangeEnd: string;
-        transactions: TransactionSummaryDTO['data'][number]['transactions'];
+        transactions: TransactionGroupSummaryDTO['data'][number]['transactions'];
       }
     >();
 
@@ -633,9 +652,9 @@ export class AccountsService {
     }
 
     // 5️⃣ 그룹 요약 데이터 계산
-    const data: TransactionSummaryDTO['data'] = [];
-    let incomeTotal = 0;
-    let expenseTotal = 0;
+    const data: TransactionGroupSummaryDTO['data'] = [];
+    let totalIncome = 0;
+    let totalExpense = 0;
 
     for (const [label, { rangeStart, rangeEnd, transactions }] of grouped) {
       const income = transactions
@@ -646,26 +665,26 @@ export class AccountsService {
         .filter((t) => t.type === TransactionType.expense)
         .reduce((sum, t) => sum + t.amount, 0);
 
-      incomeTotal += income;
-      expenseTotal += expense;
+      totalIncome += income;
+      totalExpense += expense;
 
       data.push({
         label,
         rangeStart,
         rangeEnd,
-        incomeTotal: income,
-        expenseTotal: expense,
+        totalIncome: income,
+        totalExpense: expense,
         transactions,
       });
     }
 
     // 6️⃣ 최종 결과 반환
     return {
-      type: groupBy,
+      groupBy: groupBy,
       startDate,
       endDate,
-      incomeTotal,
-      expenseTotal,
+      totalIncome,
+      totalExpense,
       data,
     };
   }

@@ -1,10 +1,7 @@
-import { TransactionDTO } from 'src/transactions/dto/transaction.dto';
+import { BaseListSummaryResponseDTO } from '@/common/dto/base-list-summary-response.dto';
+import { AccountTransactionItemDTO } from './account-transaction-item.dto';
 
-export class AccountTransactionSummaryDTO {
-  accountId: string;
-  accountName: string;
-  balance: number;
-  incomeTotal: number;
-  expenseTotal: number;
-  transactions: TransactionDTO[];
-}
+/**
+ * 계좌별 그룹 요약 응답 (기간별)
+ */
+export class AccountTransactionSummaryDTO extends BaseListSummaryResponseDTO<AccountTransactionItemDTO> {}

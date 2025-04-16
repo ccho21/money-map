@@ -2,36 +2,36 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  InternalServerErrorException,
   Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventsGateway } from 'src/events/events.gateway';
 import { Prisma, TransactionType } from '@prisma/client';
-import {
-  TransactionCalendarItem,
-  TransactionDTO,
-  TransactionSummary,
-  TransactionSummaryDTO,
-} from './dto/transaction.dto';
 
 import { format, parseISO } from 'date-fns';
 import { toZonedTime } from 'date-fns-tz';
 
 import { getUserTimezone } from '@/libs/timezone';
-import { TransactionCreateDTO } from './dto/transaction-create.dto';
-import { TransactionUpdateDTO } from './dto/transaction-update.dto';
-import { TransactionFilterDTO } from './dto/transaction-filter.dto';
-import { TransactionTransferDTO } from './dto/transaction-transfer.dto';
+import {
+  TransactionCreateRequestDTO,
+  TransactionUpdateRequestDTO,
+  TransactionTransferRequestDTO,
+} from '@/transactions/dto/transaction-request.dto';
 import {
   getDateRangeAndLabelByGroup,
   getUTCEndDate,
   getUTCStartDate,
 } from '@/libs/date.util';
-import { DateRangeWithGroupQueryDTO } from '@/common/dto/date-range-with-group.dto';
+import { DateRangeWithGroupQueryDTO } from '@/common/dto/filter/date-range-with-group-query.dto';
 import { GroupBy } from '@/common/types/types';
-import { BaseDateQueryDTO } from '@/common/dto/baseDate.dto';
+import { BaseDateQueryDTO } from '@/common/dto/filter/base-date-query.dto';
 import { recalculateAccountBalanceInTx } from './utils/recalculateAccountBalanceInTx.util';
+import { TransactionGroupSummaryDTO } from './dto/transaction-group-summary.dto';
+import { TransactionDetailDTO } from './dto/transaction-detail.dto';
+import { TransactionGroupItemDTO } from './dto/transaction-group-item.dto';
+import { TransactionCalendarDTO } from './dto/transaction-calendar.dto';
 
 export type TransactionFilterWhereInput = Prisma.TransactionWhereInput;
 
@@ -44,7 +44,7 @@ export class TransactionsService {
     private eventsGateway: EventsGateway,
   ) {}
 
-  async create(userId: string, dto: TransactionCreateDTO) {
+  async create(userId: string, dto: TransactionCreateRequestDTO) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new Error('User not found');
 
@@ -78,7 +78,7 @@ export class TransactionsService {
       });
 
       // ✅ 계좌 잔액 재계산
-      await recalculateAccountBalanceInTx(tx, dto.accountId);
+      await recalculateAccountBalanceInTx(tx, dto.accountId, userId);
 
       return created;
     });
@@ -114,7 +114,7 @@ export class TransactionsService {
     return transaction;
   }
 
-  async update(userId: string, id: string, dto: TransactionUpdateDTO) {
+  async update(userId: string, id: string, dto: TransactionUpdateRequestDTO) {
     const existing = await this.prisma.transaction.findFirst({
       where: { id, userId },
     });
@@ -143,13 +143,13 @@ export class TransactionsService {
         },
       });
 
-      // ✅ 기존 계좌 잔액 재계산
-      await recalculateAccountBalanceInTx(tx, existing.accountId);
-
-      // ✅ 계좌가 변경된 경우 새 계좌도 재계산
+      const promises = [
+        recalculateAccountBalanceInTx(tx, existing.accountId, userId),
+      ];
       if (dto.accountId && dto.accountId !== existing.accountId) {
-        await recalculateAccountBalanceInTx(tx, dto.accountId);
+        promises.push(recalculateAccountBalanceInTx(tx, dto.accountId, userId));
       }
+      await Promise.all(promises);
 
       return updated;
     });
@@ -177,11 +177,11 @@ export class TransactionsService {
       });
 
       // ✅ 잔액 재계산 (기존 계좌)
-      await recalculateAccountBalanceInTx(tx, existing.accountId);
+      await recalculateAccountBalanceInTx(tx, existing.accountId, userId);
 
       // ✅ transfer인 경우 입금 계좌도 재계산 필요
       if (existing.type === 'transfer' && existing.toAccountId) {
-        await recalculateAccountBalanceInTx(tx, existing.toAccountId);
+        await recalculateAccountBalanceInTx(tx, existing.toAccountId, userId);
       }
     });
 
@@ -200,87 +200,10 @@ export class TransactionsService {
     return tx;
   }
 
-  async findFiltered(userId: string, filter: TransactionFilterDTO) {
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user) throw new Error('User not found');
-    const timezone = getUserTimezone(user);
-
-    const where: TransactionFilterWhereInput = {
-      userId,
-      ...(filter.type && { type: filter.type }),
-      ...(filter.categoryId && { categoryId: filter.categoryId }),
-      ...(filter.search && {
-        note: { contains: filter.search, mode: 'insensitive' },
-      }),
-    };
-
-    if (filter.startDate || filter.endDate) {
-      const start = filter.startDate
-        ? getUTCStartDate(filter.startDate, timezone)
-        : undefined;
-      const end = filter.endDate
-        ? getUTCStartDate(filter.endDate, timezone)
-        : undefined;
-      where.date = { ...(start && { gte: start }), ...(end && { lte: end }) };
-    }
-
-    const sortField = filter.sort ?? 'date';
-    const sortOrder = filter.order ?? 'desc';
-    const skip = ((filter.page ?? 1) - 1) * (filter.limit ?? 20);
-
-    const transactions = await this.prisma.transaction.findMany({
-      where,
-      orderBy: { [sortField]: sortOrder },
-      skip,
-      take: filter.limit ?? 20,
-      include: {
-        category: true,
-        account: true,
-        toAccount: true,
-      },
-    });
-
-    return transactions.map((tx) => ({
-      id: tx.id,
-      type: tx.type,
-      amount: tx.amount,
-      note: tx.note ?? '',
-      description: tx.description ?? '',
-      accountId: tx.accountId,
-      toAccountId: tx.toAccountId ?? undefined,
-      linkedTransferId: tx.linkedTransferId ?? undefined,
-      date: tx.date,
-      createdAt: tx.createdAt,
-      category: tx.category
-        ? {
-            id: tx.category.id,
-            name: tx.category.name,
-            icon: tx.category.icon,
-            type: tx.category.type,
-            color: tx.category.color ?? '',
-          }
-        : undefined,
-      account: {
-        id: tx.account.id,
-        name: tx.account.name,
-        type: tx.account.type,
-        color: tx.account.color ?? undefined,
-      },
-      toAccount: tx.toAccount
-        ? {
-            id: tx.toAccount.id,
-            name: tx.toAccount.name,
-            type: tx.toAccount.type,
-            color: tx.toAccount.color ?? undefined,
-          }
-        : undefined,
-    }));
-  }
-
   async getTransactionSummary(
     userId: string,
     query: DateRangeWithGroupQueryDTO,
-  ): Promise<TransactionSummaryDTO> {
+  ): Promise<TransactionGroupSummaryDTO> {
     const { groupBy, startDate, endDate } = query;
 
     // 1️⃣ 유저 인증 및 타임존 확보
@@ -314,7 +237,11 @@ export class TransactionsService {
     // 4️⃣ 그룹화 및 요약 데이터 생성
     const grouped = new Map<
       string,
-      { rangeStart: string; rangeEnd: string; transactions: TransactionDTO[] }
+      {
+        rangeStart: string;
+        rangeEnd: string;
+        transactions: TransactionDetailDTO[];
+      }
     >();
 
     for (const tx of transactions) {
@@ -370,9 +297,9 @@ export class TransactionsService {
     }
 
     // 5️⃣ 요약 데이터 계산
-    const data: TransactionSummary[] = [];
-    let incomeTotal = 0;
-    let expenseTotal = 0;
+    const data: TransactionGroupItemDTO[] = [];
+    let totalIncome = 0;
+    let totalExpense = 0;
 
     for (const [label, { rangeStart, rangeEnd, transactions }] of grouped) {
       const income = transactions
@@ -382,26 +309,26 @@ export class TransactionsService {
         .filter((t) => t.type === TransactionType.expense)
         .reduce((sum, t) => sum + t.amount, 0);
 
-      incomeTotal += income;
-      expenseTotal += expense;
+      totalIncome += income;
+      totalExpense += expense;
 
       data.push({
         label,
         rangeStart,
         rangeEnd,
-        incomeTotal: income,
-        expenseTotal: expense,
+        totalIncome: income,
+        totalExpense: expense,
         transactions,
       });
     }
 
     // 6️⃣ 결과 반환
     return {
-      type: groupBy,
+      groupBy: groupBy,
       startDate,
       endDate,
-      incomeTotal,
-      expenseTotal,
+      totalIncome,
+      totalExpense,
       data,
     };
   }
@@ -409,7 +336,7 @@ export class TransactionsService {
   async getTransactionCalendarView(
     userId: string,
     query: BaseDateQueryDTO,
-  ): Promise<TransactionCalendarItem[]> {
+  ): Promise<TransactionCalendarDTO[]> {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
       throw new Error('User not found');
@@ -446,7 +373,7 @@ export class TransactionsService {
     }));
   }
 
-  async createTransfer(userId: string, dto: TransactionTransferDTO) {
+  async createTransfer(userId: string, dto: TransactionTransferRequestDTO) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new Error('User not found');
 
@@ -513,8 +440,8 @@ export class TransactionsService {
 
         // ✅ 트랜잭션 후 잔액 재계산
         await Promise.all([
-          recalculateAccountBalanceInTx(tx, fromAccountId),
-          recalculateAccountBalanceInTx(tx, toAccountId),
+          recalculateAccountBalanceInTx(tx, fromAccountId, userId),
+          recalculateAccountBalanceInTx(tx, toAccountId, userId),
         ]);
 
         return { outgoing: outTx, incoming: inTx };
@@ -523,14 +450,14 @@ export class TransactionsService {
       return result;
     } catch (err) {
       this.logger.error('❌ createTransfer 실패:', err);
-      throw new Error('이체 중 오류가 발생했습니다.');
+      throw new InternalServerErrorException('이체 중 오류가 발생했습니다.');
     }
   }
 
   async updateTransfer(
     userId: string,
     id: string,
-    dto: TransactionTransferDTO,
+    dto: TransactionTransferRequestDTO,
   ) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new Error('User not found');
@@ -613,8 +540,8 @@ export class TransactionsService {
 
       // ✅ 잔액 재계산
       await Promise.all([
-        recalculateAccountBalanceInTx(tx, fromAccountId),
-        recalculateAccountBalanceInTx(tx, toAccountId),
+        recalculateAccountBalanceInTx(tx, fromAccountId, userId),
+        recalculateAccountBalanceInTx(tx, toAccountId, userId),
       ]);
 
       return { updatedOutgoing: outgoing, updatedIncoming: incoming };
@@ -653,8 +580,8 @@ export class TransactionsService {
 
       // ✅ 잔액 재계산
       await Promise.all([
-        recalculateAccountBalanceInTx(tx, outgoing.accountId),
-        recalculateAccountBalanceInTx(tx, incoming.accountId),
+        recalculateAccountBalanceInTx(tx, outgoing.accountId, userId),
+        recalculateAccountBalanceInTx(tx, incoming.accountId, userId),
       ]);
     });
 

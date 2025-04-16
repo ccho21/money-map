@@ -1,8 +1,6 @@
 import { GroupBy } from '@/common/types/types';
-import {
-  TransactionDTO,
-  TransactionSummary,
-} from '@/transactions/dto/transaction.dto';
+import { TransactionDetailDTO } from '@/transactions/dto/transaction-detail.dto';
+import { TransactionGroupItemDTO } from '@/transactions/dto/transaction-group-item.dto';
 import { Account, Category, Transaction } from '@prisma/client';
 import {
   endOfDay,
@@ -33,10 +31,14 @@ export function groupTransactions(
     endDate: string;
     isCurrent: boolean;
   }[],
-): TransactionSummary[] {
+): TransactionGroupItemDTO[] {
   const grouped = new Map<
     string,
-    { rangeStart: string; rangeEnd: string; transactions: TransactionDTO[] }
+    {
+      rangeStart: string;
+      rangeEnd: string;
+      transactions: TransactionDetailDTO[];
+    }
   >();
 
   // ✅ 고정 구간이 있을 경우 미리 초기화
@@ -89,7 +91,7 @@ export function groupTransactions(
       });
     }
 
-    const dto: TransactionDTO = {
+    const dto: TransactionDetailDTO = {
       id: tx.id,
       type: tx.type,
       amount: tx.amount,
@@ -128,7 +130,7 @@ export function groupTransactions(
     grouped.get(label)!.transactions.push(dto);
   }
 
-  const data: TransactionSummary[] = [];
+  const data: TransactionGroupItemDTO[] = [];
   for (const [label, { rangeStart, rangeEnd, transactions }] of grouped) {
     const income = transactions
       .filter((t) => t.type === 'income')
@@ -141,8 +143,8 @@ export function groupTransactions(
       label,
       rangeStart,
       rangeEnd,
-      incomeTotal: income,
-      expenseTotal: expense,
+      totalIncome: income,
+      totalExpense: expense,
       transactions,
     });
   }

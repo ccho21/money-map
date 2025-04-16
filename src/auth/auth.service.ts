@@ -5,8 +5,8 @@ import {
   ForbiddenException,
   Res,
 } from '@nestjs/common';
-import { SignupDto } from './dto/signup.dto';
-import { SigninDto } from './dto/signin.dto';
+import { SignupDTO } from './dto/signup.dto';
+import { SigninDTO } from './dto/signin.dto';
 import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
@@ -27,7 +27,7 @@ export class AuthService {
     private configService: ConfigService,
   ) {}
 
-  async signup(dto: SignupDto, @Res({ passthrough: true }) res: Response) {
+  async signup(dto: SignupDTO, @Res({ passthrough: true }) res: Response) {
     this.logger.debug(`📥 Signup attempt: ${dto.email}`);
 
     const exists = await this.prisma.user.findUnique({
@@ -73,7 +73,7 @@ export class AuthService {
     return { message: 'Signup successful' };
   }
 
-  async signin(dto: SigninDto, @Res({ passthrough: true }) res: Response) {
+  async signin(dto: SigninDTO, @Res({ passthrough: true }) res: Response) {
     this.logger.debug(`🔐 Signin attempt: ${dto.email}`);
 
     const user = await this.prisma.user.findUnique({
