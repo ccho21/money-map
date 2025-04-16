@@ -46,7 +46,7 @@ export class TransactionDetailDTO {
   description?: string;
   @ApiPropertyOptional({ type: () => CategoryDTO })
   @IsOptional()
-  category?: CategoryDTO;
+  category?: CategoryDTO | null;
   @ApiProperty()
   account: {
     id: string;

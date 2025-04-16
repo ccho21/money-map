@@ -5,8 +5,10 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { CategoryCreateRequestDTO } from './dto/category-create-request.dto';
-import { CategoryUpdateRequestDTO } from './dto/category-update-request.dto';
+import {
+  CategoryCreateRequestDTO,
+  CategoryUpdateRequestDTO,
+} from './dto/category-request.dto';
 @Injectable()
 export class CategoriesService {
   private readonly logger = new Logger(CategoriesService.name);

@@ -15,8 +15,10 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { UserPayload } from 'src/auth/types/user-payload.type';
 
 import { DateRangeWithGroupQueryDTO } from '@/common/dto/filter/date-range-with-group-query.dto';
-import { BudgetCategoryUpdateRequestDTO } from './dto/budget-category-update-request.dto';
-import { BudgetCategoryCreateRequestDTO } from './dto/budget-category-create-request.dto';
+import {
+  BudgetCategoryCreateRequestDTO,
+  BudgetCategoryUpdateRequestDTO,
+} from './dto/budget-category-request.dto';
 
 @ApiTags('Budgets')
 @ApiBearerAuth('access-token')

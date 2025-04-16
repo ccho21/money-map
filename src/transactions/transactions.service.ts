@@ -316,8 +316,8 @@ export class TransactionsService {
         label,
         rangeStart,
         rangeEnd,
-        totalIncome: income,
-        totalExpense: expense,
+        groupIncome: income,
+        groupExpense: expense,
         transactions,
       });
     }

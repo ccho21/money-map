@@ -672,8 +672,8 @@ export class AccountsService {
         label,
         rangeStart,
         rangeEnd,
-        totalIncome: income,
-        totalExpense: expense,
+        groupIncome: income,
+        groupExpense: expense,
         transactions,
       });
     }

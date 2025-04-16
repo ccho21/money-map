@@ -15,12 +15,14 @@ import { UserPayload } from 'src/auth/types/user-payload.type';
 import { GetUser } from 'src/common/decorators/get-user.decorator';
 import { ApiOkResponse, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { AccountTransactionSummaryDTO } from './dto/account-transaction-summary.dto';
-import { AccountCreateRequestDTO } from './dto/account-create-request.dto';
-import { AccountUpdateRequestDTO } from './dto/account-update-request.dto';
 import { AccountDashboardDTO } from './dto/account-dashboard.dto';
 import { DateQueryDTO } from '@/common/dto/filter/date-query.dto';
 import { DateRangeWithGroupQueryDTO } from '@/common/dto/filter/date-range-with-group-query.dto';
 import { TransactionGroupSummaryDTO } from '@/transactions/dto/transaction-group-summary.dto';
+import {
+  AccountCreateRequestDTO,
+  AccountUpdateRequestDTO,
+} from './dto/account-request.dto';
 
 @ApiTags('Accounts')
 @UseGuards(JwtAuthGuard)
@@ -44,7 +46,7 @@ export class AccountsController {
   async getGroupedTransactions(
     @GetUser() user: UserPayload,
     @Query() query: DateQueryDTO,
-  ): Promise<AccountTransactionSummaryDTO[]> {
+  ): Promise<AccountTransactionSummaryDTO> {
     return this.accountsService.getGroupedTransactions(user.id, query);
   }
 

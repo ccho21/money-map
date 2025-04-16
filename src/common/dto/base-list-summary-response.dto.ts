@@ -1,6 +1,12 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsArray, IsEnum, IsNumber, IsOptional, IsString } from 'class-validator';
 import { GroupBy } from '@/common/types/types';
+import {
+  IsArray,
+  IsEnum,
+  IsNumber,
+  IsOptional,
+  IsString,
+} from 'class-validator';
 
 export class BaseListSummaryResponseDTO<T> {
   @ApiProperty({ type: [Object] }) // 실제 타입은 자식이 명시

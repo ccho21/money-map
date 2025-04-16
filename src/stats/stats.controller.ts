@@ -11,12 +11,15 @@ import {
 import { UserPayload } from 'src/auth/types/user-payload.type';
 import { StatsQuery } from './dto/stats-query.dto';
 import { GroupBy } from '@/common/types/types';
-import { CategoryStatsGroupDTO } from './dto/category-stats-group.dto';
-import { NoteStatsGroupDTO } from './dto/note-stats-group.dto';
 import { TransactionGroupSummaryDTO } from '@/transactions/dto/transaction-group-summary.dto';
-import { CategoryGroupSummaryResponseDTO } from './dto/category-group-summary-response.dto';
-import { NoteGroupSummaryResponseDTO } from './dto/note-group-summary-response.dto';
-import { BudgetGroupSummaryResponseDTO } from './dto/budget-group-summary-response.dto';
+import { BaseStatsResponseDTO } from './dto/base/base-stats-response.dto';
+import { CategoryStatsItemDTO } from './dto/category/group-item.dto';
+import { NoteStatsItemDTO } from './dto/note/group-item.dto';
+import { BudgetStatsItemDTO } from './dto/budget/group-item.dto';
+import { CategoryGroupSummaryItemDTO } from './dto/category/summary.dto';
+import { BudgetGroupSummaryItemDTO } from './dto/budget/summary.dto';
+import { TransactionGroupItemDTO } from '@/transactions/dto/transaction-group-item.dto';
+import { NoteGroupSummaryItemDTO } from './dto/note/summary.dto';
 
 @ApiTags('Stats')
 @ApiBearerAuth('access-token')
@@ -28,22 +31,25 @@ export class StatsController {
   async getByCategory(
     @GetUser() user: UserPayload,
     @Query() query: StatsQuery,
-  ): Promise<CategoryStatsGroupDTO> {
+  ): Promise<BaseStatsResponseDTO<CategoryStatsItemDTO>> {
     return this.statsService.getByCategory(user.id, query);
   }
 
   @Get('by-budget')
-  getByBudget(@GetUser() user: UserPayload, @Query() query: StatsQuery) {
+  getByBudget(
+    @GetUser() user: UserPayload,
+    @Query() query: StatsQuery,
+  ): Promise<BaseStatsResponseDTO<BudgetStatsItemDTO>> {
     return this.statsService.getByBudget(user.id, query);
   }
 
   @Get('by-note')
   @UseGuards(JwtAuthGuard)
-  async getStatsByNoteSummary(
+  async getByNote(
     @GetUser() user: UserPayload,
     @Query() query: StatsQuery,
-  ): Promise<NoteStatsGroupDTO> {
-    return this.statsService.getStatsByNoteSummary(user.id, query);
+  ): Promise<BaseStatsResponseDTO<NoteStatsItemDTO>> {
+    return this.statsService.getByNote(user.id, query);
   }
 
   @Get('/category/:categoryId')
@@ -80,7 +86,7 @@ export class StatsController {
     @GetUser() user: UserPayload,
     @Param('categoryId') categoryId: string,
     @Query() query: StatsQuery,
-  ): Promise<CategoryGroupSummaryResponseDTO> {
+  ): Promise<BaseStatsResponseDTO<CategoryGroupSummaryItemDTO>> {
     return this.statsService.getStatsCategorySummary(
       user.id,
       categoryId,
@@ -122,7 +128,7 @@ export class StatsController {
     @GetUser() user: UserPayload,
     @Param('categoryId') categoryId: string,
     @Query() query: StatsQuery,
-  ): Promise<BudgetGroupSummaryResponseDTO> {
+  ): Promise<BaseStatsResponseDTO<BudgetGroupSummaryItemDTO>> {
     return this.statsService.getStatsBudgetSummary(user.id, categoryId, query);
   }
 
@@ -141,7 +147,7 @@ export class StatsController {
     @GetUser() user: UserPayload,
     @Param('note') note: string,
     @Query() query: StatsQuery,
-  ): Promise<TransactionGroupSummaryDTO> {
+  ): Promise<BaseStatsResponseDTO<TransactionGroupItemDTO>> {
     return this.statsService.getStatsNoteDetail(user.id, note, query);
   }
 
@@ -160,7 +166,7 @@ export class StatsController {
     @GetUser() user: UserPayload,
     @Param('note') note: string,
     @Query() query: StatsQuery,
-  ): Promise<NoteGroupSummaryResponseDTO> {
+  ): Promise<BaseStatsResponseDTO<NoteGroupSummaryItemDTO>> {
     return this.statsService.getStatsNoteSummary(user.id, note, query);
   }
 }

@@ -21,62 +21,62 @@ type GroupTransactionInput = Transaction & {
   toAccount?: Account | null;
 };
 
+type FixedRange = {
+  label: string;
+  startDate: string;
+  endDate: string;
+  isCurrent: boolean;
+};
+
 export function groupTransactions(
   transactions: GroupTransactionInput[],
   groupBy: GroupBy,
   timezone: string,
-  fixedRanges?: {
-    label: string;
-    startDate: string;
-    endDate: string;
-    isCurrent: boolean;
-  }[],
+  fixedRanges?: FixedRange[],
 ): TransactionGroupItemDTO[] {
-  const grouped = new Map<
-    string,
-    {
-      rangeStart: string;
-      rangeEnd: string;
-      transactions: TransactionDetailDTO[];
-    }
-  >();
+  const grouped = new Map<string, TransactionGroupItemDTO>();
 
-  // ✅ 고정 구간이 있을 경우 미리 초기화
+  // ✅ 고정 구간 있을 경우 미리 생성
   if (fixedRanges) {
-    for (const r of fixedRanges) {
-      grouped.set(r.label, {
-        rangeStart: r.startDate,
-        rangeEnd: r.endDate,
+    for (const range of fixedRanges) {
+      grouped.set(range.label, {
+        label: range.label,
+        rangeStart: range.startDate,
+        rangeEnd: range.endDate,
+        groupIncome: 0,
+        groupExpense: 0,
         transactions: [],
+        isCurrent: range.isCurrent,
       });
     }
   }
 
   for (const tx of transactions) {
-    const zonedTx = toZonedTime(tx.date, timezone);
-    let label: string;
+    const zoned = toZonedTime(tx.date, timezone);
+
     let rangeStart: Date;
     let rangeEnd: Date;
+    let label: string;
 
     switch (groupBy) {
       case GroupBy.DAILY:
-        rangeStart = startOfDay(zonedTx);
-        rangeEnd = endOfDay(zonedTx);
+        rangeStart = startOfDay(zoned);
+        rangeEnd = endOfDay(zoned);
         label = format(rangeStart, 'yyyy-MM-dd');
         break;
       case GroupBy.WEEKLY:
-        rangeStart = startOfWeek(zonedTx, { weekStartsOn: 0 });
-        rangeEnd = endOfWeek(zonedTx, { weekStartsOn: 0 });
+        rangeStart = startOfWeek(zoned, { weekStartsOn: 0 });
+        rangeEnd = endOfWeek(zoned, { weekStartsOn: 0 });
         label = format(rangeStart, 'yyyy-MM-dd');
         break;
       case GroupBy.MONTHLY:
-        rangeStart = startOfMonth(zonedTx);
-        rangeEnd = endOfMonth(zonedTx);
+        rangeStart = startOfMonth(zoned);
+        rangeEnd = endOfMonth(zoned);
         label = format(rangeStart, 'yyyy-MM');
         break;
       case GroupBy.YEARLY:
-        rangeStart = startOfYear(zonedTx);
-        rangeEnd = endOfYear(zonedTx);
+        rangeStart = startOfYear(zoned);
+        rangeEnd = endOfYear(zoned);
         label = format(rangeStart, 'yyyy');
         break;
       default:
@@ -85,8 +85,11 @@ export function groupTransactions(
 
     if (!grouped.has(label)) {
       grouped.set(label, {
+        label,
         rangeStart: format(rangeStart, 'yyyy-MM-dd'),
         rangeEnd: format(rangeEnd, 'yyyy-MM-dd'),
+        groupIncome: 0,
+        groupExpense: 0,
         transactions: [],
       });
     }
@@ -108,47 +111,27 @@ export function groupTransactions(
             name: tx.category.name,
             icon: tx.category.icon,
             type: tx.category.type,
-            color: tx.category.color ?? '',
           }
-        : undefined,
+        : null,
       account: {
         id: tx.account.id,
         name: tx.account.name,
         type: tx.account.type,
-        color: tx.account.color ?? undefined,
+        color: tx.account.color ?? '#999999',
       },
-      toAccount: tx.toAccount
-        ? {
-            id: tx.toAccount.id,
-            name: tx.toAccount.name,
-            type: tx.toAccount.type,
-            color: tx.toAccount.color ?? undefined,
-          }
-        : undefined,
     };
 
-    grouped.get(label)!.transactions.push(dto);
+    const group = grouped.get(label)!;
+    group.transactions.push(dto);
+
+    if (tx.type === 'income') {
+      group.groupIncome += tx.amount;
+    } else if (tx.type === 'expense') {
+      group.groupExpense += tx.amount;
+    }
   }
 
-  const data: TransactionGroupItemDTO[] = [];
-  for (const [label, { rangeStart, rangeEnd, transactions }] of grouped) {
-    const income = transactions
-      .filter((t) => t.type === 'income')
-      .reduce((sum, t) => sum + t.amount, 0);
-    const expense = transactions
-      .filter((t) => t.type === 'expense')
-      .reduce((sum, t) => sum + t.amount, 0);
-
-    data.push({
-      label,
-      rangeStart,
-      rangeEnd,
-      totalIncome: income,
-      totalExpense: expense,
-      transactions,
-    });
-  }
-
-  // ✅ 라벨 순 정렬 보장
-  return data.sort((a, b) => a.rangeStart.localeCompare(b.rangeStart));
+  return Array.from(grouped.values()).sort((a, b) =>
+    a.rangeStart.localeCompare(b.rangeStart),
+  );
 }

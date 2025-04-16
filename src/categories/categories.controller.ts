@@ -13,8 +13,10 @@ import { JwtAuthGuard } from 'src/common/guards/jwt.guard';
 import { CategoriesService } from './categories.service';
 import { GetUser } from 'src/common/decorators/get-user.decorator';
 import { UserPayload } from 'src/auth/types/user-payload.type';
-import { CategoryUpdateRequestDTO } from './dto/category-update-request.dto';
-import { CategoryCreateRequestDTO } from './dto/category-create-request.dto';
+import {
+  CategoryCreateRequestDTO,
+  CategoryUpdateRequestDTO,
+} from './dto/category-request.dto';
 
 @ApiTags('Categories')
 @ApiBearerAuth('access-token')
