@@ -1,54 +1,25 @@
 // 📁 src/stats/dto/budget/group-summary.dto.ts
 import { BaseListSummaryResponseDTO } from '@/common/dto/base-list-summary-response.dto';
-import {
-  IsBoolean,
-  IsDateString,
-  IsInt,
-  IsOptional,
-  IsString,
-} from 'class-validator';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-
-export class BudgetGroupSummaryItemDTO {
+import { ApiProperty } from '@nestjs/swagger';
+import { BaseGroupItemDTO } from '@/common/dto/base-group-item.dto';
+export class StatsBudgetGroupSummaryDTO extends BaseGroupItemDTO {
   @ApiProperty()
-  @IsString()
-  label: string;
-
-  @ApiProperty()
-  @IsDateString()
-  startDate: string;
-
-  @ApiProperty()
-  @IsDateString()
-  endDate: string;
-
-  @ApiProperty()
-  @IsBoolean()
-  isCurrent: boolean;
-
-  @ApiProperty()
-  @IsInt()
   income: number;
 
   @ApiProperty()
-  @IsInt()
   expense: number;
 
-  @ApiPropertyOptional()
-  @IsInt()
-  @IsOptional()
+  @ApiProperty()
   budgetAmount?: number;
 
-  @ApiPropertyOptional()
-  @IsInt()
-  @IsOptional()
+  @ApiProperty()
   remaining?: number;
 
-  @ApiPropertyOptional()
-  @IsBoolean()
-  @IsOptional()
+  @ApiProperty()
   isOver?: boolean;
+
+  @ApiProperty()
+  isCurrent: boolean;
 }
 
-export type BudgetGroupSummaryResponseDTO =
-  BaseListSummaryResponseDTO<BudgetGroupSummaryItemDTO>;
+export class StatsBudgetSummaryDTO extends BaseListSummaryResponseDTO<StatsBudgetGroupSummaryDTO> {}

@@ -1,34 +1,48 @@
 import {
   BadRequestException,
-  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { StatsQuery } from './dto/stats-query.dto';
+import { PrismaService } from '@/prisma/prisma.service';
 
-import { getUserTimezone } from '@/libs/timezone';
-import { groupTransactions } from './util/groupTransactions.util';
 import {
   getDateRangeList,
   getUTCEndDate,
   getUTCStartDate,
 } from '@/libs/date.util';
-import { toZonedTime } from 'date-fns-tz';
+import { groupTransactions } from './util/groupTransactions.util';
 import { endOfDay, isWithinInterval, parseISO, startOfDay } from 'date-fns';
-import { PrismaService } from '@/prisma/prisma.service';
-import { CategoryStatsItemDTO } from './dto/category/group-item.dto';
-import { BaseStatsResponseDTO } from './dto/base/base-stats-response.dto';
-import { BudgetStatsItemDTO } from './dto/budget/group-item.dto';
-import {
-  NoteStatsItemDTO,
-  NoteSummaryItemNoteDTO,
-} from './dto/note/group-item.dto';
-import { TransactionGroupItemDTO } from '@/transactions/dto/transaction-group-item.dto';
+import { toZonedTime } from 'date-fns-tz';
+import { getUserTimezone } from '@/libs/timezone';
+
 import { BaseListSummaryResponseDTO } from '@/common/dto/base-list-summary-response.dto';
-import { BudgetGroupSummaryItemDTO } from './dto/budget/summary.dto';
-import { CategoryGroupSummaryItemDTO } from './dto/category/summary.dto';
-import { NoteGroupSummaryItemDTO } from './dto/note/summary.dto';
+import { StatsBudgetGroupItemDTO } from './dto/budget/group-item.dto';
+import { StatsCategoryGroupItemDTO } from './dto/category/group-item.dto';
+import { StatsNoteGroupItemDTO } from './dto/note/group-item.dto';
+import {
+  StatsNoteGroupSummaryDTO,
+  StatsNoteSummaryDTO,
+} from './dto/note/summary.dto';
+import { StatsNoteGroupPeriodDTO } from './dto/note/period-item.dto';
+import {
+  StatsBudgetDetailDTO,
+  StatsBudgetPeriodDTO,
+} from './dto/budget/detail.dto';
+import { StatsNoteDetailDTO, StatsNotePeriodDTO } from './dto/note/detail.dto';
+import {
+  StatsCategoryDetailDTO,
+  StatsCategoryPeriodDTO,
+} from './dto/category/detail.dto';
+import {
+  StatsCategoryGroupSummaryDTO,
+  StatsCategorySummaryDTO,
+} from './dto/category/summary.dto';
+import {
+  StatsBudgetGroupSummaryDTO,
+  StatsBudgetSummaryDTO,
+} from './dto/budget/summary.dto';
+import { StatsQuery } from './dto/stats-query.dto';
 
 @Injectable()
 export class StatsService {
@@ -39,10 +53,12 @@ export class StatsService {
   async getByCategory(
     userId: string,
     query: StatsQuery,
-  ): Promise<BaseStatsResponseDTO<CategoryStatsItemDTO>> {
-    const { startDate, endDate, type } = query;
-    if (!startDate || !endDate || !type) {
-      throw new BadRequestException('startDate, endDate, type are required.');
+  ): Promise<BaseListSummaryResponseDTO<StatsCategoryGroupItemDTO>> {
+    const { startDate, endDate, type, groupBy } = query;
+    if (!startDate || !endDate || !type || !groupBy) {
+      throw new BadRequestException(
+        'startDate, endDate, type, groupBy are required.',
+      );
     }
 
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
@@ -52,12 +68,10 @@ export class StatsService {
     const start = getUTCStartDate(startDate, timezone);
     const end = getUTCEndDate(endDate, timezone);
 
-    // ✅ 전체 카테고리 가져오기
     const categories = await this.prisma.category.findMany({
       where: { userId, type },
     });
 
-    // ✅ 거래 총합 그룹화
     const grouped = await this.prisma.transaction.groupBy({
       by: ['categoryId'],
       where: {
@@ -72,7 +86,6 @@ export class StatsService {
       grouped.map((g) => [g.categoryId!, g._sum.amount ?? 0]),
     );
 
-    // ✅ 예산 정보 조회
     const budgetCategories = await this.prisma.budgetCategory.findMany({
       where: {
         categoryId: { in: categories.map((c) => c.id) },
@@ -88,59 +101,86 @@ export class StatsService {
       ]),
     );
 
-    // ✅ 총 금액 계산
-    const totalAmount = Array.from(amountMap.values()).reduce(
-      (sum, amt) => sum + amt,
-      0,
-    );
+    let totalExpense = 0;
+    let totalIncome = 0;
 
-    // ✅ 최종 결과 매핑
-    const data: CategoryStatsItemDTO[] = categories.map((category) => {
+    const items: StatsCategoryGroupItemDTO[] = categories.map((category) => {
       const amount = amountMap.get(category.id) ?? 0;
       const budget = budgetMap.get(category.id);
       const rate =
-        totalAmount > 0 ? Math.min((amount / totalAmount) * 100, 999) : 0;
+        amountMap.size > 0
+          ? Math.min(
+              (amount /
+                Array.from(amountMap.values()).reduce((sum, a) => sum + a, 0)) *
+                100,
+              999,
+            )
+          : 0;
       const budgetRate =
-        budget && budget.amount > 0
+        budget && budget?.amount > 0
           ? Math.min((amount / budget.amount) * 100, 999)
           : undefined;
 
+      if (category.type === 'expense') totalExpense += amount;
+      else totalIncome += amount;
+
       return {
-        id: category.id,
-        name: category.name,
-        type: category.type,
+        categoryId: category.id,
+        categoryName: category.name,
+        categoryType: category.type,
         color: category.color ?? '#999999',
         amount,
         rate,
-        ...(budget && {
-          budgetId: budget.budgetId,
-          budget: budget.amount,
-          budgetRate,
-        }),
+        budgetId: budget?.budgetId,
+        budget: budget?.amount,
+        budgetRate,
+        // 👇 BaseGroupItemDTO required fields.
+        label: category.name,
+        rangeStart: startDate,
+        rangeEnd: endDate,
       };
     });
 
-    data.sort((a, b) => b.amount - a.amount);
+    const summary: StatsCategoryGroupItemDTO = {
+      categoryId: 'summary',
+      categoryName: 'Summary',
+      categoryType: type,
+      color: '#3B82F6',
+      amount: type === 'expense' ? totalExpense : totalIncome,
+      rate: 100,
+      // 👇 BaseGroupItemDTO 필수값 추가
+      label: 'Summary',
+      rangeStart: startDate,
+      rangeEnd: endDate,
+    };
 
     return {
-      data,
-      total: totalAmount,
+      startDate,
+      endDate,
+      type,
+      groupBy,
+      items,
+      summary,
+      totalIncome,
+      totalExpense,
     };
   }
 
   async getByBudget(
     userId: string,
     query: StatsQuery,
-  ): Promise<BaseStatsResponseDTO<BudgetStatsItemDTO>> {
-    const { startDate, endDate, type } = query;
-    if (!startDate || !endDate || !type) {
-      throw new BadRequestException('startDate, endDate, type are required.');
+  ): Promise<BaseListSummaryResponseDTO<StatsBudgetGroupItemDTO>> {
+    const { startDate, endDate, type, groupBy } = query;
+    if (!startDate || !endDate || !type || !groupBy) {
+      throw new BadRequestException(
+        'startDate, endDate, type, groupBy are required.',
+      );
     }
 
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new NotFoundException('User not found');
-
     const timezone = getUserTimezone(user);
+
     const start = getUTCStartDate(startDate, timezone);
     const end = getUTCEndDate(endDate, timezone);
 
@@ -173,7 +213,10 @@ export class StatsService {
       transactions.map((tx) => [tx.categoryId!, tx._sum.amount ?? 0]),
     );
 
-    const data: BudgetStatsItemDTO[] = categories.map((category) => {
+    let totalIncome = 0;
+    let totalExpense = 0;
+
+    const items: StatsBudgetGroupItemDTO[] = categories.map((category) => {
       const amount = txMap.get(category.id) ?? 0;
       const budget = budgetMap.get(category.id);
       const budgetAmount = budget?.amount ?? 0;
@@ -184,34 +227,69 @@ export class StatsService {
       const rate =
         budgetAmount > 0 ? Math.min((amount / budgetAmount) * 100, 999) : 0;
 
+      if (category.type === 'expense') totalExpense += spent;
+      else totalIncome += income;
+
       return {
-        id: category.id,
-        name: category.name,
-        type: category.type,
+        categoryId: category.id,
+        categoryName: category.name,
+        categoryType: category.type,
         icon: category.icon,
         color: category.color ?? '#999999',
-        amount,
-        budget: budgetAmount,
+        budgetId: budget?.id,
         spent,
         income,
+        budget: budgetAmount,
         remaining,
         rate,
         hasBudget: !!budget,
+        label: category.name,
+        rangeStart: startDate,
+        rangeEnd: endDate,
       };
     });
 
-    const total = data.reduce((sum, item) => sum + (item.amount ?? 0), 0);
+    // summary 항목은 categoryId: "summary"로 설정
+    const summary: StatsBudgetGroupItemDTO = {
+      categoryId: 'summary',
+      categoryName: 'Summary',
+      categoryType: type,
+      icon: 'PieChart',
+      color: '#3B82F6',
+      spent: totalExpense,
+      income: totalIncome,
+      budget: budgetCategories.reduce((sum, b) => sum + b.amount, 0),
+      remaining:
+        budgetCategories.reduce((sum, b) => sum + b.amount, 0) - totalExpense,
+      rate:
+        totalExpense > 0
+          ? (totalExpense /
+              budgetCategories.reduce((sum, b) => sum + b.amount, 0)) *
+            100
+          : 0,
+      hasBudget: false,
+      budgetId: undefined,
+      label: 'Summary',
+      rangeStart: startDate,
+      rangeEnd: endDate,
+    };
 
     return {
-      data,
-      total,
+      startDate,
+      endDate,
+      groupBy,
+      type,
+      items,
+      summary,
+      totalIncome,
+      totalExpense,
     };
   }
 
   async getByNote(
     userId: string,
     query: StatsQuery,
-  ): Promise<BaseStatsResponseDTO<NoteStatsItemDTO>> {
+  ): Promise<BaseListSummaryResponseDTO<StatsNoteGroupItemDTO>> {
     const { startDate, endDate, groupBy, type } = query;
 
     if (!startDate || !endDate || !groupBy || !type) {
@@ -241,8 +319,7 @@ export class StatsService {
       orderBy: { date: 'asc' },
     });
 
-    type TxWithRelations = (typeof transactions)[number];
-    const noteMap = new Map<string, TxWithRelations[]>();
+    const noteMap = new Map<string, typeof transactions>();
 
     for (const tx of transactions) {
       const note = tx.note?.trim() || '';
@@ -252,45 +329,62 @@ export class StatsService {
       noteMap.get(note)!.push(tx);
     }
 
-    let total = 0;
-    const data: NoteStatsItemDTO[] = [];
+    let totalIncome = 0;
+    let totalExpense = 0;
+
+    const items: StatsNoteGroupItemDTO[] = [];
 
     for (const [note, txList] of noteMap.entries()) {
-      const grouped = groupTransactions(txList, groupBy, timezone); // TransactionSummary[]
+      const grouped = groupTransactions(txList, groupBy, timezone);
+
       const incomeSum = grouped.reduce((sum, g) => sum + g.groupIncome, 0);
       const expenseSum = grouped.reduce((sum, g) => sum + g.groupExpense, 0);
-      const groupTotal = incomeSum + expenseSum;
-      total += groupTotal;
 
-      const summarized: NoteSummaryItemNoteDTO[] = grouped.map(
-        (g: TransactionGroupItemDTO) => ({
-          label: g.label,
-          startDate: g.rangeStart,
-          endDate: g.rangeEnd,
-          income: g.groupIncome,
-          expense: g.groupExpense,
-          isCurrent: g.isCurrent ?? false,
-        }),
-      );
+      totalIncome += incomeSum;
+      totalExpense += expenseSum;
 
-      data.push({
+      const periods: StatsNoteGroupPeriodDTO[] = grouped.map((g) => ({
+        label: g.label,
+        rangeStart: g.rangeStart,
+        rangeEnd: g.rangeEnd,
+        income: g.groupIncome,
+        expense: g.groupExpense,
+        isCurrent: g.isCurrent ?? false,
+      }));
+
+      items.push({
         note,
         type,
-        data: summarized,
         count: txList.length,
         totalIncome: incomeSum,
         totalExpense: expenseSum,
+        data: periods,
       });
     }
 
-    data.sort(
+    items.sort(
       (a, b) =>
         b.totalIncome + b.totalExpense - (a.totalIncome + a.totalExpense),
     );
 
+    const summary: StatsNoteGroupItemDTO = {
+      note: 'Summary',
+      type,
+      count: items.reduce((sum, i) => sum + i.count, 0),
+      totalIncome,
+      totalExpense,
+      data: [],
+    };
+
     return {
-      data,
-      total,
+      startDate,
+      endDate,
+      groupBy,
+      type,
+      items,
+      summary,
+      totalIncome,
+      totalExpense,
     };
   }
 
@@ -298,12 +392,12 @@ export class StatsService {
     userId: string,
     categoryId: string,
     query: StatsQuery,
-  ): Promise<BaseListSummaryResponseDTO<TransactionGroupItemDTO>> {
+  ): Promise<StatsCategoryDetailDTO> {
     const { startDate, endDate, groupBy, type } = query;
 
     if (!startDate || !endDate || !groupBy || !type) {
       throw new BadRequestException(
-        'startDate, endDate, groupBy, type는 필수입니다.',
+        'startDate, endDate, groupBy, type are required.',
       );
     }
 
@@ -311,9 +405,16 @@ export class StatsService {
     if (!user) throw new NotFoundException('User not found');
 
     const timezone = getUserTimezone(user);
-
     const start = getUTCStartDate(startDate, timezone);
     const end = getUTCEndDate(endDate, timezone);
+
+    const category = await this.prisma.category.findUnique({
+      where: { id: categoryId },
+    });
+
+    if (!category || category.userId !== userId) {
+      throw new NotFoundException('Category not found');
+    }
 
     const transactions = await this.prisma.transaction.findMany({
       where: {
@@ -330,104 +431,49 @@ export class StatsService {
       orderBy: { date: 'asc' },
     });
 
-    const grouped: TransactionGroupItemDTO[] = groupTransactions(
-      transactions,
-      groupBy,
-      timezone,
-    );
+    const grouped = groupTransactions(transactions, groupBy, timezone);
 
-    const totalIncome = grouped.reduce(
-      (sum, d) => sum + d.groupIncome + d.groupExpense,
-      0,
-    );
+    const totalIncome = grouped.reduce((sum, g) => sum + g.groupIncome, 0);
+    const totalExpense = grouped.reduce((sum, g) => sum + g.groupExpense, 0);
 
-    const totalExpense = grouped.reduce(
-      (sum, d) => sum + d.groupIncome + d.groupExpense,
-      0,
-    );
+    const data: StatsCategoryPeriodDTO[] = grouped.map((g) => ({
+      label: g.label,
+      rangeStart: g.rangeStart,
+      rangeEnd: g.rangeEnd,
+      income: g.groupIncome,
+      expense: g.groupExpense,
+      isCurrent: g.isCurrent ?? false,
+    }));
 
     return {
-      groupBy,
-      startDate,
-      endDate,
-      data: grouped,
+      categoryId: category.id,
+      categoryName: category.name,
+      icon: category.icon,
+      color: category.color ?? '#999999',
+      type: category.type,
       totalIncome,
       totalExpense,
+      data,
     };
   }
 
-  async getStatsNoteDetail(
-    userId: string,
-    encodedNote: string,
-    query: StatsQuery,
-  ): Promise<BaseStatsResponseDTO<TransactionGroupItemDTO>> {
-    const { startDate, endDate, type, groupBy } = query;
-
-    if (!startDate || !endDate || !type || !groupBy) {
-      throw new BadRequestException(
-        'startDate, endDate, type, groupBy는 필수입니다.',
-      );
-    }
-
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user) throw new NotFoundException('User not found');
-
-    const timezone = getUserTimezone(user);
-    const start = getUTCStartDate(startDate, timezone);
-    const end = getUTCEndDate(endDate, timezone);
-
-    const rawNote = decodeURIComponent(encodedNote).trim();
-    const note = rawNote === '_' ? null : rawNote;
-
-    const transactions = await this.prisma.transaction.findMany({
-      where: {
-        userId,
-        type,
-        note,
-        date: { gte: start, lte: end },
-      },
-      include: {
-        category: true,
-        account: true,
-        toAccount: true,
-      },
-      orderBy: { date: 'asc' },
-    });
-
-    const grouped: TransactionGroupItemDTO[] = groupTransactions(
-      transactions,
-      groupBy,
-      timezone,
-    );
-
-    const total = grouped.reduce(
-      (sum, d) => sum + d.groupIncome + d.groupExpense,
-      0,
-    );
-
-    return {
-      data: grouped,
-      total,
-    };
-  }
-
-  async getStatsBudgetCategory(
+  async getStatsBudget(
     userId: string,
     budgetCategoryId: string,
     query: StatsQuery,
-  ): Promise<BaseListSummaryResponseDTO<TransactionGroupItemDTO>> {
-    const { startDate, endDate, type, groupBy } = query;
+  ): Promise<StatsBudgetDetailDTO> {
+    const { startDate, endDate, groupBy, type } = query;
 
-    if (!startDate || !endDate || !type || !groupBy) {
+    if (!startDate || !endDate || !groupBy || !type) {
       throw new BadRequestException(
-        'startDate, endDate, type, groupBy는 필수입니다.',
+        'startDate, endDate, groupBy, type are required.',
       );
     }
 
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new NotFoundException('User not found');
-
     const timezone = getUserTimezone(user);
+
     const start = getUTCStartDate(startDate, timezone);
     const end = getUTCEndDate(endDate, timezone);
 
@@ -435,25 +481,21 @@ export class StatsService {
       where: { id: budgetCategoryId },
       include: {
         category: true,
-        budget: true,
       },
     });
 
-    if (!budgetCategory || budgetCategory.budget.userId !== userId) {
-      throw new ForbiddenException('해당 예산 항목에 접근할 수 없습니다.');
+    if (!budgetCategory || budgetCategory.category.userId !== userId) {
+      throw new NotFoundException('예산 카테고리를 찾을 수 없습니다.');
     }
 
-    if (budgetCategory.category.type !== type) {
-      throw new BadRequestException(
-        `카테고리 타입(${budgetCategory.category.type})과 요청 타입(${type})이 일치하지 않습니다.`,
-      );
-    }
+    const category = budgetCategory.category;
+    const budgetAmount = budgetCategory.amount;
 
     const transactions = await this.prisma.transaction.findMany({
       where: {
         userId,
+        categoryId: category.id,
         type,
-        categoryId: budgetCategory.categoryId,
         date: { gte: start, lte: end },
       },
       include: {
@@ -464,29 +506,97 @@ export class StatsService {
       orderBy: { date: 'asc' },
     });
 
-    const grouped: TransactionGroupItemDTO[] = groupTransactions(
-      transactions,
-      groupBy,
-      timezone,
-    );
+    const grouped = groupTransactions(transactions, groupBy, timezone);
 
-    const totalIncome = grouped.reduce(
-      (sum, d) => sum + d.groupIncome + d.groupExpense,
-      0,
-    );
+    const data: StatsBudgetPeriodDTO[] = grouped.map((g) => {
+      const remaining = budgetAmount - g.groupExpense;
+      const isOver = remaining < 0;
 
-    const totalExpense = grouped.reduce(
-      (sum, d) => sum + d.groupIncome + d.groupExpense,
-      0,
-    );
+      return {
+        label: g.label,
+        rangeStart: g.rangeStart,
+        rangeEnd: g.rangeEnd,
+        income: g.groupIncome,
+        expense: g.groupExpense,
+        budget: budgetAmount,
+        remaining,
+        isOver,
+        isCurrent: g.isCurrent ?? false,
+      };
+    });
+
+    const totalExpense = data.reduce((sum, d) => sum + d.expense, 0);
+    const totalRemaining = data.reduce((sum, d) => sum + d.remaining, 0);
+    const isOver = totalRemaining < 0;
 
     return {
-      groupBy,
-      startDate,
-      endDate,
-      data: grouped,
+      categoryId: category.id,
+      categoryName: category.name,
+      icon: category.icon,
+      color: category.color ?? '#999999',
+      type: category.type,
+      totalExpense,
+      totalBudget: budgetAmount,
+      totalRemaining,
+      isOver,
+      data,
+    };
+  }
+
+  async getStatsNote(
+    userId: string,
+    note: string,
+    query: StatsQuery,
+  ): Promise<StatsNoteDetailDTO> {
+    const { startDate, endDate, groupBy, type } = query;
+
+    if (!startDate || !endDate || !groupBy || !type) {
+      throw new BadRequestException(
+        'startDate, endDate, groupBy, type는 필수입니다.',
+      );
+    }
+
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found');
+    const timezone = getUserTimezone(user);
+
+    const start = getUTCStartDate(startDate, timezone);
+    const end = getUTCEndDate(endDate, timezone);
+
+    const transactions = await this.prisma.transaction.findMany({
+      where: {
+        userId,
+        type,
+        note: { equals: note },
+        date: { gte: start, lte: end },
+      },
+      include: {
+        category: true,
+        account: true,
+        toAccount: true,
+      },
+      orderBy: { date: 'asc' },
+    });
+
+    const grouped = groupTransactions(transactions, groupBy, timezone);
+
+    const totalIncome = grouped.reduce((sum, g) => sum + g.groupIncome, 0);
+    const totalExpense = grouped.reduce((sum, g) => sum + g.groupExpense, 0);
+
+    const data: StatsNotePeriodDTO[] = grouped.map((g) => ({
+      label: g.label,
+      rangeStart: g.rangeStart,
+      rangeEnd: g.rangeEnd,
+      income: g.groupIncome,
+      expense: g.groupExpense,
+      isCurrent: g.isCurrent ?? false,
+    }));
+
+    return {
+      note,
       totalIncome,
       totalExpense,
+      data,
     };
   }
 
@@ -494,7 +604,7 @@ export class StatsService {
     userId: string,
     categoryId: string,
     query: StatsQuery,
-  ): Promise<BaseStatsResponseDTO<CategoryGroupSummaryItemDTO>> {
+  ): Promise<StatsCategorySummaryDTO> {
     const { startDate, endDate, groupBy } = query;
 
     if (!startDate || !endDate || !groupBy) {
@@ -509,11 +619,14 @@ export class StatsService {
 
     const start = getUTCStartDate(startDate, timezone);
     const ranges = getDateRangeList(start, groupBy, timezone);
+    // const end = parseISO(ranges[ranges.length - 1].endDate);
 
     const category = await this.prisma.category.findUnique({
       where: { id: categoryId },
     });
-    if (!category) throw new NotFoundException('Category not found');
+    if (!category || category.userId !== userId) {
+      throw new NotFoundException('Category not found');
+    }
 
     const type = category.type;
 
@@ -552,25 +665,35 @@ export class StatsService {
       bucketMap.set(key, current + tx.amount);
     }
 
-    let total = 0;
-    const data: CategoryGroupSummaryItemDTO[] = ranges.map((range) => {
+    let totalIncome = 0;
+    let totalExpense = 0;
+
+    const items: StatsCategoryGroupSummaryDTO[] = ranges.map((range) => {
       const sum = bucketMap.get(range.label) ?? 0;
-      total += sum;
+      const income = type === 'income' ? sum : 0;
+      const expense = type === 'expense' ? sum : 0;
+
+      totalIncome += income;
+      totalExpense += expense;
 
       return {
         label: range.label,
-        startDate: range.startDate,
-        endDate: range.endDate,
+        rangeStart: range.startDate,
+        rangeEnd: range.endDate,
         isCurrent: range.isCurrent,
-        income: type === 'income' ? sum : 0,
-        expense: type === 'expense' ? sum : 0,
-        total: type === 'income' ? sum : -sum,
+        income,
+        expense,
       };
     });
 
     return {
-      data,
-      total,
+      startDate,
+      endDate: ranges[ranges.length - 1].endDate,
+      groupBy,
+      type,
+      items,
+      totalIncome,
+      totalExpense,
     };
   }
 
@@ -578,7 +701,7 @@ export class StatsService {
     userId: string,
     categoryId: string,
     query: StatsQuery,
-  ): Promise<BaseStatsResponseDTO<BudgetGroupSummaryItemDTO>> {
+  ): Promise<StatsBudgetSummaryDTO> {
     const { startDate, endDate, groupBy } = query;
 
     if (!startDate || !endDate || !groupBy) {
@@ -592,13 +715,15 @@ export class StatsService {
     const timezone = getUserTimezone(user);
 
     const start = getUTCStartDate(startDate, timezone);
-    const end = getUTCStartDate(endDate, timezone);
     const ranges = getDateRangeList(start, groupBy, timezone);
+    const end = parseISO(ranges[ranges.length - 1].endDate);
 
     const category = await this.prisma.category.findUnique({
       where: { id: categoryId },
     });
-    if (!category) throw new NotFoundException('Category not found');
+    if (!category || category.userId !== userId) {
+      throw new NotFoundException('Category not found');
+    }
 
     const type = category.type;
 
@@ -626,10 +751,10 @@ export class StatsService {
       },
     });
 
-    let totalBudget = 0;
-    let totalUsed = 0;
+    let totalIncome = 0;
+    let totalExpense = 0;
 
-    const data: BudgetGroupSummaryItemDTO[] = ranges.map((range) => {
+    const items: StatsBudgetGroupSummaryDTO[] = ranges.map((range) => {
       const rangeStart = parseISO(range.startDate);
       const rangeEnd = parseISO(range.endDate);
 
@@ -660,13 +785,13 @@ export class StatsService {
         budgetAmount !== undefined ? budgetAmount - total : undefined;
       const isOver = remaining !== undefined && remaining < 0;
 
-      if (budgetAmount !== undefined) totalBudget += budgetAmount;
-      totalUsed += total;
+      if (type === 'expense') totalExpense += total;
+      if (type === 'income') totalIncome += total;
 
       return {
         label: range.label,
-        startDate: range.startDate,
-        endDate: range.endDate,
+        rangeStart: range.startDate,
+        rangeEnd: range.endDate,
         isCurrent: range.isCurrent,
         income: type === 'income' ? total : 0,
         expense: type === 'expense' ? total : 0,
@@ -676,12 +801,14 @@ export class StatsService {
       };
     });
 
-    // const totalRemaining = totalBudget - totalUsed;
-
     return {
-      data,
-      total: totalUsed,
-      rate: totalBudget > 0 ? (totalUsed / totalBudget) * 100 : undefined,
+      startDate,
+      endDate: ranges[ranges.length - 1].endDate,
+      groupBy,
+      type,
+      items,
+      totalIncome,
+      totalExpense,
     };
   }
 
@@ -689,7 +816,7 @@ export class StatsService {
     userId: string,
     encodedNote: string,
     query: StatsQuery,
-  ): Promise<BaseStatsResponseDTO<NoteGroupSummaryItemDTO>> {
+  ): Promise<StatsNoteSummaryDTO> {
     const { startDate, endDate, groupBy, type } = query;
 
     if (!startDate || !endDate || !groupBy || !type) {
@@ -704,6 +831,7 @@ export class StatsService {
 
     const start = getUTCStartDate(startDate, timezone);
     const ranges = getDateRangeList(start, groupBy, timezone);
+    // const end = parseISO(ranges[ranges.length - 1].endDate);
 
     const rawNote = decodeURIComponent(encodedNote).trim();
     const note = rawNote === '_' ? null : rawNote;
@@ -745,24 +873,35 @@ export class StatsService {
       bucketMap.set(key, current + tx.amount);
     }
 
-    let total = 0;
-    const data: NoteGroupSummaryItemDTO[] = ranges.map((range) => {
+    let totalIncome = 0;
+    let totalExpense = 0;
+
+    const items: StatsNoteGroupSummaryDTO[] = ranges.map((range) => {
       const sum = bucketMap.get(range.label) ?? 0;
-      total += sum;
+      const income = type === 'income' ? sum : 0;
+      const expense = type === 'expense' ? sum : 0;
+
+      totalIncome += income;
+      totalExpense += expense;
 
       return {
         label: range.label,
-        startDate: range.startDate,
-        endDate: range.endDate,
+        rangeStart: range.startDate,
+        rangeEnd: range.endDate,
         isCurrent: range.isCurrent,
-        income: type === 'income' ? sum : 0,
-        expense: type === 'expense' ? sum : 0,
+        income,
+        expense,
       };
     });
 
     return {
-      data,
-      total,
+      startDate,
+      endDate: ranges[ranges.length - 1].endDate,
+      groupBy,
+      type,
+      items,
+      totalIncome,
+      totalExpense,
     };
   }
 }

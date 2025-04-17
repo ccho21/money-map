@@ -151,9 +151,9 @@ describe('AuthService', () => {
 
     it('should refresh access token and set cookies', async () => {
       jest.spyOn(prisma.user, 'findUnique').mockResolvedValue(mockUser);
-      jest
-        .spyOn(bcrypt, 'hash')
-        .mockImplementation(async () => 'hashed-refresh');
+      (jest.spyOn(bcrypt, 'hash') as jest.Mock).mockResolvedValue(
+        'hashed-token',
+      );
 
       const updateSpy = jest
         .spyOn(prisma.user, 'update')
@@ -184,7 +184,9 @@ describe('AuthService', () => {
         hashedRefreshToken: 'hashed-token',
       });
 
-      jest.spyOn(bcrypt, 'hash').mockImplementation(async () => 'hashed-token');
+      (jest.spyOn(bcrypt, 'hash') as jest.Mock).mockResolvedValue(
+        'hashed-token',
+      );
 
       const result = await service.googleSignin(payload, res);
 
@@ -203,7 +205,9 @@ describe('AuthService', () => {
         hashedRefreshToken: 'hashed-token',
       });
 
-      jest.spyOn(bcrypt, 'hash').mockImplementation(async () => 'hashed-token');
+      (jest.spyOn(bcrypt, 'hash') as jest.Mock).mockResolvedValue(
+        'hashed-token',
+      );
 
       const result = await service.googleSignin(mockUser, res);
 

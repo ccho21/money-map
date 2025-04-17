@@ -54,8 +54,8 @@ describe('groupTransactions', () => {
     const result = groupTransactions([baseTx], GroupBy.DAILY, timezone);
     expect(result).toHaveLength(1);
     expect(result[0].label).toBe('2025-04-15');
-    expect(result[0].incomeTotal).toBe(1000);
-    expect(result[0].expenseTotal).toBe(0);
+    expect(result[0].totalIncome).toBe(1000);
+    expect(result[0].totalExpense).toBe(0);
     expect(result[0].transactions).toHaveLength(1);
   });
 
@@ -73,8 +73,8 @@ describe('groupTransactions', () => {
     };
     const result = groupTransactions([tx1, tx2], GroupBy.MONTHLY, timezone);
     expect(result).toHaveLength(2);
-    expect(result.find((g) => g.label === '2024-01')!.incomeTotal).toBe(1000);
-    expect(result.find((g) => g.label === '2024-02')!.expenseTotal).toBe(1000);
+    expect(result.find((g) => g.label === '2024-01')!.totalIncome).toBe(1000);
+    expect(result.find((g) => g.label === '2024-02')!.totalExpense).toBe(1000);
   });
 
   it('should honor fixedRanges even with no tx', () => {
@@ -99,8 +99,8 @@ describe('groupTransactions', () => {
       { ...baseTx, type: 'transfer' as TransactionType, amount: 100 }, // ignored
     ];
     const result = groupTransactions(txs, GroupBy.DAILY, timezone);
-    expect(result[0].incomeTotal).toBe(300);
-    expect(result[0].expenseTotal).toBe(200);
+    expect(result[0].totalIncome).toBe(300);
+    expect(result[0].totalExpense).toBe(200);
   });
 
   it('should return sorted result by rangeStart', () => {

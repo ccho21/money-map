@@ -13,8 +13,9 @@ import {
 
 import { PrismaService } from '@/prisma/prisma.service';
 import { EventsGateway } from '@/events/events.gateway';
-import { TransactionType } from '@prisma/client';
+import { Prisma, TransactionType } from '@prisma/client';
 import { GroupBy } from '@/common/types/types';
+import { PrismaTransactionClient } from './utils/recalculateAccountBalanceInTx.util';
 
 describe('TransactionsService', () => {
   let service: TransactionsService;
@@ -38,7 +39,7 @@ describe('TransactionsService', () => {
     }).compile();
 
     service = module.get<TransactionsService>(TransactionsService);
-    prisma = module.get(PrismaService) as jest.Mocked<PrismaService>;
+    prisma = module.get(PrismaService);
   });
 
   it('should be defined', () => {
@@ -59,7 +60,9 @@ describe('TransactionsService', () => {
       (prisma.transaction.findMany as jest.Mock).mockResolvedValueOnce([]);
       (prisma.account.update as jest.Mock).mockResolvedValueOnce(mockAccount);
       (prisma.$transaction as jest.Mock).mockImplementation(
-        async (cb) => await cb(prisma),
+        async (cb: (tx: typeof prisma) => Promise<unknown>) => {
+          return await cb(prisma); // ✅ 이제 any 추론 사라짐
+        },
       );
 
       const result = await service.create(
@@ -88,10 +91,11 @@ describe('TransactionsService', () => {
       (prisma.transaction.findMany as jest.Mock).mockResolvedValue([]); // 🧮 잔액 재계산용
       (prisma.account.update as jest.Mock).mockResolvedValue(mockAccount); // 🏦 계좌 잔액 업데이트
 
-      (prisma.$transaction as jest.Mock).mockImplementation(async (cb) => {
-        return await cb(prisma); // ✅ 트랜잭션 내부 반환 보장
-      });
-
+      (prisma.$transaction as jest.Mock).mockImplementation(
+        async (cb: (tx: typeof prisma) => Promise<unknown>) => {
+          return await cb(prisma); // ✅ 이제 any 추론 사라짐
+        },
+      );
       const result = await service.update(
         mockUser.id,
         mockTransaction.id,
@@ -100,7 +104,9 @@ describe('TransactionsService', () => {
 
       expect(result).toBeDefined();
       expect(result.amount).toBe(mockUpdateTransactionDto.amount); // 💰 업데이트 확인
+      // eslint-disable-next-line @typescript-eslint/unbound-method
       expect(prisma.transaction.update).toHaveBeenCalled();
+      // eslint-disable-next-line @typescript-eslint/unbound-method
       expect(prisma.account.update).toHaveBeenCalled();
     });
   });
@@ -181,11 +187,11 @@ describe('TransactionsService', () => {
       });
 
       expect(result).toBeDefined();
-      expect(result.incomeTotal).toBe(1000);
-      expect(result.expenseTotal).toBe(2000);
-      expect(result.data.length).toBeGreaterThan(0);
-      expect(result.data[0]).toHaveProperty('label');
-      expect(result.data[0]).toHaveProperty('transactions');
+      expect(result.totalIncome).toBe(1000);
+      expect(result.totalExpense).toBe(2000);
+      expect(result.items.length).toBeGreaterThan(0);
+      expect(result.items[0]).toHaveProperty('label');
+      expect(result.items[0]).toHaveProperty('transactions');
     });
   });
 
@@ -234,7 +240,7 @@ describe('TransactionsService', () => {
 
       // ✅ $transaction 내부 mock
       (prisma.$transaction as jest.Mock).mockImplementation(
-        async (callback) => {
+        async (callback: (tx: any) => Promise<unknown>) => {
           const tx = {
             transaction: {
               delete: jest.fn().mockResolvedValue(undefined),
@@ -253,6 +259,7 @@ describe('TransactionsService', () => {
       const result = await service.delete(mockUser.id, 'tx1');
 
       expect(result).toEqual({ message: '삭제 완료' });
+      // eslint-disable-next-line @typescript-eslint/unbound-method
       expect(prisma.transaction.findFirst).toHaveBeenCalledWith({
         where: { id: 'tx1', userId: mockUser.id },
       });
@@ -289,33 +296,33 @@ describe('TransactionsService', () => {
 
   describe('createTransfer', () => {
     it('should create a valid outgoing/incoming transfer and return both', async () => {
-      const fromAccount = {
-        ...mockAccount,
-        id: mockTransferTransactionDto.fromAccountId,
-        userId: mockUser.id,
-      };
-      const toAccount = {
-        ...mockAccount,
-        id: mockTransferTransactionDto.toAccountId,
-        userId: mockUser.id,
-      };
-
       // ✅ 유저 존재 mock
       jest.spyOn(prisma.user, 'findUnique').mockResolvedValueOnce(mockUser);
 
       (prisma.$transaction as jest.Mock).mockImplementation(
-        async (callback) => {
+        async (callback: (tx: PrismaTransactionClient) => Promise<unknown>) => {
           const tx = {
             account: {
               findUnique: jest.fn().mockResolvedValue(mockAccount),
               update: jest.fn().mockResolvedValue(mockAccount),
             },
             transaction: {
-              create: jest.fn().mockImplementation(async (args) => ({
-                id: args.data.toAccountId === null ? 'tx2' : 'tx1',
-                type: 'transfer',
-                ...args.data,
-              })),
+              create: jest
+                .fn()
+                .mockImplementationOnce(
+                  (args: Prisma.TransactionCreateArgs) => ({
+                    id: 'tx1',
+                    ...args.data,
+                    type: TransactionType.transfer,
+                  }),
+                )
+                .mockImplementationOnce(
+                  (args: Prisma.TransactionCreateArgs) => ({
+                    id: 'tx2',
+                    ...args.data,
+                    type: TransactionType.transfer,
+                  }),
+                ),
               update: jest.fn().mockResolvedValue({
                 id: 'tx1',
                 linkedTransferId: 'tx2',
@@ -323,7 +330,8 @@ describe('TransactionsService', () => {
               findMany: jest.fn().mockResolvedValue([]),
             },
           };
-          return await callback(tx);
+
+          return await callback(tx as unknown as PrismaTransactionClient); // ✅ 핵심
         },
       );
 
@@ -343,6 +351,7 @@ describe('TransactionsService', () => {
       expect(result.incoming.accountId).toBe(
         mockTransferTransactionDto.toAccountId,
       );
+      // eslint-disable-next-line @typescript-eslint/unbound-method
       expect(prisma.$transaction).toHaveBeenCalledTimes(1);
     });
   });
@@ -377,7 +386,7 @@ describe('TransactionsService', () => {
         .mockResolvedValue(originalTx);
 
       (prisma.$transaction as jest.Mock).mockImplementation(
-        async (callback) => {
+        async (callback: (tx: PrismaTransactionClient) => Promise<unknown>) => {
           const tx = {
             account: {
               findUnique: jest
@@ -393,7 +402,7 @@ describe('TransactionsService', () => {
               delete: jest.fn().mockResolvedValue({ id: 'tx2' }),
               create: jest.fn().mockResolvedValue({
                 id: 'tx3',
-                type: 'transfer',
+                type: TransactionType.transfer,
                 accountId: mockTransferTransactionDto.toAccountId,
               }),
               update: jest.fn().mockResolvedValue({
@@ -404,7 +413,7 @@ describe('TransactionsService', () => {
               findMany: jest.fn().mockResolvedValue([]),
             },
           };
-          return await callback(tx);
+          return await callback(tx as unknown as PrismaTransactionClient);
         },
       );
 
@@ -416,6 +425,7 @@ describe('TransactionsService', () => {
 
       expect(result.updatedIncoming.id).toBe('tx3');
       expect(result.updatedOutgoing.id).toBe('tx1');
+      // eslint-disable-next-line @typescript-eslint/unbound-method
       expect(prisma.$transaction).toHaveBeenCalled();
     });
   });
@@ -452,13 +462,16 @@ describe('TransactionsService', () => {
       (prisma.transaction.findMany as jest.Mock).mockResolvedValue([]);
       (prisma.account.update as jest.Mock).mockResolvedValue(mockAccount);
 
-      (prisma.$transaction as jest.Mock).mockImplementation(async (cb) => {
-        return await cb(prisma);
-      });
+      (prisma.$transaction as jest.Mock).mockImplementation(
+        async (cb: (tx: typeof prisma) => Promise<unknown>) => {
+          return await cb(prisma); // ✅ 이제 any 추론 사라짐
+        },
+      );
 
       const result = await service.deleteTransfer(mockUser.id, outgoing.id);
 
       expect(result).toEqual({ success: true });
+      // eslint-disable-next-line @typescript-eslint/unbound-method
       expect(prisma.transaction.deleteMany).toHaveBeenCalledTimes(1);
     });
   });

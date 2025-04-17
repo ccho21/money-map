@@ -26,7 +26,7 @@ describe('BudgetsService', () => {
     }).compile();
 
     service = module.get<BudgetsService>(BudgetsService);
-    prisma = module.get(PrismaService) as unknown as jest.Mocked<PrismaService>;
+    prisma = module.get(PrismaService);
   });
 
   it('should be defined', () => {
@@ -96,7 +96,7 @@ describe('BudgetsService', () => {
       });
 
       expect(result.data).toHaveLength(1);
-      expect(result.data[0].id).toBe(mockBudgetCategory.id);
+      expect(result.data[0].categoryId).toBe(mockBudgetCategory.categoryId);
     });
   });
 });

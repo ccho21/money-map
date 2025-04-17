@@ -297,7 +297,7 @@ export class TransactionsService {
     }
 
     // 5️⃣ 요약 데이터 계산
-    const data: TransactionGroupItemDTO[] = [];
+    const items: TransactionGroupItemDTO[] = [];
     let totalIncome = 0;
     let totalExpense = 0;
 
@@ -312,7 +312,7 @@ export class TransactionsService {
       totalIncome += income;
       totalExpense += expense;
 
-      data.push({
+      items.push({
         label,
         rangeStart,
         rangeEnd,
@@ -329,7 +329,7 @@ export class TransactionsService {
       endDate,
       totalIncome,
       totalExpense,
-      data,
+      items,
     };
   }
 

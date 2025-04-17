@@ -21,14 +21,13 @@ export class AccountTransactionItemDTO extends BaseGroupItemDTO {
 
   @ApiProperty()
   @IsNumber()
-  incomeTotal: number;
+  totalIncome: number;
 
   @ApiProperty()
   @IsNumber()
-  expenseTotal: number;
+  totalExpense: number;
 
   @ApiProperty({ type: [TransactionDetailDTO] })
   @IsArray()
   transactions?: TransactionDetailDTO[];
 }
-

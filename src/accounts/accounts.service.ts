@@ -264,8 +264,8 @@ export class AccountsService {
 
     // Create grouping buckets: accountId + groupKey → totals
     type SummaryBucket = {
-      incomeTotal: number;
-      expenseTotal: number;
+      totalIncome: number;
+      totalExpense: number;
       rangeStart: string;
       rangeEnd: string;
     };
@@ -283,8 +283,8 @@ export class AccountsService {
       const compositeKey = `${tx.accountId}`;
       if (!summaryMap.has(compositeKey)) {
         summaryMap.set(compositeKey, {
-          incomeTotal: 0,
-          expenseTotal: 0,
+          totalIncome: 0,
+          totalExpense: 0,
           rangeStart: format(rangeStart, 'yyyy-MM-dd'),
           rangeEnd: format(rangeEnd, 'yyyy-MM-dd'),
         });
@@ -292,9 +292,9 @@ export class AccountsService {
 
       const summary = summaryMap.get(compositeKey)!;
       if (tx.type === 'income') {
-        summary.incomeTotal += tx.amount;
+        summary.totalIncome += tx.amount;
       } else if (tx.type === 'expense') {
-        summary.expenseTotal += tx.amount;
+        summary.totalExpense += tx.amount;
       }
     }
 
@@ -311,8 +311,8 @@ export class AccountsService {
           accountId: account.id,
           accountName: account.name,
           balance: account.balance,
-          incomeTotal: 0,
-          expenseTotal: 0,
+          totalIncome: 0,
+          totalExpense: 0,
           rangeStart: format(from, 'yyyy-MM-dd'),
           rangeEnd: format(to, 'yyyy-MM-dd'),
         });
@@ -324,8 +324,8 @@ export class AccountsService {
             accountId: account.id,
             accountName: account.name,
             balance: account.balance,
-            incomeTotal: summary.incomeTotal,
-            expenseTotal: summary.expenseTotal,
+            totalIncome: summary.totalIncome,
+            totalExpense: summary.totalExpense,
             rangeStart: summary.rangeStart,
             rangeEnd: summary.rangeEnd,
           });
@@ -337,7 +337,7 @@ export class AccountsService {
       startDate: startDate,
       endDate: endDate,
       groupBy: groupBy,
-      data: result,
+      items: result,
     };
   }
 
@@ -397,11 +397,11 @@ export class AccountsService {
         },
       }));
 
-      const incomeTotal = txDtos
+      const totalIncome = txDtos
         .filter((t) => t.type === 'income')
         .reduce((sum, t) => sum + t.amount, 0);
 
-      const expenseTotal = txDtos
+      const totalExpense = txDtos
         .filter((t) => t.type === 'expense')
         .reduce((sum, t) => sum + t.amount, 0);
 
@@ -412,8 +412,8 @@ export class AccountsService {
         accountId: account.id,
         accountName: account.name,
         balance: account.balance,
-        incomeTotal,
-        expenseTotal,
+        totalIncome,
+        totalExpense,
         transactions: txDtos,
       });
     }
@@ -422,7 +422,7 @@ export class AccountsService {
       startDate: startDate,
       endDate: endDate,
       groupBy: 'monthly' as GroupBy,
-      data: results,
+      items: results,
     };
   }
 
@@ -595,7 +595,7 @@ export class AccountsService {
       {
         rangeStart: string;
         rangeEnd: string;
-        transactions: TransactionGroupSummaryDTO['data'][number]['transactions'];
+        transactions: TransactionGroupSummaryDTO['items'][number]['transactions'];
       }
     >();
 
@@ -652,7 +652,7 @@ export class AccountsService {
     }
 
     // 5️⃣ 그룹 요약 데이터 계산
-    const data: TransactionGroupSummaryDTO['data'] = [];
+    const items: TransactionGroupSummaryDTO['items'] = [];
     let totalIncome = 0;
     let totalExpense = 0;
 
@@ -668,7 +668,7 @@ export class AccountsService {
       totalIncome += income;
       totalExpense += expense;
 
-      data.push({
+      items.push({
         label,
         rangeStart,
         rangeEnd,
@@ -685,7 +685,7 @@ export class AccountsService {
       endDate,
       totalIncome,
       totalExpense,
-      data,
+      items,
     };
   }
 }

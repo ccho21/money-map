@@ -1,17 +1,29 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { GroupBy } from '@/common/types/types';
-import {
-  IsArray,
-  IsEnum,
-  IsNumber,
-  IsOptional,
-  IsString,
-} from 'class-validator';
+import { IsNumber, IsOptional, IsString } from 'class-validator';
+import { GroupBy } from '../types/types';
+import { CategoryType } from '@prisma/client';
 
 export class BaseListSummaryResponseDTO<T> {
-  @ApiProperty({ type: [Object] }) // 실제 타입은 자식이 명시
-  @IsArray()
-  data: T[];
+  @ApiProperty()
+  @IsString()
+  startDate: string;
+
+  @ApiProperty()
+  @IsString()
+  endDate: string;
+
+  @ApiProperty({ enum: CategoryType })
+  type?: CategoryType;
+
+  @ApiProperty({ enum: GroupBy })
+  groupBy: GroupBy;
+
+  @ApiProperty({ type: Object })
+  @IsOptional()
+  summary?: T;
+
+  @ApiProperty({ type: [Object] })
+  items: T[];
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -22,16 +34,4 @@ export class BaseListSummaryResponseDTO<T> {
   @IsOptional()
   @IsNumber()
   totalExpense?: number;
-
-  @ApiProperty({ enum: GroupBy })
-  @IsEnum(GroupBy)
-  groupBy: GroupBy;
-
-  @ApiProperty()
-  @IsString()
-  startDate: string;
-
-  @ApiProperty()
-  @IsString()
-  endDate: string;
 }

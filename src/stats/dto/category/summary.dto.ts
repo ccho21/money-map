@@ -1,36 +1,16 @@
 import { BaseListSummaryResponseDTO } from '@/common/dto/base-list-summary-response.dto';
-import { IsString, IsDateString, IsBoolean, IsInt } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { BaseGroupItemDTO } from '@/common/dto/base-group-item.dto';
 
-export class CategoryGroupSummaryItemDTO {
+export class StatsCategoryGroupSummaryDTO extends BaseGroupItemDTO {
   @ApiProperty()
-  @IsString()
-  label: string;
-
-  @ApiProperty()
-  @IsDateString()
-  startDate: string;
-
-  @ApiProperty()
-  @IsDateString()
-  endDate: string;
-
-  @ApiProperty()
-  @IsBoolean()
-  isCurrent: boolean;
-
-  @ApiProperty()
-  @IsInt()
   income: number;
 
   @ApiProperty()
-  @IsInt()
   expense: number;
 
   @ApiProperty()
-  @IsInt()
-  total: number; // income이면 +, expense면 -
+  isCurrent: boolean;
 }
 
-export type CategoryGroupSummaryResponseDTO =
-  BaseListSummaryResponseDTO<CategoryGroupSummaryItemDTO>;
+export class StatsCategorySummaryDTO extends BaseListSummaryResponseDTO<StatsCategoryGroupSummaryDTO> {}

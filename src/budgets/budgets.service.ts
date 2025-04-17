@@ -87,8 +87,9 @@ export class BudgetsService {
       startDate,
       endDate,
       totalBudget,
+      totalExpense: totalExpense,
       rate,
-      data: [],
+      items: [],
     };
   }
 

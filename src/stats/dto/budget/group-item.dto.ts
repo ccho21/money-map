@@ -1,57 +1,44 @@
-// 📁 src/stats/dto/budget/group-item.dto.ts
-import { ApiProperty } from '@nestjs/swagger';
-import { IsBoolean, IsEnum, IsInt, IsNumber, IsString } from 'class-validator';
+// 📁 src/Stats/dto/budget/group-item.dto.ts
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsOptional } from 'class-validator';
 import { CategoryType } from '@prisma/client';
-import { BaseStatsItemDTO } from '../base/base-stats-item.dto';
+import { BaseGroupItemDTO } from '@/common/dto/base-group-item.dto';
 
-export class BudgetStatsGroupItemDTO extends BaseStatsItemDTO {}
-
-export class BudgetStatsItemDTO {
+export class StatsBudgetGroupItemDTO extends BaseGroupItemDTO {
   @ApiProperty()
-  @IsString()
-  id: string;
+  categoryId: string;
 
   @ApiProperty()
-  @IsEnum(CategoryType)
-  type: CategoryType;
+  categoryName: string;
 
   @ApiProperty()
-  @IsString()
-  name: string;
+  categoryType: CategoryType;
 
   @ApiProperty()
-  @IsString()
   icon: string;
 
   @ApiProperty()
-  @IsString()
   color: string;
 
   @ApiProperty()
-  @IsInt()
-  amount: number;
-
-  @ApiProperty()
-  @IsInt()
-  budget: number;
-
-  @ApiProperty()
-  @IsInt()
   spent: number;
 
   @ApiProperty()
-  @IsInt()
   income: number;
 
   @ApiProperty()
-  @IsInt()
+  budget: number;
+
+  @ApiProperty()
   remaining: number;
 
   @ApiProperty()
-  @IsNumber()
   rate: number;
 
   @ApiProperty()
-  @IsBoolean()
   hasBudget: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  budgetId?: string;
 }
