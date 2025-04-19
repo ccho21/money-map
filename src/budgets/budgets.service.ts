@@ -120,7 +120,7 @@ export class BudgetsService {
       budgetCategories.map((bc) => [bc.categoryId, bc]),
     );
 
-    const data: BudgetCategoryItemDTO[] = categories.map((c) => {
+    const items: BudgetCategoryItemDTO[] = categories.map((c) => {
       const bc = budgetMap.get(c.id);
       const amount = bc?.amount ?? 0;
       return {
@@ -137,8 +137,8 @@ export class BudgetsService {
       };
     });
 
-    const total = data.reduce((sum, item) => sum + item.amount, 0);
-    return { total, data };
+    const total = items.reduce((sum, item) => sum + item.amount, 0);
+    return { total, items };
   }
 
   async createBudgetCategory(

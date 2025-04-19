@@ -6,5 +6,5 @@ export class BudgetCategoryListResponseDTO {
   total: number;
 
   @ApiProperty({ type: [BudgetCategoryItemDTO] })
-  data: BudgetCategoryItemDTO[];
+  items: BudgetCategoryItemDTO[];
 }
