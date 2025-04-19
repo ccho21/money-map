@@ -153,25 +153,109 @@
         "class": "BudgetCategoryPeriodItemDTO",
         "file": "budget-category-period-item.dto.ts",
         "extends": "BaseGroupItemDTO",
-        "fromModule": "common"
+        "fromModule": "common",
+        "fields": {
+          "amount": {
+            "type": "number",
+            "required": true
+          },
+          "used": {
+            "type": "number",
+            "required": true
+          },
+          "remaining": {
+            "type": "number",
+            "required": true
+          },
+          "isOver": {
+            "type": "boolean",
+            "required": false
+          },
+          "categoryId": {
+            "type": "string",
+            "required": false
+          },
+          "isCurrent": {
+            "type": "boolean",
+            "required": true
+          },
+          "type": {
+            "type": "CategoryType",
+            "required": true
+          }
+        }
       },
       {
         "class": "BudgetCategoryCreateRequestDTO",
         "file": "budget-category-request.dto.ts",
         "extends": "BaseBudgetCategoryRequestDTO",
-        "fromModule": "budgets"
+        "fromModule": "budgets",
+        "fields": {
+          "categoryId": {
+            "type": "string",
+            "required": true
+          },
+          "amount": {
+            "type": "number",
+            "required": true
+          },
+          "startDate": {
+            "type": "string",
+            "required": true
+          },
+          "endDate": {
+            "type": "string",
+            "required": true
+          },
+          "type": {
+            "type": "CategoryType",
+            "required": true
+          }
+        }
       },
       {
         "class": "BudgetCategoryUpdateRequestDTO",
         "file": "budget-category-request.dto.ts",
         "extends": "PartialType",
-        "composedFrom": "BudgetCategoryCreateRequestDTO"
+        "composedFrom": "BudgetCategoryCreateRequestDTO",
+        "fields": {
+          "categoryId": {
+            "type": "string",
+            "required": false
+          },
+          "amount": {
+            "type": "number",
+            "required": false
+          },
+          "startDate": {
+            "type": "string",
+            "required": false
+          },
+          "endDate": {
+            "type": "string",
+            "required": false
+          },
+          "type": {
+            "type": "CategoryType",
+            "required": false
+          }
+        }
       },
       {
         "class": "BudgetGroupSummaryDTO",
         "file": "budget-group-summary.dto.ts",
         "extends": "BaseListSummaryResponseDTO",
-        "fromModule": "common"
+        "fromModule": "common",
+        "fields": {
+          "totalBudget": {
+            "type": "number",
+            "required": false
+          },
+          "rate": {
+            "type": "number",
+            "required": false
+          }
+        }
       },
       {
         "class": "BaseBudgetCategoryRequestDTO",

@@ -25,8 +25,8 @@
             "type": "string",
             "required": true
           },
-          "example": {
-            "type": "'expense',\n    enum: ['income', 'expense'],\n    description: '카테고리 타입',\n  })\n  type: CategoryType",
+          "type": {
+            "type": "CategoryType",
             "required": true
           },
           "icon": {
@@ -45,14 +45,50 @@
         "file": "category-request.dto.ts",
         "extends": "BaseCategoryDTO",
         "request": true,
-        "fromModule": "categories"
+        "fromModule": "categories",
+        "fields": {
+          "name": {
+            "type": "string",
+            "required": true
+          },
+          "icon": {
+            "type": "string",
+            "required": true
+          },
+          "color": {
+            "type": "string",
+            "required": false
+          },
+          "type": {
+            "type": "CategoryType",
+            "required": true
+          }
+        }
       },
       {
         "class": "CategoryUpdateRequestDTO",
         "file": "category-request.dto.ts",
         "extends": "PartialType",
         "request": true,
-        "composedFrom": "CategoryCreateRequestDTO"
+        "composedFrom": "CategoryCreateRequestDTO",
+        "fields": {
+          "name": {
+            "type": "string",
+            "required": false
+          },
+          "icon": {
+            "type": "string",
+            "required": false
+          },
+          "color": {
+            "type": "string",
+            "required": false
+          },
+          "type": {
+            "type": "CategoryType",
+            "required": false
+          }
+        }
       },
       {
         "class": "BaseCategoryDTO",
@@ -89,16 +125,10 @@
       "serviceMethod": "create",
       "inputDto": "CategoryCreateRequestDTO",
       "description": "새 카테고리를 등록합니다.",
-      "tags": [
-        "Categories"
-      ],
-      "statusCodes": [
-        201
-      ],
+      "tags": ["Categories"],
+      "statusCodes": [201],
       "logicNotes": {
-        "steps": [
-          "1. dto + userId 조합으로 카테고리 생성"
-        ],
+        "steps": ["1. dto + userId 조합으로 카테고리 생성"],
         "expectedExceptions": []
       }
     },
@@ -109,16 +139,10 @@
       "controllerMethod": "findAll",
       "serviceMethod": "findAllByUser",
       "description": "사용자의 전체 카테고리 목록을 반환합니다.",
-      "tags": [
-        "Categories"
-      ],
-      "statusCodes": [
-        200
-      ],
+      "tags": ["Categories"],
+      "statusCodes": [200],
       "logicNotes": {
-        "steps": [
-          "1. userId 기준으로 category.findMany() 실행"
-        ],
+        "steps": ["1. userId 기준으로 category.findMany() 실행"],
         "expectedExceptions": []
       }
     },
@@ -129,13 +153,8 @@
       "controllerMethod": "findOne",
       "serviceMethod": "findOne",
       "description": "특정 ID의 카테고리를 조회합니다.",
-      "tags": [
-        "Categories"
-      ],
-      "statusCodes": [
-        200,
-        404
-      ],
+      "tags": ["Categories"],
+      "statusCodes": [200, 404],
       "logicNotes": {
         "steps": [
           "1. category.findFirst({ where: { id, userId } }) 실행",
@@ -154,13 +173,8 @@
       "serviceMethod": "update",
       "inputDto": "CategoryUpdateRequestDTO",
       "description": "카테고리 정보를 수정합니다.",
-      "tags": [
-        "Categories"
-      ],
-      "statusCodes": [
-        200,
-        403
-      ],
+      "tags": ["Categories"],
+      "statusCodes": [200, 403],
       "logicNotes": {
         "steps": [
           "1. category.findUnique({ where: { id } }) 조회",
@@ -168,9 +182,7 @@
           "3. 권한 없으면 ForbiddenException 발생",
           "4. dto 기반으로 category 업데이트"
         ],
-        "expectedExceptions": [
-          "ForbiddenException: 수정 권한 없음"
-        ]
+        "expectedExceptions": ["ForbiddenException: 수정 권한 없음"]
       }
     },
     {
@@ -180,13 +192,8 @@
       "controllerMethod": "remove",
       "serviceMethod": "delete",
       "description": "카테고리를 삭제합니다.",
-      "tags": [
-        "Categories"
-      ],
-      "statusCodes": [
-        200,
-        403
-      ],
+      "tags": ["Categories"],
+      "statusCodes": [200, 403],
       "logicNotes": {
         "steps": [
           "1. category.findUnique({ where: { id: categoryId } }) 조회",
@@ -194,9 +201,7 @@
           "3. 권한 없으면 ForbiddenException 발생",
           "4. category.delete() 실행"
         ],
-        "expectedExceptions": [
-          "ForbiddenException: 삭제 권한 없음"
-        ]
+        "expectedExceptions": ["ForbiddenException: 삭제 권한 없음"]
       }
     }
   ]

@@ -177,7 +177,36 @@
         "class": "TransactionCreateRequestDTO",
         "file": "transaction-request.dto.ts",
         "extends": "BaseTransactionRequestDTO",
-        "fields": {},
+        "fields": {
+          "type": {
+            "type": "TransactionType",
+            "required": true
+          },
+          "amount": {
+            "type": "number",
+            "required": true
+          },
+          "date": {
+            "type": "string",
+            "required": true
+          },
+          "accountId": {
+            "type": "string",
+            "required": true
+          },
+          "categoryId": {
+            "type": "string",
+            "required": false
+          },
+          "note": {
+            "type": "string",
+            "required": false
+          },
+          "description": {
+            "type": "string",
+            "required": false
+          }
+        },
         "request": true,
         "fromModule": "transactions"
       },
@@ -186,7 +215,36 @@
         "file": "transaction-request.dto.ts",
         "extends": "PartialType",
         "composedFrom": "TransactionCreateRequestDTO",
-        "fields": {},
+        "fields": {
+          "type": {
+            "type": "TransactionType",
+            "required": false
+          },
+          "amount": {
+            "type": "number",
+            "required": false
+          },
+          "date": {
+            "type": "string",
+            "required": false
+          },
+          "accountId": {
+            "type": "string",
+            "required": false
+          },
+          "categoryId": {
+            "type": "string",
+            "required": false
+          },
+          "note": {
+            "type": "string",
+            "required": false
+          },
+          "description": {
+            "type": "string",
+            "required": false
+          }
+        },
         "request": true
       },
       {
@@ -228,13 +286,8 @@
       "inputDto": "TransactionCreateRequestDTO",
       "outputDto": "TransactionDetailDTO",
       "description": "수입 또는 지출 트랜잭션을 생성하고, 계좌 잔액을 반영합니다.",
-      "tags": [
-        "Transactions"
-      ],
-      "statusCodes": [
-        201,
-        404
-      ],
+      "tags": ["Transactions"],
+      "statusCodes": [201, 404],
       "steps": [
         "1. userId로 유저 조회 → 없으면 Error",
         "2. categoryId로 카테고리 조회 → 없으면 NotFoundException",
@@ -260,13 +313,8 @@
       "inputDto": "TransactionUpdateRequestDTO",
       "outputDto": "TransactionDetailDTO",
       "description": "기존 수입/지출 거래를 수정하고, 관련 계좌 잔액을 재계산합니다.",
-      "tags": [
-        "Transactions"
-      ],
-      "statusCodes": [
-        200,
-        404
-      ],
+      "tags": ["Transactions"],
+      "statusCodes": [200, 404],
       "steps": [
         "1. userId + id로 기존 거래 조회 → 없으면 NotFoundException",
         "2. isOpening 거래인 경우 → BadRequestException",
@@ -290,13 +338,8 @@
       "controllerMethod": "delete",
       "serviceMethod": "delete",
       "description": "기존 거래를 삭제하고 관련 계좌 잔액을 재조정합니다.",
-      "tags": [
-        "Transactions"
-      ],
-      "statusCodes": [
-        200,
-        404
-      ],
+      "tags": ["Transactions"],
+      "statusCodes": [200, 404],
       "steps": [
         "1. userId + id로 기존 거래 조회 → 없으면 NotFoundException",
         "2. isOpening 거래인 경우 → BadRequestException",
@@ -320,14 +363,8 @@
       "inputDto": "TransactionTransferRequestDTO",
       "outputDto": "TransactionDetailDTO",
       "description": "이체 트랜잭션 생성: 두 계좌의 잔액을 동시에 업데이트합니다.",
-      "tags": [
-        "Transactions",
-        "Transfer"
-      ],
-      "statusCodes": [
-        201,
-        404
-      ],
+      "tags": ["Transactions", "Transfer"],
+      "statusCodes": [201, 404],
       "steps": [
         "1. userId로 유저 조회 → 없으면 Error",
         "2. fromAccountId === toAccountId → BadRequestException",
@@ -356,14 +393,8 @@
       "inputDto": "TransactionTransferRequestDTO",
       "outputDto": "TransactionDetailDTO",
       "description": "기존 이체 트랜잭션을 수정하고 두 계좌의 잔액을 재조정합니다.",
-      "tags": [
-        "Transactions",
-        "Transfer"
-      ],
-      "statusCodes": [
-        200,
-        404
-      ],
+      "tags": ["Transactions", "Transfer"],
+      "statusCodes": [200, 404],
       "steps": [
         "1. userId로 유저 조회 → 없으면 Error",
         "2. fromAccountId === toAccountId → BadRequestException",
@@ -392,12 +423,8 @@
       "controllerMethod": "findFiltered",
       "serviceMethod": "findFiltered",
       "description": "날짜/계좌/카테고리/메모 조건으로 거래 목록을 조회합니다.",
-      "tags": [
-        "Transactions"
-      ],
-      "statusCodes": [
-        200
-      ],
+      "tags": ["Transactions"],
+      "statusCodes": [200],
       "steps": [],
       "exceptions": []
     },
@@ -408,13 +435,8 @@
       "controllerMethod": "getTransactionSummary",
       "serviceMethod": "getTransactionSummary",
       "description": "해당 기간 동안의 수입, 지출, 이체 거래 총합 요약을 반환합니다.",
-      "tags": [
-        "Transactions",
-        "Summary"
-      ],
-      "statusCodes": [
-        200
-      ],
+      "tags": ["Transactions", "Summary"],
+      "statusCodes": [200],
       "steps": [
         "1. userId로 유저 조회 → 없으면 ForbiddenException",
         "2. user의 timezone 기준 UTC start/end 계산",
@@ -424,9 +446,7 @@
         "6. 그룹별 총합 요약 생성 → DTO 매핑",
         "7. TransactionGroupSummaryDTO로 반환"
       ],
-      "exceptions": [
-        "ForbiddenException: 유저 조회 실패 시"
-      ]
+      "exceptions": ["ForbiddenException: 유저 조회 실패 시"]
     },
     {
       "operation": "GetTransactionCalendarView",
@@ -435,13 +455,8 @@
       "controllerMethod": "getTransactionCalendarView",
       "serviceMethod": "getTransactionCalendarView",
       "description": "캘린더 형태로 일자별 거래 요약 정보를 제공합니다.",
-      "tags": [
-        "Transactions",
-        "Calendar"
-      ],
-      "statusCodes": [
-        200
-      ],
+      "tags": ["Transactions", "Calendar"],
+      "statusCodes": [200],
       "steps": [
         "1. userId로 유저 조회 → 없으면 Error",
         "2. query.date 기반 해당 월의 start/end 계산",
@@ -449,9 +464,7 @@
         "4. 날짜별 income/expense 합산",
         "5. TransactionCalendarDTO[]로 반환"
       ],
-      "exceptions": [
-        "Error: 유저가 존재하지 않을 경우"
-      ]
+      "exceptions": ["Error: 유저가 존재하지 않을 경우"]
     }
   ]
 }
