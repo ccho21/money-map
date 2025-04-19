@@ -1,0 +1,93 @@
+{
+  "module": "Lib",
+  "description": "프로젝트 전역에서 사용되는 유틸리티 함수, 헬퍼, 날짜 계산기, 토큰 처리기를 포함한 공통 기능 레이어",
+  "utils": [
+    "libs/date.util.ts",
+    "stats/util/groupTransactions.util.ts",
+    "transactions/utils/getTransactionDelta.util.ts",
+    "transactions/utils/getTransactionDeltaByAccount.util.ts",
+    "transactions/utils/recalculateAccountBalanceInTx.util.ts"
+  ],
+  "helpers": [
+    "auth/helpers/set-cookie.helper.ts",
+    "auth/helpers/token.helper.ts"
+  ],
+  "entryPoints": [],
+  "tests": [
+    "libs/date.util.spec.ts",
+    "stats/util/groupTransactions.util.spec.ts",
+    "transactions/utils/getTransactionDelta.util.spec.ts",
+    "transactions/utils/getTransactionDeltaByAccount.util.spec.ts",
+    "transactions/utils/recalculateAccountBalanceInTx.util.spec.ts"
+  ],
+  "routes": [],
+  "dto": [],
+  "guards": [],
+  "decorators": [],
+  "types": [],
+  "exceptions": [],
+  "files": [
+    "auth/helpers/set-cookie.helper.ts",
+    "auth/helpers/token.helper.ts",
+    "libs/date.util.spec.ts",
+    "libs/date.util.ts",
+    "stats/util/groupTransactions.util.spec.ts",
+    "stats/util/groupTransactions.util.ts",
+    "transactions/utils/getTransactionDelta.util.spec.ts",
+    "transactions/utils/getTransactionDelta.util.ts",
+    "transactions/utils/getTransactionDeltaByAccount.util.spec.ts",
+    "transactions/utils/getTransactionDeltaByAccount.util.ts",
+    "transactions/utils/recalculateAccountBalanceInTx.util.spec.ts",
+    "transactions/utils/recalculateAccountBalanceInTx.util.ts"
+  ],
+  "descriptions": [
+    {
+      "file": "auth/helpers/set-cookie.helper.ts",
+      "description": "응답에 accessToken, refreshToken 쿠키를 안전하게 설정하는 헬퍼 함수"
+    },
+    {
+      "file": "auth/helpers/token.helper.ts",
+      "description": "JWT 토큰 생성 및 페이로드 처리용 헬퍼"
+    },
+    {
+      "file": "libs/date.util.spec.ts",
+      "description": "date.util.ts 유닛 테스트"
+    },
+    {
+      "file": "libs/date.util.ts",
+      "description": "날짜 범위 계산, UTC 변환, label 지정 등 다양한 시간 관련 유틸리티 함수 포함"
+    },
+    {
+      "file": "stats/util/groupTransactions.util.spec.ts",
+      "description": "groupTransactions 유닛 테스트"
+    },
+    {
+      "file": "stats/util/groupTransactions.util.ts",
+      "description": "트랜잭션을 날짜 단위로 groupBy해서 응답 DTO 포맷으로 정리하는 유틸"
+    },
+    {
+      "file": "transactions/utils/getTransactionDelta.util.spec.ts",
+      "description": "getTransactionDelta 유닛 테스트"
+    },
+    {
+      "file": "transactions/utils/getTransactionDelta.util.ts",
+      "description": "거래 생성/수정 시 계좌 balance 조정을 위한 차액 계산 유틸"
+    },
+    {
+      "file": "transactions/utils/getTransactionDeltaByAccount.util.spec.ts",
+      "description": "getTransactionDeltaByAccount 유닛 테스트"
+    },
+    {
+      "file": "transactions/utils/getTransactionDeltaByAccount.util.ts",
+      "description": "계좌별 트랜잭션 누적 차액 계산 유틸"
+    },
+    {
+      "file": "transactions/utils/recalculateAccountBalanceInTx.util.spec.ts",
+      "description": "recalculateAccountBalance 유닛 테스트"
+    },
+    {
+      "file": "transactions/utils/recalculateAccountBalanceInTx.util.ts",
+      "description": "거래 생성/삭제 후 계좌 잔액 재계산 수행 유틸"
+    }
+  ]
+}

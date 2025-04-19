@@ -1,0 +1,748 @@
+{
+  "module": "Prisma",
+  "description": "Prisma ORM 기반의 데이터베이스 모델 정의 및 관계 구조",
+  "models": [
+    {
+      "name": "User",
+      "fields": [
+        {
+          "name": "id",
+          "type": "String",
+          "isList": false,
+          "isOptional": false,
+          "isRelation": false,
+          "isId": true,
+          "isUnique": false
+        },
+        {
+          "name": "email",
+          "type": "String",
+          "isList": false,
+          "isOptional": false,
+          "isRelation": false,
+          "isId": false,
+          "isUnique": true
+        },
+        {
+          "name": "password",
+          "type": "String",
+          "isList": false,
+          "isOptional": false,
+          "isRelation": false,
+          "isId": false,
+          "isUnique": false
+        },
+        {
+          "name": "timezone",
+          "type": "String",
+          "isList": false,
+          "isOptional": true,
+          "isRelation": false,
+          "isId": false,
+          "isUnique": false
+        },
+        {
+          "name": "createdAt",
+          "type": "DateTime",
+          "isList": false,
+          "isOptional": false,
+          "isRelation": false,
+          "isId": false,
+          "isUnique": false
+        },
+        {
+          "name": "transactions",
+          "type": "Transaction",
+          "isList": true,
+          "isOptional": false,
+          "isRelation": false,
+          "isId": false,
+          "isUnique": false
+        },
+        {
+          "name": "categories",
+          "type": "Category",
+          "isList": true,
+          "isOptional": false,
+          "isRelation": false,
+          "isId": false,
+          "isUnique": false
+        },
+        {
+          "name": "budgets",
+          "type": "Budget",
+          "isList": true,
+          "isOptional": false,
+          "isRelation": false,
+          "isId": false,
+          "isUnique": false
+        },
+        {
+          "name": "accounts",
+          "type": "Account",
+          "isList": true,
+          "isOptional": false,
+          "isRelation": false,
+          "isId": false,
+          "isUnique": false
+        },
+        {
+          "name": "hashedRefreshToken",
+          "type": "String",
+          "isList": false,
+          "isOptional": true,
+          "isRelation": false,
+          "isId": false,
+          "isUnique": false
+        }
+      ]
+    },
+    {
+      "name": "Account",
+      "fields": [
+        {
+          "name": "id",
+          "type": "String",
+          "isList": false,
+          "isOptional": false,
+          "isRelation": false,
+          "isId": true,
+          "isUnique": false
+        },
+        {
+          "name": "user",
+          "type": "User",
+          "isList": false,
+          "isOptional": false,
+          "isRelation": true,
+          "isId": false,
+          "isUnique": false
+        },
+        {
+          "name": "userId",
+          "type": "String",
+          "isList": false,
+          "isOptional": false,
+          "isRelation": false,
+          "isId": false,
+          "isUnique": false
+        },
+        {
+          "name": "name",
+          "type": "String",
+          "isList": false,
+          "isOptional": false,
+          "isRelation": false,
+          "isId": false,
+          "isUnique": false
+        },
+        {
+          "name": "type",
+          "type": "AccountType",
+          "isList": false,
+          "isOptional": false,
+          "isRelation": false,
+          "isId": false,
+          "isUnique": false
+        },
+        {
+          "name": "color",
+          "type": "String",
+          "isList": false,
+          "isOptional": true,
+          "isRelation": false,
+          "isId": false,
+          "isUnique": false
+        },
+        {
+          "name": "description",
+          "type": "String",
+          "isList": false,
+          "isOptional": true,
+          "isRelation": false,
+          "isId": false,
+          "isUnique": false
+        },
+        {
+          "name": "balance",
+          "type": "Float",
+          "isList": false,
+          "isOptional": false,
+          "isRelation": false,
+          "isId": false,
+          "isUnique": false
+        },
+        {
+          "name": "createdAt",
+          "type": "DateTime",
+          "isList": false,
+          "isOptional": false,
+          "isRelation": false,
+          "isId": false,
+          "isUnique": false
+        },
+        {
+          "name": "updatedAt",
+          "type": "DateTime",
+          "isList": false,
+          "isOptional": false,
+          "isRelation": false,
+          "isId": false,
+          "isUnique": false
+        },
+        {
+          "name": "transactions",
+          "type": "Transaction",
+          "isList": true,
+          "isOptional": false,
+          "isRelation": false,
+          "isId": false,
+          "isUnique": false
+        },
+        {
+          "name": "incomingTransfers",
+          "type": "Transaction",
+          "isList": true,
+          "isOptional": false,
+          "isRelation": true,
+          "isId": false,
+          "isUnique": false
+        },
+        {
+          "name": "settlementDate",
+          "type": "Int",
+          "isList": false,
+          "isOptional": true,
+          "isRelation": false,
+          "isId": false,
+          "isUnique": false
+        },
+        {
+          "name": "paymentDate",
+          "type": "Int",
+          "isList": false,
+          "isOptional": true,
+          "isRelation": false,
+          "isId": false,
+          "isUnique": false
+        },
+        {
+          "name": "autoPayment",
+          "type": "Boolean",
+          "isList": false,
+          "isOptional": true,
+          "isRelation": false,
+          "isId": false,
+          "isUnique": false
+        }
+      ]
+    },
+    {
+      "name": "Transaction",
+      "fields": [
+        {
+          "name": "id",
+          "type": "String",
+          "isList": false,
+          "isOptional": false,
+          "isRelation": false,
+          "isId": true,
+          "isUnique": false
+        },
+        {
+          "name": "type",
+          "type": "TransactionType",
+          "isList": false,
+          "isOptional": false,
+          "isRelation": false,
+          "isId": false,
+          "isUnique": false
+        },
+        {
+          "name": "amount",
+          "type": "Int",
+          "isList": false,
+          "isOptional": false,
+          "isRelation": false,
+          "isId": false,
+          "isUnique": false
+        },
+        {
+          "name": "categoryId",
+          "type": "String",
+          "isList": false,
+          "isOptional": true,
+          "isRelation": false,
+          "isId": false,
+          "isUnique": false
+        },
+        {
+          "name": "userId",
+          "type": "String",
+          "isList": false,
+          "isOptional": false,
+          "isRelation": false,
+          "isId": false,
+          "isUnique": false
+        },
+        {
+          "name": "accountId",
+          "type": "String",
+          "isList": false,
+          "isOptional": false,
+          "isRelation": false,
+          "isId": false,
+          "isUnique": false
+        },
+        {
+          "name": "toAccountId",
+          "type": "String",
+          "isList": false,
+          "isOptional": true,
+          "isRelation": false,
+          "isId": false,
+          "isUnique": false
+        },
+        {
+          "name": "linkedTransferId",
+          "type": "String",
+          "isList": false,
+          "isOptional": true,
+          "isRelation": false,
+          "isId": false,
+          "isUnique": false
+        },
+        {
+          "name": "date",
+          "type": "DateTime",
+          "isList": false,
+          "isOptional": false,
+          "isRelation": false,
+          "isId": false,
+          "isUnique": false
+        },
+        {
+          "name": "note",
+          "type": "String",
+          "isList": false,
+          "isOptional": true,
+          "isRelation": false,
+          "isId": false,
+          "isUnique": false
+        },
+        {
+          "name": "description",
+          "type": "String",
+          "isList": false,
+          "isOptional": true,
+          "isRelation": false,
+          "isId": false,
+          "isUnique": false
+        },
+        {
+          "name": "createdAt",
+          "type": "DateTime",
+          "isList": false,
+          "isOptional": false,
+          "isRelation": false,
+          "isId": false,
+          "isUnique": false
+        },
+        {
+          "name": "category",
+          "type": "Category",
+          "isList": false,
+          "isOptional": true,
+          "isRelation": true,
+          "isId": false,
+          "isUnique": false
+        },
+        {
+          "name": "user",
+          "type": "User",
+          "isList": false,
+          "isOptional": false,
+          "isRelation": true,
+          "isId": false,
+          "isUnique": false
+        },
+        {
+          "name": "account",
+          "type": "Account",
+          "isList": false,
+          "isOptional": false,
+          "isRelation": true,
+          "isId": false,
+          "isUnique": false
+        },
+        {
+          "name": "toAccount",
+          "type": "Account",
+          "isList": false,
+          "isOptional": true,
+          "isRelation": true,
+          "isId": false,
+          "isUnique": false
+        },
+        {
+          "name": "dueDate",
+          "type": "DateTime",
+          "isList": false,
+          "isOptional": true,
+          "isRelation": false,
+          "isId": false,
+          "isUnique": false
+        },
+        {
+          "name": "paidAt",
+          "type": "DateTime",
+          "isList": false,
+          "isOptional": true,
+          "isRelation": false,
+          "isId": false,
+          "isUnique": false
+        },
+        {
+          "name": "isOpening",
+          "type": "Boolean",
+          "isList": false,
+          "isOptional": false,
+          "isRelation": false,
+          "isId": false,
+          "isUnique": false
+        }
+      ]
+    },
+    {
+      "name": "Category",
+      "fields": [
+        {
+          "name": "id",
+          "type": "String",
+          "isList": false,
+          "isOptional": false,
+          "isRelation": false,
+          "isId": true,
+          "isUnique": false
+        },
+        {
+          "name": "name",
+          "type": "String",
+          "isList": false,
+          "isOptional": false,
+          "isRelation": false,
+          "isId": false,
+          "isUnique": false
+        },
+        {
+          "name": "icon",
+          "type": "String",
+          "isList": false,
+          "isOptional": false,
+          "isRelation": false,
+          "isId": false,
+          "isUnique": false
+        },
+        {
+          "name": "type",
+          "type": "CategoryType",
+          "isList": false,
+          "isOptional": false,
+          "isRelation": false,
+          "isId": false,
+          "isUnique": false
+        },
+        {
+          "name": "userId",
+          "type": "String",
+          "isList": false,
+          "isOptional": false,
+          "isRelation": false,
+          "isId": false,
+          "isUnique": false
+        },
+        {
+          "name": "color",
+          "type": "String",
+          "isList": false,
+          "isOptional": true,
+          "isRelation": false,
+          "isId": false,
+          "isUnique": false
+        },
+        {
+          "name": "transactions",
+          "type": "Transaction",
+          "isList": true,
+          "isOptional": false,
+          "isRelation": false,
+          "isId": false,
+          "isUnique": false
+        },
+        {
+          "name": "budgets",
+          "type": "BudgetCategory",
+          "isList": true,
+          "isOptional": false,
+          "isRelation": false,
+          "isId": false,
+          "isUnique": false
+        },
+        {
+          "name": "user",
+          "type": "User",
+          "isList": false,
+          "isOptional": false,
+          "isRelation": true,
+          "isId": false,
+          "isUnique": false
+        }
+      ]
+    },
+    {
+      "name": "Budget",
+      "fields": [
+        {
+          "name": "id",
+          "type": "String",
+          "isList": false,
+          "isOptional": false,
+          "isRelation": false,
+          "isId": true,
+          "isUnique": false
+        },
+        {
+          "name": "userId",
+          "type": "String",
+          "isList": false,
+          "isOptional": false,
+          "isRelation": false,
+          "isId": false,
+          "isUnique": false
+        },
+        {
+          "name": "total",
+          "type": "Int",
+          "isList": false,
+          "isOptional": false,
+          "isRelation": false,
+          "isId": false,
+          "isUnique": false
+        },
+        {
+          "name": "createdAt",
+          "type": "DateTime",
+          "isList": false,
+          "isOptional": false,
+          "isRelation": false,
+          "isId": false,
+          "isUnique": false
+        },
+        {
+          "name": "updatedAt",
+          "type": "DateTime",
+          "isList": false,
+          "isOptional": false,
+          "isRelation": false,
+          "isId": false,
+          "isUnique": false
+        },
+        {
+          "name": "user",
+          "type": "User",
+          "isList": false,
+          "isOptional": false,
+          "isRelation": true,
+          "isId": false,
+          "isUnique": false
+        },
+        {
+          "name": "categories",
+          "type": "BudgetCategory",
+          "isList": true,
+          "isOptional": false,
+          "isRelation": false,
+          "isId": false,
+          "isUnique": false
+        }
+      ]
+    },
+    {
+      "name": "BudgetCategory",
+      "fields": [
+        {
+          "name": "id",
+          "type": "String",
+          "isList": false,
+          "isOptional": false,
+          "isRelation": false,
+          "isId": true,
+          "isUnique": false
+        },
+        {
+          "name": "budgetId",
+          "type": "String",
+          "isList": false,
+          "isOptional": false,
+          "isRelation": false,
+          "isId": false,
+          "isUnique": false
+        },
+        {
+          "name": "categoryId",
+          "type": "String",
+          "isList": false,
+          "isOptional": false,
+          "isRelation": false,
+          "isId": false,
+          "isUnique": false
+        },
+        {
+          "name": "amount",
+          "type": "Int",
+          "isList": false,
+          "isOptional": false,
+          "isRelation": false,
+          "isId": false,
+          "isUnique": false
+        },
+        {
+          "name": "startDate",
+          "type": "DateTime",
+          "isList": false,
+          "isOptional": false,
+          "isRelation": false,
+          "isId": false,
+          "isUnique": false
+        },
+        {
+          "name": "endDate",
+          "type": "DateTime",
+          "isList": false,
+          "isOptional": false,
+          "isRelation": false,
+          "isId": false,
+          "isUnique": false
+        },
+        {
+          "name": "type",
+          "type": "CategoryType",
+          "isList": false,
+          "isOptional": false,
+          "isRelation": false,
+          "isId": false,
+          "isUnique": false
+        },
+        {
+          "name": "budget",
+          "type": "Budget",
+          "isList": false,
+          "isOptional": false,
+          "isRelation": true,
+          "isId": false,
+          "isUnique": false
+        },
+        {
+          "name": "category",
+          "type": "Category",
+          "isList": false,
+          "isOptional": false,
+          "isRelation": true,
+          "isId": false,
+          "isUnique": false
+        },
+        {
+          "name": "@@unique([categoryId,",
+          "type": "startDate,",
+          "isList": false,
+          "isOptional": false,
+          "isRelation": false,
+          "isId": false,
+          "isUnique": true
+        }
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "model": "Account",
+      "field": "user",
+      "raw": "user              User          @relation(fields: [userId], references: [id])"
+    },
+    {
+      "model": "Account",
+      "field": "incomingTransfers",
+      "raw": "incomingTransfers Transaction[] @relation(\"ToAccount\")"
+    },
+    {
+      "model": "Transaction",
+      "field": "category",
+      "raw": "category Category? @relation(fields: [categoryId], references: [id])"
+    },
+    {
+      "model": "Transaction",
+      "field": "user",
+      "raw": "user     User      @relation(fields: [userId], references: [id])"
+    },
+    {
+      "model": "Transaction",
+      "field": "account",
+      "raw": "account   Account  @relation(fields: [accountId], references: [id])"
+    },
+    {
+      "model": "Transaction",
+      "field": "toAccount",
+      "raw": "toAccount Account? @relation(\"ToAccount\", fields: [toAccountId], references: [id])"
+    },
+    {
+      "model": "Category",
+      "field": "user",
+      "raw": "user         User             @relation(fields: [userId], references: [id])"
+    },
+    {
+      "model": "Budget",
+      "field": "user",
+      "raw": "user       User             @relation(fields: [userId], references: [id])"
+    },
+    {
+      "model": "BudgetCategory",
+      "field": "budget",
+      "raw": "budget   Budget   @relation(fields: [budgetId], references: [id])"
+    },
+    {
+      "model": "BudgetCategory",
+      "field": "category",
+      "raw": "category Category @relation(fields: [categoryId], references: [id])"
+    }
+  ],
+  "enums": [
+    {
+      "name": "AccountType",
+      "values": [
+        "CASH",
+        "BANK",
+        "CARD"
+      ]
+    },
+    {
+      "name": "CategoryType",
+      "values": [
+        "income",
+        "expense"
+      ]
+    },
+    {
+      "name": "TransactionType",
+      "values": [
+        "income",
+        "expense",
+        "transfer"
+      ]
+    }
+  ],
+  "types": [],
+  "entryPoints": [],
+  "tests": [],
+  "utils": [],
+  "routes": []
+}

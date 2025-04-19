@@ -1,0 +1,188 @@
+{
+  "module": "Auth",
+  "entryPoints": {
+    "service": "src/auth/auth.service.ts",
+    "controller": "src/auth/auth.controller.ts"
+  },
+  "dto": {
+    "directory": "src/auth/dto",
+    "mainDTOs": [
+      {
+        "file": "signup.dto.ts",
+        "class": "SignupDTO",
+        "fields": {
+          "email": {
+            "type": "string",
+            "required": true
+          },
+          "password": {
+            "type": "string",
+            "required": true
+          },
+          "timezone": {
+            "type": "string",
+            "required": false
+          }
+        }
+      },
+      {
+        "file": "signin.dto.ts",
+        "class": "SigninDTO",
+        "fields": {
+          "email": {
+            "type": "string",
+            "required": true
+          },
+          "password": {
+            "type": "string",
+            "required": true
+          }
+        }
+      }
+    ]
+  },
+  "utils": [
+    "helpers/set-cookie.helper.ts",
+    "helpers/token.helper.ts"
+  ],
+  "tests": {
+    "serviceSpec": "src/auth/auth.service.spec.ts",
+    "controllerSpec": "src/auth/auth.controller.spec.ts"
+  },
+  "description": "사용자 회원가입, 로그인, 토큰 재발급, 구글 로그인 등 인증 전반을 담당하는 모듈",
+  "routes": [
+    {
+      "operation": "GetMe",
+      "method": "GET",
+      "path": "/auth/me",
+      "controllerMethod": "getMe",
+      "serviceMethod": null,
+      "description": "JWT 인증된 사용자의 페이로드 반환",
+      "tags": [
+        "Auth"
+      ],
+      "statusCodes": [
+        200
+      ],
+      "logicNotes": {
+        "steps": [
+          "1. JWT 토큰에서 유저 정보 파싱 → 그대로 반환"
+        ],
+        "expectedExceptions": []
+      }
+    },
+    {
+      "operation": "Signup",
+      "method": "POST",
+      "path": "/auth/signup",
+      "controllerMethod": "signup",
+      "serviceMethod": "signup",
+      "inputDto": "SignupDTO",
+      "description": "이메일, 비밀번호로 회원가입 진행 후 자동 로그인 처리",
+      "tags": [
+        "Auth"
+      ],
+      "statusCodes": [
+        201,
+        409
+      ],
+      "logicNotes": {
+        "steps": [
+          "1. 이메일 중복 확인 → 존재 시 ConflictException",
+          "2. 비밀번호 해싱 → 유저 생성",
+          "3. accessToken, refreshToken 생성 및 refreshToken 해싱 저장",
+          "4. 쿠키에 토큰 설정 후 message 반환"
+        ],
+        "expectedExceptions": [
+          "ConflictException: 이미 등록된 이메일로 요청한 경우"
+        ]
+      }
+    },
+    {
+      "operation": "Signin",
+      "method": "POST",
+      "path": "/auth/signin",
+      "controllerMethod": "signin",
+      "serviceMethod": "signin",
+      "inputDto": "SigninDTO",
+      "description": "이메일/비밀번호로 로그인 → 토큰 발급 및 쿠키 설정",
+      "tags": [
+        "Auth"
+      ],
+      "statusCodes": [
+        200,
+        403
+      ],
+      "logicNotes": {
+        "steps": [
+          "1. 이메일 기반 유저 조회",
+          "2. 비밀번호 비교 → 불일치 시 ForbiddenException",
+          "3. 토큰 생성 및 refreshToken 해싱 저장",
+          "4. 쿠키에 설정 후 message 반환"
+        ],
+        "expectedExceptions": [
+          "ForbiddenException: 비밀번호 불일치 혹은 유저 미존재"
+        ]
+      }
+    },
+    {
+      "operation": "RefreshAccessToken",
+      "method": "POST",
+      "path": "/auth/refresh",
+      "controllerMethod": "refreshAccessToken",
+      "serviceMethod": "refreshAccessToken",
+      "description": "리프레시 토큰 기반으로 새로운 accessToken 재발급",
+      "tags": [
+        "Auth"
+      ],
+      "statusCodes": [
+        200,
+        401
+      ],
+      "logicNotes": {
+        "steps": [
+          "1. Guard에서 사용자 인증 후 user.id 주입",
+          "2. 새 accessToken, refreshToken 생성",
+          "3. refreshToken 해싱 후 DB 업데이트",
+          "4. 쿠키로 새 토큰 전달"
+        ],
+        "expectedExceptions": [
+          "UnauthorizedException: 유저 인증 실패 or 토큰 위조"
+        ]
+      }
+    },
+    {
+      "operation": "GoogleRedirect",
+      "method": "GET",
+      "path": "/auth/google/redirect",
+      "controllerMethod": "googleRedirect",
+      "serviceMethod": "googleSignin",
+      "description": "구글 로그인 후 redirect endpoint → 유저 정보 처리",
+      "tags": [
+        "Auth",
+        "Google"
+      ],
+      "statusCodes": [
+        200
+      ],
+      "logicNotes": {
+        "steps": [
+          "1. 구글 유저 정보 req.user로 전달됨",
+          "2. authService.googleSignin(user, res) 호출"
+        ],
+        "expectedExceptions": []
+      }
+    }
+  ],
+  "notes": {
+    "implemented": {
+      "signup": "중복 이메일 체크 후 ConflictException 발생. 토큰 생성 및 쿠키 설정 완료",
+      "signin": "비밀번호 불일치 시 ForbiddenException 발생. 토큰 생성 및 쿠키 설정 완료",
+      "refreshAccessToken": "DB에서 해싱된 refresh token을 저장하고 재발급 처리"
+    },
+    "futureImplementation": {
+      "googleSignin": "구글 유저가 신규인 경우 자동 가입 여부 및 처리 방식은 아직 정의되지 않음",
+      "signin return value": "현재는 message만 반환되나, 추후 accessToken + user 정보 포함 가능"
+    }
+  }
+}

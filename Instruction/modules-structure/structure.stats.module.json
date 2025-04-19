@@ -1,0 +1,661 @@
+{
+  "module": "Stats",
+  "description": "사용자의 카테고리, 예산, 메모 기준으로 통계 데이터를 그룹, 요약, 상세 형태로 조회하는 분석 모듈",
+  "entryPoints": {
+    "service": "src/stats/stats.service.ts",
+    "controller": "src/stats/stats.controller.ts"
+  },
+  "dto": {
+    "directory": "src/stats/dto",
+    "mainDTOs": [
+      {
+        "file": "stats-query.dto.ts",
+        "class": "StatsQuery",
+        "fields": {
+          "type": {
+            "type": "CategoryType",
+            "required": true
+          }
+        },
+        "extends": "DateRangeWithGroupQueryDTO"
+      },
+      {
+        "file": "note/group-item.dto.ts",
+        "class": "StatsNoteGroupItemDTO",
+        "fields": {
+          "note": {
+            "type": "string",
+            "required": true
+          },
+          "type": {
+            "type": "CategoryType",
+            "required": true
+          },
+          "count": {
+            "type": "number",
+            "required": true
+          },
+          "totalIncome": {
+            "type": "number",
+            "required": true
+          },
+          "totalExpense": {
+            "type": "number",
+            "required": true
+          },
+          "data": {
+            "type": "StatsNoteGroupPeriodDTO[]",
+            "required": true
+          }
+        }
+      },
+      {
+        "file": "note/summary.dto.ts",
+        "class": "StatsNoteGroupSummaryDTO",
+        "fields": {
+          "income": {
+            "type": "number",
+            "required": true
+          },
+          "expense": {
+            "type": "number",
+            "required": true
+          },
+          "isCurrent": {
+            "type": "boolean",
+            "required": true
+          }
+        },
+        "extends": "BaseGroupItemDTO",
+        "fromModule": "common"
+      },
+      {
+        "file": "note/period-item.dto.ts",
+        "class": "StatsNoteGroupPeriodDTO",
+        "fields": {
+          "income": {
+            "type": "number",
+            "required": true
+          },
+          "expense": {
+            "type": "number",
+            "required": true
+          },
+          "isCurrent": {
+            "type": "boolean",
+            "required": true
+          }
+        },
+        "extends": "BaseGroupItemDTO",
+        "fromModule": "common"
+      },
+      {
+        "file": "category/group-item.dto.ts",
+        "class": "StatsCategoryGroupItemDTO",
+        "fields": {
+          "categoryId": {
+            "type": "string",
+            "required": true
+          },
+          "categoryName": {
+            "type": "string",
+            "required": true
+          },
+          "categoryType": {
+            "type": "CategoryType",
+            "required": true
+          },
+          "color": {
+            "type": "string",
+            "required": true
+          },
+          "amount": {
+            "type": "number",
+            "required": true
+          },
+          "rate": {
+            "type": "number",
+            "required": true
+          },
+          "budgetId": {
+            "type": "string",
+            "required": false
+          },
+          "budget": {
+            "type": "number",
+            "required": false
+          },
+          "budgetRate": {
+            "type": "number",
+            "required": false
+          }
+        },
+        "extends": "BaseGroupItemDTO",
+        "fromModule": "common"
+      },
+      {
+        "file": "category/summary.dto.ts",
+        "class": "StatsCategoryGroupSummaryDTO",
+        "fields": {
+          "income": {
+            "type": "number",
+            "required": true
+          },
+          "expense": {
+            "type": "number",
+            "required": true
+          },
+          "isCurrent": {
+            "type": "boolean",
+            "required": true
+          }
+        },
+        "extends": "BaseGroupItemDTO",
+        "fromModule": "common"
+      },
+      {
+        "file": "budget/group-item.dto.ts",
+        "class": "StatsBudgetGroupItemDTO",
+        "fields": {
+          "categoryId": {
+            "type": "string",
+            "required": true
+          },
+          "categoryName": {
+            "type": "string",
+            "required": true
+          },
+          "categoryType": {
+            "type": "CategoryType",
+            "required": true
+          },
+          "icon": {
+            "type": "string",
+            "required": true
+          },
+          "color": {
+            "type": "string",
+            "required": true
+          },
+          "spent": {
+            "type": "number",
+            "required": true
+          },
+          "income": {
+            "type": "number",
+            "required": true
+          },
+          "budget": {
+            "type": "number",
+            "required": true
+          },
+          "remaining": {
+            "type": "number",
+            "required": true
+          },
+          "rate": {
+            "type": "number",
+            "required": true
+          },
+          "hasBudget": {
+            "type": "boolean",
+            "required": true
+          },
+          "budgetId": {
+            "type": "string",
+            "required": false
+          }
+        },
+        "extends": "BaseGroupItemDTO",
+        "fromModule": "common"
+      },
+      {
+        "file": "budget/summary.dto.ts",
+        "class": "StatsBudgetGroupSummaryDTO",
+        "fields": {
+          "income": {
+            "type": "number",
+            "required": true
+          },
+          "expense": {
+            "type": "number",
+            "required": true
+          },
+          "budgetAmount": {
+            "type": "number",
+            "required": false
+          },
+          "remaining": {
+            "type": "number",
+            "required": false
+          },
+          "isOver": {
+            "type": "boolean",
+            "required": false
+          },
+          "isCurrent": {
+            "type": "boolean",
+            "required": true
+          }
+        },
+        "extends": "BaseGroupItemDTO",
+        "fromModule": "common"
+      },
+      {
+        "file": "budget/summary.dto.ts",
+        "class": "StatsBudgetSummaryDTO",
+        "extends": "BaseListSummaryResponseDTO",
+        "fromModule": "common",
+        "fields": {}
+      },
+      {
+        "file": "category/summary.dto.ts",
+        "class": "StatsCategorySummaryDTO",
+        "extends": "BaseListSummaryResponseDTO",
+        "fromModule": "common",
+        "fields": {}
+      },
+      {
+        "file": "note/summary.dto.ts",
+        "class": "StatsNoteSummaryDTO",
+        "extends": "BaseListSummaryResponseDTO",
+        "fromModule": "common",
+        "fields": {}
+      },
+      {
+        "class": "StatsBudgetPeriodDTO",
+        "file": "budget/detail.dto.ts",
+        "extends": "BaseGroupItemDTO",
+        "fromModule": "common",
+        "fields": {
+          "income": {
+            "type": "number",
+            "required": true
+          },
+          "expense": {
+            "type": "number",
+            "required": true
+          },
+          "budget": {
+            "type": "number",
+            "required": true
+          },
+          "remaining": {
+            "type": "number",
+            "required": true
+          },
+          "isOver": {
+            "type": "boolean",
+            "required": true
+          },
+          "isCurrent": {
+            "type": "boolean",
+            "required": true
+          }
+        }
+      },
+      {
+        "class": "StatsBudgetDetailDTO",
+        "file": "budget/detail.dto.ts",
+        "fields": {
+          "categoryId": {
+            "type": "string",
+            "required": true
+          },
+          "categoryName": {
+            "type": "string",
+            "required": true
+          },
+          "icon": {
+            "type": "string",
+            "required": true
+          },
+          "color": {
+            "type": "string",
+            "required": true
+          },
+          "type": {
+            "type": "CategoryType",
+            "required": true
+          },
+          "totalExpense": {
+            "type": "number",
+            "required": true
+          },
+          "totalBudget": {
+            "type": "number",
+            "required": true
+          },
+          "totalRemaining": {
+            "type": "number",
+            "required": true
+          },
+          "isOver": {
+            "type": "boolean",
+            "required": true
+          },
+          "data": {
+            "type": "StatsBudgetPeriodDTO[]",
+            "required": true
+          }
+        }
+      },
+      {
+        "class": "StatsCategoryPeriodDTO",
+        "file": "category/detail.dto.ts",
+        "extends": "BaseGroupItemDTO",
+        "fromModule": "common",
+        "fields": {
+          "income": {
+            "type": "number",
+            "required": true
+          },
+          "expense": {
+            "type": "number",
+            "required": true
+          },
+          "isCurrent": {
+            "type": "boolean",
+            "required": true
+          }
+        }
+      },
+      {
+        "class": "StatsCategoryDetailDTO",
+        "file": "category/detail.dto.ts",
+        "fields": {
+          "categoryId": {
+            "type": "string",
+            "required": true
+          },
+          "categoryName": {
+            "type": "string",
+            "required": true
+          },
+          "type": {
+            "type": "CategoryType",
+            "required": true
+          },
+          "icon": {
+            "type": "string",
+            "required": true
+          },
+          "color": {
+            "type": "string",
+            "required": true
+          },
+          "totalIncome": {
+            "type": "number",
+            "required": true
+          },
+          "totalExpense": {
+            "type": "number",
+            "required": true
+          },
+          "data": {
+            "type": "StatsCategoryPeriodDTO[]",
+            "required": true
+          }
+        }
+      },
+      {
+        "class": "StatsNotePeriodDTO",
+        "file": "note/detail.dto.ts",
+        "extends": "BaseGroupItemDTO",
+        "fromModule": "common",
+        "fields": {
+          "income": {
+            "type": "number",
+            "required": true
+          },
+          "expense": {
+            "type": "number",
+            "required": true
+          },
+          "isCurrent": {
+            "type": "boolean",
+            "required": true
+          }
+        }
+      },
+      {
+        "class": "StatsNoteDetailDTO",
+        "file": "note/detail.dto.ts",
+        "fields": {
+          "note": {
+            "type": "string",
+            "required": true
+          },
+          "totalIncome": {
+            "type": "number",
+            "required": true
+          },
+          "totalExpense": {
+            "type": "number",
+            "required": true
+          },
+          "data": {
+            "type": "StatsNotePeriodDTO[]",
+            "required": true
+          }
+        }
+      }
+    ]
+  },
+  "utils": ["util/groupTransactions.util.ts"],
+  "tests": {
+    "serviceSpec": "src/stats/stats.service.spec.ts",
+    "controllerSpec": "src/stats/stats.controller.spec.ts"
+  },
+  "routes": [
+    {
+      "operation": "GetStatsByCategory",
+      "path": "/stats/by-category",
+      "method": "GET",
+      "description": "카테고리별 거래 총합과 예산 대비 비율 등을 조회하는 그룹 통계 API",
+      "controllerMethod": "getByCategory",
+      "serviceMethod": "getByCategory",
+      "inputDto": "StatsQuery",
+      "outputDto": "BaseListSummaryResponseDTO<StatsCategoryGroupItemDTO>",
+      "tags": ["Stats", "Category"],
+      "statusCodes": [200, 400, 404],
+      "steps": [
+        "1. query 필드 (startDate, endDate, type, groupBy) 검사 → 누락 시 BadRequestException",
+        "2. userId로 사용자 조회 → 없으면 NotFoundException",
+        "3. 사용자 timezone 기준 UTC 날짜 계산",
+        "4. 유저의 카테고리 목록 조회",
+        "5. categoryId 기준 거래금액 집계 (groupBy)",
+        "6. 예산 테이블에서 일치하는 카테고리 + 기간 필터",
+        "7. 거래금액 vs 예산금액 비교 후 DTO 생성",
+        "8. BaseListSummaryResponseDTO 구조로 응답 반환"
+      ],
+      "exceptions": [
+        "BadRequestException: 필수 파라미터 누락",
+        "NotFoundException: 유저가 존재하지 않을 경우"
+      ]
+    },
+    {
+      "operation": "GetStatsByBudget",
+      "path": "/stats/by-budget",
+      "method": "GET",
+      "description": "예산 항목별 그룹 통계 조회 (예산 대비 지출 비교)",
+      "controllerMethod": "getByBudget",
+      "serviceMethod": "getByBudget",
+      "inputDto": "StatsQuery",
+      "outputDto": "BaseListSummaryResponseDTO<StatsBudgetGroupItemDTO>",
+      "tags": ["Stats", "Budget"],
+      "statusCodes": [200],
+      "steps": [
+        "1. query 필수 값 (startDate, endDate, type, groupBy) 확인 → 누락 시 BadRequestException",
+        "2. userId로 사용자 조회 → 없으면 NotFoundException",
+        "3. 유저 timezone 기준 UTC 날짜 계산",
+        "4. 기간에 맞는 예산 카테고리 조회 (budgetCategory.findMany)",
+        "5. 거래 데이터 조회 및 groupBy 단위로 합산",
+        "6. 예산 총합과 거래 총합 비교 → rate 계산",
+        "7. StatsBudgetGroupItemDTO 목록 생성",
+        "8. BaseListSummaryResponseDTO 구조로 응답 반환"
+      ],
+      "exceptions": [
+        "BadRequestException: 필수 쿼리 파라미터 누락",
+        "NotFoundException: 유저 존재하지 않음"
+      ]
+    },
+    {
+      "operation": "GetStatsByNote",
+      "path": "/stats/by-note",
+      "method": "GET",
+      "description": "메모 기준 그룹 통계 조회 (메모별 거래 합산)",
+      "controllerMethod": "getByNote",
+      "serviceMethod": "getByNote",
+      "inputDto": "StatsQuery",
+      "outputDto": "BaseListSummaryResponseDTO<StatsNoteGroupItemDTO>",
+      "tags": ["Stats", "Note"],
+      "statusCodes": [200],
+      "steps": [
+        "1. query에서 startDate, endDate, groupBy, type 추출",
+        "2. UTC 기준 날짜 계산 (timezone 적용)",
+        "3. transaction.findMany()로 userId, note 존재, type, 기간 조건 필터링",
+        "4. note별로 거래를 groupBy하여 총합 계산",
+        "5. StatsNoteGroupItemDTO[] 생성",
+        "6. BaseListSummaryResponseDTO 구조로 응답 반환"
+      ],
+      "exceptions": [
+        "BadRequestException: 필수 쿼리 파라미터 누락",
+        "NotFoundException: 유저가 존재하지 않을 경우"
+      ]
+    },
+    {
+      "operation": "GetStatsCategoryDetail",
+      "path": "/stats/category/:categoryId",
+      "method": "GET",
+      "description": "특정 카테고리의 상세 통계 조회",
+      "controllerMethod": "getStatsCategory",
+      "serviceMethod": "getStatsCategory",
+      "inputDto": "StatsQuery",
+      "outputDto": "StatsCategoryDetailDTO",
+      "tags": ["Stats", "Category"],
+      "statusCodes": [200],
+      "steps": [
+        "1. categoryId와 query 기반 거래 내역 필터링",
+        "2. 해당 카테고리의 거래를 날짜 단위로 그룹화",
+        "3. 그룹별 금액 합산 및 DTO 생성",
+        "4. StatsCategoryDetailDTO 포맷으로 반환"
+      ],
+      "exceptions": ["NotFoundException: 유저 또는 카테고리 존재하지 않을 경우"]
+    },
+    {
+      "operation": "GetStatsBudgetDetail",
+      "path": "/stats/budget/:categoryId",
+      "method": "GET",
+      "description": "예산 항목 상세 통계 조회",
+      "controllerMethod": "getStatsBudget",
+      "serviceMethod": "getStatsBudget",
+      "inputDto": "StatsQuery",
+      "outputDto": "StatsBudgetDetailDTO",
+      "tags": ["Stats", "Budget"],
+      "statusCodes": [200],
+      "steps": [
+        "1. query에서 startDate, endDate, groupBy, type 추출",
+        "2. UTC 기준 날짜 변환",
+        "3. budgetCategoryId로 예산 항목 조회",
+        "4. 유저 소유 여부 확인 → 아니라면 ForbiddenException",
+        "5. 예산 정보 (amount, 기간, categoryId) 추출",
+        "6. 거래 필터링: categoryId + 기간 기준",
+        "7. 거래 데이터를 groupTransactions 유틸로 그룹화",
+        "8. 총합 계산 후 StatsBudgetDetailDTO 구조로 응답"
+      ],
+      "exceptions": [
+        "NotFoundException: 예산 항목이 존재하지 않을 경우",
+        "ForbiddenException: 예산 항목이 본인 것이 아닐 경우"
+      ]
+    },
+    {
+      "operation": "GetStatsNoteDetail",
+      "path": "/stats/note/:note",
+      "method": "GET",
+      "description": "특정 메모에 대한 상세 통계",
+      "controllerMethod": "getStatsNote",
+      "serviceMethod": "getStatsNote",
+      "inputDto": "StatsQuery",
+      "outputDto": "StatsNoteDetailDTO",
+      "tags": ["Stats", "Note"],
+      "statusCodes": [200],
+      "steps": [
+        "1. query에서 startDate, endDate, groupBy, type 추출",
+        "2. startDate, endDate를 UTC로 변환",
+        "3. userId + note + 날짜 범위 조건으로 transaction 조회",
+        "4. groupTransactions 유틸로 거래 데이터를 그룹화",
+        "5. 그룹별 데이터: StatsNotePeriodDTO[] 생성",
+        "6. 총합 계산 후 StatsNoteDetailDTO 구조로 응답"
+      ],
+      "exceptions": []
+    },
+    {
+      "operation": "GetStatsCategorySummary",
+      "path": "/stats/category/:categoryId/summary",
+      "method": "GET",
+      "description": "특정 카테고리의 현재 기간 요약 통계",
+      "controllerMethod": "getStatsCategorySummary",
+      "serviceMethod": "getStatsCategorySummary",
+      "inputDto": "StatsQuery",
+      "outputDto": "StatsCategorySummaryDTO",
+      "tags": ["Stats", "Category", "Summary"],
+      "statusCodes": [200],
+      "steps": [
+        "1. query에서 startDate, endDate, groupBy 추출",
+        "2. userId로 유저 조회 → 없으면 NotFoundException",
+        "3. 사용자 timezone 기준으로 UTC 날짜 계산",
+        "4. categoryId로 카테고리 존재 여부 확인 → 없으면 NotFoundException",
+        "5. 해당 카테고리의 거래를 기간 내 필터링",
+        "6. 거래 합산 및 요약 통계 생성",
+        "7. StatsCategorySummaryDTO로 반환"
+      ],
+      "exceptions": [
+        "NotFoundException: 유저 또는 카테고리가 존재하지 않을 경우"
+      ]
+    },
+    {
+      "operation": "GetStatsBudgetSummary",
+      "path": "/stats/budget/:categoryId/summary",
+      "method": "GET",
+      "description": "특정 예산 항목의 요약 통계",
+      "controllerMethod": "getStatsBudgetSummary",
+      "serviceMethod": "getStatsBudgetSummary",
+      "inputDto": "StatsQuery",
+      "outputDto": "StatsBudgetSummaryDTO",
+      "tags": ["Stats", "Budget", "Summary"],
+      "statusCodes": [200],
+      "steps": [
+        "1. categoryId 기반 예산 항목 조회",
+        "2. query 범위(startDate~endDate) 기반 거래 내역 필터링",
+        "3. budgetCategory의 예산 총합과 실제 지출 합계 계산",
+        "4. 예산 대비 지출 비율(rate) 계산",
+        "5. StatsBudgetSummaryDTO 포맷으로 반환"
+      ],
+      "exceptions": [
+        "NotFoundException: 예산 항목 또는 유저가 존재하지 않을 경우"
+      ]
+    },
+    {
+      "operation": "GetStatsNoteSummary",
+      "path": "/stats/note/:note/summary",
+      "method": "GET",
+      "description": "특정 메모의 요약 통계",
+      "controllerMethod": "getStatsNoteSummary",
+      "serviceMethod": "getStatsNoteSummary",
+      "inputDto": "StatsQuery",
+      "outputDto": "StatsNoteSummaryDTO",
+      "tags": ["Stats", "Note", "Summary"],
+      "statusCodes": [200],
+      "steps": [
+        "1. query에서 startDate, endDate, groupBy, type 추출",
+        "2. startDate, endDate를 UTC 기준으로 변환",
+        "3. transaction.findMany()로 note === encodedNote 조건으로 필터링",
+        "4. 거래 총액 합산",
+        "5. 단순 summary 구조 생성",
+        "6. StatsNoteSummaryDTO로 응답 반환"
+      ],
+      "exceptions": []
+    }
+  ]
+}

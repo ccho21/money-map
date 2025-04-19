@@ -1,0 +1,457 @@
+{
+  "module": "Transactions",
+  "entryPoints": {
+    "service": "src/transactions/transactions.service.ts",
+    "controller": "src/transactions/transactions.controller.ts"
+  },
+  "dto": {
+    "directory": "src/transactions/dto",
+    "mainDTOs": [
+      {
+        "class": "TransactionGroupItemDTO",
+        "extends": "BaseGroupItemDTO",
+        "fields": {
+          "groupIncome": {
+            "type": "number",
+            "required": true
+          },
+          "groupExpense": {
+            "type": "number",
+            "required": true
+          },
+          "isCurrent": {
+            "type": "boolean",
+            "required": false
+          },
+          "transactions": {
+            "type": "TransactionDetailDTO[]",
+            "required": true
+          }
+        },
+        "file": "transaction-group-item.dto.ts",
+        "request": false,
+        "fromModule": "common"
+      },
+      {
+        "class": "TransactionCalendarDTO",
+        "extends": null,
+        "fields": {
+          "date": {
+            "type": "string",
+            "required": true
+          },
+          "income": {
+            "type": "number",
+            "required": true
+          },
+          "expense": {
+            "type": "number",
+            "required": true
+          }
+        },
+        "file": "transaction-calendar.dto.ts",
+        "request": false
+      },
+      {
+        "class": "TransactionDetailDTO",
+        "extends": null,
+        "fields": {
+          "id": {
+            "type": "string",
+            "required": true
+          },
+          "type": {
+            "type": "string",
+            "required": true
+          },
+          "amount": {
+            "type": "number",
+            "required": true
+          },
+          "accountId": {
+            "type": "string",
+            "required": true
+          },
+          "toAccountId": {
+            "type": "string",
+            "required": false
+          },
+          "linkedTransferId": {
+            "type": "string",
+            "required": false
+          },
+          "date": {
+            "type": "string",
+            "required": true
+          },
+          "createdAt": {
+            "type": "string",
+            "required": true
+          },
+          "note": {
+            "type": "string",
+            "required": false
+          },
+          "description": {
+            "type": "string",
+            "required": false
+          },
+          "category": {
+            "type": "CategoryDTO | null",
+            "required": false
+          },
+          "account": {
+            "type": "{\n    id: string",
+            "required": true
+          },
+          "name": {
+            "type": "string",
+            "required": true
+          },
+          "color": {
+            "type": "string | null",
+            "required": false
+          },
+          "toAccount": {
+            "type": "{\n    id: string",
+            "required": false
+          },
+          "dueDate": {
+            "type": "string | null",
+            "required": false
+          },
+          "paidAt": {
+            "type": "string | null",
+            "required": false
+          }
+        },
+        "file": "transaction-detail.dto.ts",
+        "request": false
+      },
+      {
+        "class": "BaseTransactionRequestDTO",
+        "extends": "BaseTransactionRequestDTO",
+        "fields": {
+          "type": {
+            "type": "TransactionType",
+            "required": true
+          },
+          "amount": {
+            "type": "number",
+            "required": true
+          },
+          "accountId": {
+            "type": "string",
+            "required": true
+          },
+          "categoryId": {
+            "type": "string",
+            "required": false
+          },
+          "date": {
+            "type": "string",
+            "required": true
+          },
+          "description": {
+            "type": "string",
+            "required": false
+          },
+          "note": {
+            "type": "string",
+            "required": false
+          }
+        },
+        "file": "transaction-request.dto.ts",
+        "request": true,
+        "fromModule": "transactions"
+      },
+      {
+        "class": "TransactionGroupSummaryDTO",
+        "extends": "BaseListSummaryResponseDTO",
+        "fields": {},
+        "file": "transaction-group-summary.dto.ts",
+        "request": false,
+        "fromModule": "common"
+      },
+      {
+        "class": "TransactionCreateRequestDTO",
+        "file": "transaction-request.dto.ts",
+        "extends": "BaseTransactionRequestDTO",
+        "fields": {},
+        "request": true,
+        "fromModule": "transactions"
+      },
+      {
+        "class": "TransactionUpdateRequestDTO",
+        "file": "transaction-request.dto.ts",
+        "extends": "PartialType",
+        "composedFrom": "TransactionCreateRequestDTO",
+        "fields": {},
+        "request": true
+      },
+      {
+        "class": "TransactionTransferRequestDTO",
+        "file": "transaction-request.dto.ts",
+        "extends": "BaseTransactionRequestDTO",
+        "fields": {
+          "fromAccountId": {
+            "type": "string",
+            "required": true
+          },
+          "toAccountId": {
+            "type": "string",
+            "required": true
+          }
+        },
+        "request": true,
+        "fromModule": "transactions"
+      }
+    ]
+  },
+  "utils": [
+    "utils/getTransactionDelta.util.ts",
+    "utils/getTransactionDeltaByAccount.util.ts",
+    "utils/recalculateAccountBalanceInTx.util.ts"
+  ],
+  "tests": {
+    "serviceSpec": "src/transactions/transactions.service.spec.ts",
+    "controllerSpec": "src/transactions/transactions.controller.spec.ts"
+  },
+  "description": "모든 수입, 지출, 이체 거래를 처리하며, group-by, calendar 뷰, 통계 연동을 포함하는 핵심 트랜잭션 처리 모듈입니다.",
+  "routes": [
+    {
+      "operation": "CreateTransaction",
+      "method": "POST",
+      "path": "/transactions",
+      "controllerMethod": "create",
+      "serviceMethod": "create",
+      "inputDto": "TransactionCreateRequestDTO",
+      "outputDto": "TransactionDetailDTO",
+      "description": "수입 또는 지출 트랜잭션을 생성하고, 계좌 잔액을 반영합니다.",
+      "tags": [
+        "Transactions"
+      ],
+      "statusCodes": [
+        201,
+        404
+      ],
+      "steps": [
+        "1. userId로 유저 조회 → 없으면 Error",
+        "2. categoryId로 카테고리 조회 → 없으면 NotFoundException",
+        "3. accountId로 계좌 조회 → 없으면 NotFoundException",
+        "4. prisma.$transaction() 시작",
+        "   - transaction.create() 실행",
+        "   - recalculateAccountBalanceInTx() 호출 → 잔액 반영",
+        "5. $transaction 블록 내 오류 발생 시 전체 롤백",
+        "6. 예산 초과 여부 확인을 위한 budgetCategory 조회",
+        "7. 필요한 경우 후속 경고/알림 로직 호출"
+      ],
+      "exceptions": [
+        "NotFoundException: 잘못된 categoryId 또는 accountId",
+        "Error: 유저가 존재하지 않을 경우"
+      ]
+    },
+    {
+      "operation": "UpdateTransaction",
+      "method": "PATCH",
+      "path": "/transactions/:id",
+      "controllerMethod": "update",
+      "serviceMethod": "update",
+      "inputDto": "TransactionUpdateRequestDTO",
+      "outputDto": "TransactionDetailDTO",
+      "description": "기존 수입/지출 거래를 수정하고, 관련 계좌 잔액을 재계산합니다.",
+      "tags": [
+        "Transactions"
+      ],
+      "statusCodes": [
+        200,
+        404
+      ],
+      "steps": [
+        "1. userId + id로 기존 거래 조회 → 없으면 NotFoundException",
+        "2. isOpening 거래인 경우 → BadRequestException",
+        "3. userId로 유저 조회 → 없으면 Error",
+        "4. prisma.$transaction() 시작",
+        "   - transaction.update() 실행 (조건부 dto 적용)",
+        "   - recalculateAccountBalanceInTx() → 기존 계좌 + (변경된 계좌) 잔액 반영",
+        "5. $transaction 블록 내 오류 발생 시 전체 롤백",
+        "6. 업데이트된 거래 정보 반환"
+      ],
+      "exceptions": [
+        "NotFoundException: 기존 거래 없음",
+        "BadRequestException: Opening 거래 수정 시도",
+        "Error: 유저 존재하지 않음"
+      ]
+    },
+    {
+      "operation": "DeleteTransaction",
+      "method": "DELETE",
+      "path": "/transactions/:id",
+      "controllerMethod": "delete",
+      "serviceMethod": "delete",
+      "description": "기존 거래를 삭제하고 관련 계좌 잔액을 재조정합니다.",
+      "tags": [
+        "Transactions"
+      ],
+      "statusCodes": [
+        200,
+        404
+      ],
+      "steps": [
+        "1. userId + id로 기존 거래 조회 → 없으면 NotFoundException",
+        "2. isOpening 거래인 경우 → BadRequestException",
+        "3. prisma.$transaction() 시작",
+        "   - transaction.delete() 실행",
+        "   - recalculateAccountBalanceInTx(tx, 기존 accountId)",
+        "   - transfer 거래일 경우 toAccountId 잔액도 재계산",
+        "4. 전체 처리 성공 시 '삭제 완료' 메시지 반환"
+      ],
+      "exceptions": [
+        "NotFoundException: 거래 없음",
+        "BadRequestException: Opening 거래 삭제 시도"
+      ]
+    },
+    {
+      "operation": "CreateTransferTransaction",
+      "method": "POST",
+      "path": "/transactions/transfer",
+      "controllerMethod": "createTransfer",
+      "serviceMethod": "createTransfer",
+      "inputDto": "TransactionTransferRequestDTO",
+      "outputDto": "TransactionDetailDTO",
+      "description": "이체 트랜잭션 생성: 두 계좌의 잔액을 동시에 업데이트합니다.",
+      "tags": [
+        "Transactions",
+        "Transfer"
+      ],
+      "statusCodes": [
+        201,
+        404
+      ],
+      "steps": [
+        "1. userId로 유저 조회 → 없으면 Error",
+        "2. fromAccountId === toAccountId → BadRequestException",
+        "3. prisma.$transaction() 시작",
+        "   - fromAccount, toAccount 조회 → 없으면 NotFoundException",
+        "   - 계좌 소유주 확인 → 다르면 ForbiddenException",
+        "   - from 계좌 잔액 확인 (CARD 제외) → 부족하면 BadRequestException",
+        "   - 거래 쌍 생성: outTx → inTx, 서로 linkedTransferId 연결",
+        "   - 잔액 재계산: fromAccountId, toAccountId",
+        "4. 전체 처리 성공 시 { outgoing, incoming } 반환"
+      ],
+      "exceptions": [
+        "Error: 유저가 존재하지 않을 경우",
+        "BadRequestException: 동일 계좌 이체 or 잔액 부족",
+        "NotFoundException: 계좌 없음",
+        "ForbiddenException: 타인 계좌 접근 시도",
+        "InternalServerErrorException: 처리 실패 fallback"
+      ]
+    },
+    {
+      "operation": "UpdateTransferTransaction",
+      "method": "PATCH",
+      "path": "/transactions/transfer/:id",
+      "controllerMethod": "updateTransfer",
+      "serviceMethod": "updateTransfer",
+      "inputDto": "TransactionTransferRequestDTO",
+      "outputDto": "TransactionDetailDTO",
+      "description": "기존 이체 트랜잭션을 수정하고 두 계좌의 잔액을 재조정합니다.",
+      "tags": [
+        "Transactions",
+        "Transfer"
+      ],
+      "statusCodes": [
+        200,
+        404
+      ],
+      "steps": [
+        "1. userId로 유저 조회 → 없으면 Error",
+        "2. fromAccountId === toAccountId → BadRequestException",
+        "3. id로 기존 트랜잭션 조회 → 없거나 userId 다르면 NotFoundException",
+        "4. prisma.$transaction() 시작",
+        "   - 계좌 존재 여부 확인 → 없으면 NotFoundException",
+        "   - 계좌 소유자 일치 여부 확인 → 다르면 ForbiddenException",
+        "   - CARD가 아닐 경우 잔액 시뮬레이션 → 부족하면 BadRequestException",
+        "   - 기존 입금 트랜잭션 삭제",
+        "   - 새 입금 트랜잭션 생성 → linkedTransferId 설정",
+        "   - 기존 출금 트랜잭션 업데이트 → linkedTransferId 설정",
+        "   - 두 계좌 잔액 재계산 실행",
+        "5. { updatedOutgoing, updatedIncoming } 반환"
+      ],
+      "exceptions": [
+        "Error: 유저가 존재하지 않을 경우",
+        "BadRequestException: 잔액 부족 또는 동일 계좌",
+        "NotFoundException: 트랜잭션 또는 계좌 없음",
+        "ForbiddenException: 타인 계좌 접근"
+      ]
+    },
+    {
+      "operation": "GetTransactionsByDate",
+      "method": "GET",
+      "path": "/transactions",
+      "controllerMethod": "findFiltered",
+      "serviceMethod": "findFiltered",
+      "description": "날짜/계좌/카테고리/메모 조건으로 거래 목록을 조회합니다.",
+      "tags": [
+        "Transactions"
+      ],
+      "statusCodes": [
+        200
+      ],
+      "steps": [],
+      "exceptions": []
+    },
+    {
+      "operation": "GetTransactionSummary",
+      "method": "GET",
+      "path": "/transactions/summary",
+      "controllerMethod": "getTransactionSummary",
+      "serviceMethod": "getTransactionSummary",
+      "description": "해당 기간 동안의 수입, 지출, 이체 거래 총합 요약을 반환합니다.",
+      "tags": [
+        "Transactions",
+        "Summary"
+      ],
+      "statusCodes": [
+        200
+      ],
+      "steps": [
+        "1. userId로 유저 조회 → 없으면 ForbiddenException",
+        "2. user의 timezone 기준 UTC start/end 계산",
+        "3. 모든 거래(income/expense/transfer) 조회",
+        "4. 입금 transfer(toAccountId === null) 제거",
+        "5. 거래를 groupBy 기준으로 그룹화",
+        "6. 그룹별 총합 요약 생성 → DTO 매핑",
+        "7. TransactionGroupSummaryDTO로 반환"
+      ],
+      "exceptions": [
+        "ForbiddenException: 유저 조회 실패 시"
+      ]
+    },
+    {
+      "operation": "GetTransactionCalendarView",
+      "method": "GET",
+      "path": "/transactions/calendar",
+      "controllerMethod": "getTransactionCalendarView",
+      "serviceMethod": "getTransactionCalendarView",
+      "description": "캘린더 형태로 일자별 거래 요약 정보를 제공합니다.",
+      "tags": [
+        "Transactions",
+        "Calendar"
+      ],
+      "statusCodes": [
+        200
+      ],
+      "steps": [
+        "1. userId로 유저 조회 → 없으면 Error",
+        "2. query.date 기반 해당 월의 start/end 계산",
+        "3. groupBy: ['date', 'type'] → 거래 총합 그룹화",
+        "4. 날짜별 income/expense 합산",
+        "5. TransactionCalendarDTO[]로 반환"
+      ],
+      "exceptions": [
+        "Error: 유저가 존재하지 않을 경우"
+      ]
+    }
+  ]
+}

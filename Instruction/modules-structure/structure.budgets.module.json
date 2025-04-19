@@ -1,0 +1,294 @@
+{
+  "module": "Budgets",
+  "entryPoints": {
+    "service": "src/budgets/budgets.service.ts",
+    "controller": "src/budgets/budgets.controller.ts"
+  },
+  "description": "카테고리별 예산을 설정하고 기간 내 예산 대비 지출 통계를 관리하는 모듈",
+  "tests": {
+    "serviceSpec": "src/budgets/budgets.service.spec.ts",
+    "controllerSpec": "src/budgets/budgets.controller.spec.ts"
+  },
+  "utils": [],
+  "dto": {
+    "directory": "src/budgets/dto",
+    "mainDTOs": [
+      {
+        "class": "BudgetCategoryItemDTO",
+        "extends": null,
+        "fields": {
+          "categoryId": {
+            "type": "string",
+            "required": true
+          },
+          "categoryName": {
+            "type": "string",
+            "required": true
+          },
+          "icon": {
+            "type": "string",
+            "required": true
+          },
+          "color": {
+            "type": "string",
+            "required": false
+          },
+          "amount": {
+            "type": "number",
+            "required": true
+          },
+          "used": {
+            "type": "number",
+            "required": true
+          },
+          "remaining": {
+            "type": "number",
+            "required": true
+          },
+          "isOver": {
+            "type": "boolean",
+            "required": true
+          },
+          "type": {
+            "type": "CategoryType",
+            "required": true
+          },
+          "budgetId": {
+            "type": "string",
+            "required": false
+          }
+        },
+        "file": "budget-category-item.dto.ts"
+      },
+      {
+        "class": "BudgetCategoryListResponseDTO",
+        "extends": null,
+        "fields": {
+          "total": {
+            "type": "number",
+            "required": true
+          },
+          "items": {
+            "type": "BudgetCategoryItemDTO[]",
+            "required": true
+          }
+        },
+        "file": "budget-category-list-response.dto.ts"
+      },
+      {
+        "class": "BudgetDetailDTO",
+        "extends": null,
+        "fields": {
+          "id": {
+            "type": "string",
+            "required": true
+          },
+          "total": {
+            "type": "number",
+            "required": true
+          },
+          "categoryIds": {
+            "type": "string[]",
+            "required": true
+          },
+          "createdAt": {
+            "type": "string",
+            "required": true
+          },
+          "updatedAt": {
+            "type": "string",
+            "required": true
+          }
+        },
+        "file": "budget-detail.dto.ts"
+      },
+      {
+        "class": "BudgetGroupItemDTO",
+        "extends": null,
+        "fields": {
+          "categoryId": {
+            "type": "string",
+            "required": true
+          },
+          "categoryName": {
+            "type": "string",
+            "required": true
+          },
+          "type": {
+            "type": "CategoryType",
+            "required": true
+          },
+          "icon": {
+            "type": "string",
+            "required": true
+          },
+          "color": {
+            "type": "string",
+            "required": false
+          },
+          "totalBudget": {
+            "type": "number",
+            "required": true
+          },
+          "totalUsed": {
+            "type": "number",
+            "required": true
+          },
+          "totalRemaining": {
+            "type": "number",
+            "required": true
+          },
+          "isOver": {
+            "type": "boolean",
+            "required": true
+          },
+          "budgets": {
+            "type": "BudgetCategoryPeriodItemDTO[]",
+            "required": true
+          }
+        },
+        "file": "budget-group-item.dto.ts"
+      },
+      {
+        "class": "BudgetCategoryPeriodItemDTO",
+        "file": "budget-category-period-item.dto.ts",
+        "extends": "BaseGroupItemDTO",
+        "fromModule": "common"
+      },
+      {
+        "class": "BudgetCategoryCreateRequestDTO",
+        "file": "budget-category-request.dto.ts",
+        "extends": "BaseBudgetCategoryRequestDTO",
+        "fromModule": "budgets"
+      },
+      {
+        "class": "BudgetCategoryUpdateRequestDTO",
+        "file": "budget-category-request.dto.ts",
+        "extends": "PartialType",
+        "composedFrom": "BudgetCategoryCreateRequestDTO"
+      },
+      {
+        "class": "BudgetGroupSummaryDTO",
+        "file": "budget-group-summary.dto.ts",
+        "extends": "BaseListSummaryResponseDTO",
+        "fromModule": "common"
+      },
+      {
+        "class": "BaseBudgetCategoryRequestDTO",
+        "file": "budget-category-request.dto.ts",
+        "fields": {
+          "categoryId": {
+            "type": "string",
+            "required": true
+          },
+          "amount": {
+            "type": "number",
+            "required": true
+          },
+          "startDate": {
+            "type": "string",
+            "required": true
+          },
+          "endDate": {
+            "type": "string",
+            "required": true
+          },
+          "type": {
+            "type": "CategoryType",
+            "required": true
+          }
+        }
+      }
+    ]
+  },
+  "routes": [
+    {
+      "operation": "GetBudgetSummary",
+      "method": "GET",
+      "path": "/budgets/summary",
+      "controllerMethod": "getSummary",
+      "serviceMethod": "getSummary",
+      "inputDto": "DateRangeWithGroupQueryDTO",
+      "outputDto": "BudgetGroupSummaryDTO",
+      "description": "특정 기간 동안 전체 예산과 실제 지출 통계를 비교하여 요약 반환",
+      "tags": ["Budgets", "Summary"],
+      "statusCodes": [200, 404],
+      "logicNotes": {
+        "steps": [
+          "1. userId로 사용자 조회. 존재하지 않으면 NotFoundException",
+          "2. 사용자 timezone 기반으로 startDate, endDate를 UTC로 변환",
+          "3. 해당 기간 동안의 BudgetCategory 금액 합산",
+          "4. 같은 기간의 'expense' 타입 거래들을 조회 후 금액 합산",
+          "5. 예산 대비 실제 지출 비율(rate) 계산",
+          "6. BudgetGroupSummaryDTO 구조로 응답 구성"
+        ],
+        "expectedExceptions": [
+          "NotFoundException: 존재하지 않는 유저로 요청한 경우"
+        ]
+      }
+    },
+    {
+      "operation": "CreateBudgetCategory",
+      "method": "POST",
+      "path": "/budgets",
+      "controllerMethod": "create",
+      "serviceMethod": "create",
+      "inputDto": "BudgetCategoryCreateRequestDTO",
+      "outputDto": "BudgetCategoryItemDTO",
+      "description": "카테고리와 기간 기반으로 새로운 예산 항목 생성. 중복된 기간 등록 시 ConflictException 발생",
+      "tags": ["Budgets"],
+      "statusCodes": [201, 409],
+      "logicNotes": {
+        "steps": [
+          "1. dto.categoryId, startDate, endDate 조합으로 이미 등록된 BudgetCategory 존재 여부 확인",
+          "2. 존재할 경우 ConflictException 발생",
+          "3. 존재하지 않으면 새 BudgetCategory 레코드 생성 및 예산 금액 설정"
+        ],
+        "expectedExceptions": [
+          "ConflictException: 이미 등록된 category + 기간 조합이 존재할 때"
+        ]
+      }
+    },
+    {
+      "operation": "UpdateBudgetCategory",
+      "method": "PATCH",
+      "path": "/budgets/:id",
+      "controllerMethod": "update",
+      "serviceMethod": "update",
+      "inputDto": "BudgetCategoryUpdateRequestDTO",
+      "outputDto": "BudgetCategoryItemDTO",
+      "description": "기존 예산 항목(BudgetCategory)의 금액 또는 기간 정보 수정",
+      "tags": ["Budgets"],
+      "statusCodes": [200, 404],
+      "logicNotes": {
+        "steps": [
+          "1. id로 BudgetCategory 존재 여부 확인",
+          "2. 존재하지 않으면 NotFoundException",
+          "3. dto 기반으로 amount, 기간 정보 등 업데이트 수행"
+        ],
+        "expectedExceptions": [
+          "NotFoundException: 존재하지 않는 예산 항목 수정 시"
+        ]
+      }
+    },
+    {
+      "operation": "GetBudgetCategoriesByPeriod",
+      "method": "GET",
+      "path": "/budgets/categories",
+      "controllerMethod": "getBudgetCategories",
+      "serviceMethod": "getBudgetCategories",
+      "inputDto": "DateRangeWithGroupQueryDTO",
+      "outputDto": "BudgetCategoryListResponseDTO",
+      "description": "선택된 기간 동안의 BudgetCategory 목록 조회",
+      "tags": ["Budgets", "Categories"],
+      "statusCodes": [200],
+      "logicNotes": {
+        "steps": [
+          "1. 유저 ID와 날짜 범위로 BudgetCategory 조회",
+          "2. 각 카테고리의 예산 항목을 기간별로 반환"
+        ],
+        "expectedExceptions": []
+      }
+    }
+  ]
+}

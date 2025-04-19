@@ -1,0 +1,19 @@
+{
+  "module": "Test",
+  "description": "전역 테스트 목업 객체와 공통 테스트 유틸리티를 관리하는 테스트 지원 레이어",
+  "mockFactories": [
+    "mocks/auth.mockHelpers.ts",
+    "mocks/mockHelpers.ts"
+  ],
+  "testUtils": [],
+  "specs": [],
+  "files": [
+    "mocks/auth.mockHelpers.ts",
+    "mocks/mockHelpers.ts"
+  ],
+  "entryPoints": [],
+  "types": [],
+  "dto": [],
+  "guards": [],
+  "routes": []
+}

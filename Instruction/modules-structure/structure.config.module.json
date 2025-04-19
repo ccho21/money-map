@@ -1,0 +1,15 @@
+{
+  "module": "Config",
+  "description": "환경변수, 설정 서비스, 상수 등을 포함할 수 있는 글로벌 설정 레이어입니다. 현재는 명시적 설정 파일 없음.",
+  "env": [],
+  "services": [],
+  "constants": [],
+  "files": [],
+  "entryPoints": [],
+  "types": [],
+  "dto": [],
+  "guards": [],
+  "decorators": [],
+  "routes": [],
+  "tests": []
+}

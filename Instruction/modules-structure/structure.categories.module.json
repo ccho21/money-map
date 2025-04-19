@@ -1,0 +1,203 @@
+{
+  "module": "Categories",
+  "entryPoints": {
+    "service": "src/categories/categories.service.ts",
+    "controller": "src/categories/categories.controller.ts"
+  },
+  "description": "사용자 정의 카테고리를 생성, 수정, 삭제하고 거래 분류 기준으로 활용하는 모듈",
+  "tests": {
+    "serviceSpec": "src/categories/categories.service.spec.ts",
+    "controllerSpec": "src/categories/categories.controller.spec.ts"
+  },
+  "utils": [],
+  "dto": {
+    "directory": "src/categories/dto",
+    "mainDTOs": [
+      {
+        "class": "CategoryDTO",
+        "extends": null,
+        "fields": {
+          "id": {
+            "type": "string",
+            "required": true
+          },
+          "name": {
+            "type": "string",
+            "required": true
+          },
+          "example": {
+            "type": "'expense',\n    enum: ['income', 'expense'],\n    description: '카테고리 타입',\n  })\n  type: CategoryType",
+            "required": true
+          },
+          "icon": {
+            "type": "string",
+            "required": false
+          },
+          "color": {
+            "type": "string",
+            "required": false
+          }
+        },
+        "file": "category.dto.ts"
+      },
+      {
+        "class": "CategoryCreateRequestDTO",
+        "file": "category-request.dto.ts",
+        "extends": "BaseCategoryDTO",
+        "request": true,
+        "fromModule": "categories"
+      },
+      {
+        "class": "CategoryUpdateRequestDTO",
+        "file": "category-request.dto.ts",
+        "extends": "PartialType",
+        "request": true,
+        "composedFrom": "CategoryCreateRequestDTO"
+      },
+      {
+        "class": "BaseCategoryDTO",
+        "file": "category-request.dto.ts",
+        "extends": null,
+        "request": true,
+        "fields": {
+          "name": {
+            "type": "string",
+            "required": true
+          },
+          "icon": {
+            "type": "string",
+            "required": true
+          },
+          "color": {
+            "type": "string",
+            "required": false
+          },
+          "type": {
+            "type": "CategoryType",
+            "required": true
+          }
+        }
+      }
+    ]
+  },
+  "routes": [
+    {
+      "operation": "CreateCategory",
+      "method": "POST",
+      "path": "/categories",
+      "controllerMethod": "create",
+      "serviceMethod": "create",
+      "inputDto": "CategoryCreateRequestDTO",
+      "description": "새 카테고리를 등록합니다.",
+      "tags": [
+        "Categories"
+      ],
+      "statusCodes": [
+        201
+      ],
+      "logicNotes": {
+        "steps": [
+          "1. dto + userId 조합으로 카테고리 생성"
+        ],
+        "expectedExceptions": []
+      }
+    },
+    {
+      "operation": "GetAllCategories",
+      "method": "GET",
+      "path": "/categories",
+      "controllerMethod": "findAll",
+      "serviceMethod": "findAllByUser",
+      "description": "사용자의 전체 카테고리 목록을 반환합니다.",
+      "tags": [
+        "Categories"
+      ],
+      "statusCodes": [
+        200
+      ],
+      "logicNotes": {
+        "steps": [
+          "1. userId 기준으로 category.findMany() 실행"
+        ],
+        "expectedExceptions": []
+      }
+    },
+    {
+      "operation": "GetCategoryById",
+      "method": "GET",
+      "path": "/categories/:id",
+      "controllerMethod": "findOne",
+      "serviceMethod": "findOne",
+      "description": "특정 ID의 카테고리를 조회합니다.",
+      "tags": [
+        "Categories"
+      ],
+      "statusCodes": [
+        200,
+        404
+      ],
+      "logicNotes": {
+        "steps": [
+          "1. category.findFirst({ where: { id, userId } }) 실행",
+          "2. 결과 없으면 NotFoundException 발생"
+        ],
+        "expectedExceptions": [
+          "NotFoundException: 카테고리를 찾을 수 없습니다."
+        ]
+      }
+    },
+    {
+      "operation": "UpdateCategory",
+      "method": "PATCH",
+      "path": "/categories/:id",
+      "controllerMethod": "update",
+      "serviceMethod": "update",
+      "inputDto": "CategoryUpdateRequestDTO",
+      "description": "카테고리 정보를 수정합니다.",
+      "tags": [
+        "Categories"
+      ],
+      "statusCodes": [
+        200,
+        403
+      ],
+      "logicNotes": {
+        "steps": [
+          "1. category.findUnique({ where: { id } }) 조회",
+          "2. userId 일치 여부 확인",
+          "3. 권한 없으면 ForbiddenException 발생",
+          "4. dto 기반으로 category 업데이트"
+        ],
+        "expectedExceptions": [
+          "ForbiddenException: 수정 권한 없음"
+        ]
+      }
+    },
+    {
+      "operation": "DeleteCategory",
+      "method": "DELETE",
+      "path": "/categories/:id",
+      "controllerMethod": "remove",
+      "serviceMethod": "delete",
+      "description": "카테고리를 삭제합니다.",
+      "tags": [
+        "Categories"
+      ],
+      "statusCodes": [
+        200,
+        403
+      ],
+      "logicNotes": {
+        "steps": [
+          "1. category.findUnique({ where: { id: categoryId } }) 조회",
+          "2. userId 일치 여부 확인",
+          "3. 권한 없으면 ForbiddenException 발생",
+          "4. category.delete() 실행"
+        ],
+        "expectedExceptions": [
+          "ForbiddenException: 삭제 권한 없음"
+        ]
+      }
+    }
+  ]
+}

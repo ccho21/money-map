@@ -1,0 +1,434 @@
+{
+  "module": "Accounts",
+  "entryPoints": {
+    "service": "src/accounts/accounts.service.ts",
+    "controller": "src/accounts/accounts.controller.ts"
+  },
+  "description": "사용자의 계좌를 생성, 수정, 조회, 삭제하며, 각 계좌의 거래 요약 및 대시보드 데이터 제공",
+  "tests": {
+    "serviceSpec": "src/accounts/accounts.service.spec.ts",
+    "controllerSpec": "src/accounts/accounts.controller.spec.ts"
+  },
+  "utils": [],
+  "dto": {
+    "directory": "src/accounts/dto",
+    "mainDTOs": [
+      {
+        "class": "AccountDashboardItemDTO",
+        "file": "account-dashboard.dto.ts",
+        "extends": null,
+        "fields": {
+          "id": {
+            "type": "string",
+            "required": true
+          },
+          "name": {
+            "type": "string",
+            "required": true
+          },
+          "type": {
+            "type": "AccountType",
+            "required": true
+          },
+          "financialType": {
+            "type": "'ASSET' | 'LIABILITY'",
+            "required": true
+          },
+          "amount": {
+            "type": "number",
+            "required": true
+          },
+          "balancePayable": {
+            "type": "number",
+            "required": false
+          },
+          "outstandingBalance": {
+            "type": "number",
+            "required": false
+          },
+          "settlementDate": {
+            "type": "number | null",
+            "required": false
+          },
+          "paymentDate": {
+            "type": "number | null",
+            "required": false
+          },
+          "autoPayment": {
+            "type": "boolean",
+            "required": false
+          }
+        }
+      },
+      {
+        "class": "AccountDashboardDTO",
+        "file": "account-dashboard.dto.ts",
+        "extends": null,
+        "fields": {
+          "asset": {
+            "type": "number",
+            "required": true
+          },
+          "liability": {
+            "type": "number",
+            "required": true
+          },
+          "total": {
+            "type": "number",
+            "required": true
+          },
+          "data": {
+            "type": "{ CASH: AccountDashboardItemDTO[], BANK: AccountDashboardItemDTO[], CARD: AccountDashboardItemDTO[] }",
+            "required": true
+          }
+        }
+      },
+      {
+        "class": "AccountDetailDTO",
+        "file": "account-detail.dto.ts",
+        "extends": null,
+        "fields": {
+          "id": {
+            "type": "string",
+            "required": true
+          },
+          "name": {
+            "type": "string",
+            "required": true
+          },
+          "type": {
+            "type": "AccountType",
+            "required": true
+          },
+          "balance": {
+            "type": "number",
+            "required": true
+          },
+          "description": {
+            "type": "string",
+            "required": false
+          },
+          "color": {
+            "type": "string",
+            "required": false
+          },
+          "settlementDate": {
+            "type": "number",
+            "required": false
+          },
+          "paymentDate": {
+            "type": "number",
+            "required": false
+          },
+          "autoPayment": {
+            "type": "boolean",
+            "required": false
+          }
+        }
+      },
+      {
+        "class": "BaseAccountRequestDTO",
+        "file": "account-request.dto.ts",
+        "fields": {
+          "type": {
+            "type": "AccountType",
+            "required": true
+          },
+          "name": {
+            "type": "string",
+            "required": true
+          },
+          "color": {
+            "type": "string",
+            "required": false
+          },
+          "balance": {
+            "type": "number",
+            "required": true
+          },
+          "description": {
+            "type": "string",
+            "required": false
+          },
+          "settlementDate": {
+            "type": "number",
+            "required": false
+          },
+          "paymentDate": {
+            "type": "number",
+            "required": false
+          },
+          "autoPayment": {
+            "type": "boolean",
+            "required": false
+          }
+        }
+      },
+      {
+        "class": "AccountCreateRequestDTO",
+        "file": "account-request.dto.ts",
+        "request": true,
+        "extends": "BaseAccountRequestDTO",
+        "fields": {
+          "type": {
+            "type": "AccountType",
+            "required": true
+          },
+          "name": {
+            "type": "string",
+            "required": true
+          },
+          "color": {
+            "type": "string",
+            "required": false
+          },
+          "balance": {
+            "type": "number",
+            "required": true
+          },
+          "description": {
+            "type": "string",
+            "required": false
+          },
+          "settlementDate": {
+            "type": "number",
+            "required": false
+          },
+          "paymentDate": {
+            "type": "number",
+            "required": false
+          },
+          "autoPayment": {
+            "type": "boolean",
+            "required": false
+          }
+        }
+      },
+      {
+        "class": "AccountUpdateRequestDTO",
+        "file": "account-request.dto.ts",
+        "request": true,
+        "extends": "PartialType",
+        "composedFrom": "AccountCreateRequestDTO",
+        "fields": {
+          "type": {
+            "type": "AccountType",
+            "required": false
+          },
+          "name": {
+            "type": "string",
+            "required": false
+          },
+          "color": {
+            "type": "string",
+            "required": false
+          },
+          "balance": {
+            "type": "number",
+            "required": false
+          },
+          "description": {
+            "type": "string",
+            "required": false
+          },
+          "settlementDate": {
+            "type": "number",
+            "required": false
+          },
+          "paymentDate": {
+            "type": "number",
+            "required": false
+          },
+          "autoPayment": {
+            "type": "boolean",
+            "required": false
+          }
+        }
+      },
+      {
+        "class": "AccountTransactionItemDTO",
+        "file": "account-transaction-item.dto.ts",
+        "extends": "BaseGroupItemDTO",
+        "fields": {
+          "accountId": {
+            "type": "string",
+            "required": true
+          },
+          "accountName": {
+            "type": "string",
+            "required": true
+          },
+          "balance": {
+            "type": "number",
+            "required": true
+          },
+          "totalIncome": {
+            "type": "number",
+            "required": true
+          },
+          "totalExpense": {
+            "type": "number",
+            "required": true
+          },
+          "transactions": {
+            "type": "TransactionDetailDTO[]",
+            "required": false
+          }
+        },
+        "fromModule": "common"
+      },
+      {
+        "class": "AccountTransactionSummaryDTO",
+        "file": "account-transaction-summary.dto.ts",
+        "extends": "BaseListSummaryResponseDTO",
+        "fields": {},
+        "fromModule": "common"
+      }
+    ]
+  },
+  "routes": [
+    {
+      "operation": "CreateAccount",
+      "method": "POST",
+      "path": "/accounts",
+      "controllerMethod": "create",
+      "serviceMethod": "create",
+      "inputDto": "AccountCreateRequestDTO",
+      "outputDto": "AccountDetailDTO",
+      "description": "새 계좌 생성. CARD 타입일 경우 결제일/청구일 자동 설정",
+      "tags": ["Accounts"],
+      "statusCodes": [201, 400, 403],
+      "logicNotes": {
+        "steps": [
+          "1. 사용자 ID로 User 조회 (존재하지 않으면 Error)",
+          "2. User의 timezone 기준 현재 날짜 계산",
+          "3. dto.type === 'CARD'일 경우:",
+          "   - settlementDate = getValidDay(year, month, dto.settlementDate)",
+          "   - paymentDate = getValidDay(year, month, dto.paymentDate)",
+          "   - autoPayment = dto.autoPayment ?? false",
+          "4. Prisma 트랜잭션 시작:",
+          "   - 계좌(account) 생성",
+          "   - dto.balance > 0인 경우 Opening Deposit 트랜잭션 생성 (type: income)"
+        ],
+        "typeConditional": {
+          "CARD": [
+            "결제일, 청구일, autoPayment 필드를 dto에서 가져옴",
+            "해당 필드들은 유효 날짜인지 검증 필요 (getValidDay)"
+          ],
+          "CASH/BANK": ["조건부 필드는 null로 저장 또는 무시됨"]
+        },
+        "expectedExceptions": [
+          "Error: User not found → 사용자 조회 실패 시",
+          "BadRequestException: dto.balance가 음수 또는 잘못된 날짜일 경우"
+        ]
+      }
+    },
+    {
+      "operation": "GetAllAccounts",
+      "method": "GET",
+      "path": "/accounts",
+      "controllerMethod": "findAll",
+      "serviceMethod": "findAll",
+      "description": "로그인된 사용자의 전체 계좌 목록 조회",
+      "tags": ["Accounts"],
+      "statusCodes": [200],
+      "logicNotes": {
+        "steps": [
+          "1. userId를 기반으로 prisma.account.findMany 실행",
+          "2. userId 일치하는 모든 계좌 리스트 반환"
+        ],
+        "expectedExceptions": []
+      }
+    },
+    {
+      "operation": "GetGroupedTransactions",
+      "method": "GET",
+      "path": "/accounts/grouped-transactions",
+      "controllerMethod": "getGroupedTransactions",
+      "serviceMethod": "getGroupedTransactions",
+      "inputDto": "DateQueryDTO",
+      "outputDto": "AccountTransactionSummaryDTO",
+      "description": "계좌별 거래 요약 통계 반환",
+      "tags": ["Accounts", "Transactions"],
+      "statusCodes": [200, 400],
+      "logicNotes": {
+        "steps": [
+          "1. userId로 사용자 timezone 확인",
+          "2. timezone을 기준으로 날짜 범위 UTC 변환",
+          "3. user의 전체 account 목록 가져오기",
+          "4. 각 account별로 group된 거래 데이터 계산",
+          "5. 최종 요약 통계 DTO로 리턴"
+        ],
+        "expectedExceptions": [
+          "BadRequestException: 날짜 범위가 잘못되었거나 누락된 경우"
+        ]
+      }
+    },
+    {
+      "operation": "GetAccountSummary",
+      "method": "GET",
+      "path": "/accounts/:accountId/summary",
+      "controllerMethod": "getAccountSummary",
+      "serviceMethod": "getAccountSummary",
+      "inputDto": "DateRangeWithGroupQueryDTO",
+      "outputDto": "TransactionGroupSummaryDTO",
+      "description": "단일 계좌의 기간별 그룹 거래 통계 반환",
+      "tags": ["Accounts", "Transactions", "Summary"],
+      "statusCodes": [200, 403, 404],
+      "logicNotes": {
+        "steps": [
+          "1. accountId에 해당하는 계좌가 user 소유인지 확인",
+          "2. 필터된 날짜 범위 기반으로 group된 거래 요약 계산",
+          "3. 그룹별 통계 결과 DTO로 반환"
+        ],
+        "expectedExceptions": [
+          "ForbiddenException: 계좌가 현재 로그인 유저의 소유가 아닐 경우",
+          "NotFoundException: 존재하지 않는 계좌 접근 시"
+        ]
+      }
+    },
+    {
+      "operation": "UpdateAccount",
+      "method": "PATCH",
+      "path": "/accounts/:id",
+      "controllerMethod": "update",
+      "serviceMethod": "update",
+      "inputDto": "AccountUpdateRequestDTO",
+      "outputDto": "AccountDetailDTO",
+      "description": "계좌 정보 수정 (색상, 설명 등 변경 가능)",
+      "tags": ["Accounts"],
+      "statusCodes": [200, 403, 404],
+      "logicNotes": {
+        "steps": [
+          "1. accountId에 해당하는 계좌 조회",
+          "2. user 소유 계좌가 아니면 ForbiddenException",
+          "3. dto 기반으로 계좌 정보 업데이트 실행"
+        ],
+        "expectedExceptions": [
+          "ForbiddenException: 유저가 계좌에 접근 권한이 없을 때",
+          "NotFoundException: 계좌가 존재하지 않을 때"
+        ]
+      }
+    },
+    {
+      "operation": "DeleteAccount",
+      "method": "DELETE",
+      "path": "/accounts/:id",
+      "controllerMethod": "remove",
+      "serviceMethod": "remove",
+      "description": "계좌 삭제 처리. 권한 및 존재 여부 확인",
+      "tags": ["Accounts"],
+      "statusCodes": [200, 403, 404],
+      "logicNotes": {
+        "steps": [
+          "1. 계좌가 유저 소유인지 확인",
+          "2. 해당 계좌 삭제 실행 (cascade 아님)"
+        ],
+        "expectedExceptions": [
+          "ForbiddenException: 유저가 소유하지 않은 계좌 삭제 시",
+          "NotFoundException: 존재하지 않는 계좌 삭제 시"
+        ]
+      }
+    }
+  ]
+}

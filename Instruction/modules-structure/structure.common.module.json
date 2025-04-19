@@ -1,0 +1,136 @@
+{
+  "module": "Common",
+  "description": "전역에서 사용되는 공통 데코레이터, 가드, 타입, 필터 기반 DTO를 포함한 기반 유틸리티 모듈",
+  "decorators": ["decorators/get-user.decorator.ts"],
+  "guards": ["guards/jwt.guard.ts", "guards/refresh-token.guard.ts"],
+  "dto": {
+    "directory": "src/common/dto",
+    "mainDTOs": [
+      {
+        "class": "BaseDateQueryDTO",
+        "file": "filter/base-date-query.dto.ts",
+        "fields": {
+          "date": {
+            "type": "string",
+            "required": true
+          }
+        }
+      },
+      {
+        "class": "DateQueryDTO",
+        "file": "filter/date-query.dto.ts",
+        "fields": {
+          "startDate": {
+            "type": "string",
+            "required": false
+          },
+          "endDate": {
+            "type": "string",
+            "required": false
+          }
+        }
+      },
+      {
+        "class": "DateRangeWithTimezoneQueryDTO",
+        "file": "filter/date-range-with-timezone-query.dto.ts",
+        "extends": "DateQueryDTO",
+        "fields": {
+          "timezone": {
+            "type": "string",
+            "required": false
+          }
+        }
+      },
+      {
+        "class": "DateRangeWithGroupQueryDTO",
+        "file": "filter/date-range-with-group-query.dto.ts",
+        "extends": "DateQueryDTO",
+        "fields": {
+          "groupBy": {
+            "type": "GroupBy",
+            "required": false
+          }
+        }
+      },
+      {
+        "class": "DateRangeFullQueryDTO",
+        "file": "filter/date-range-full-query.dto.ts",
+        "extends": "DateRangeWithTimezoneQueryDTO",
+        "fields": {
+          "groupBy": {
+            "type": "GroupBy",
+            "required": false
+          }
+        }
+      },
+      {
+        "class": "BaseGroupItemDTO",
+        "file": "group/base-group-item.dto.ts",
+        "fields": {
+          "label": {
+            "type": "string",
+            "required": true
+          },
+          "rangeStart": {
+            "type": "string",
+            "required": true
+          },
+          "rangeEnd": {
+            "type": "string",
+            "required": true
+          }
+        }
+      },
+      {
+        "class": "BaseListSummaryResponseDTO",
+        "file": "group/base-list-summary-response.dto.ts",
+        "fields": {
+          "startDate": {
+            "type": "string",
+            "required": true
+          },
+          "endDate": {
+            "type": "string",
+            "required": true
+          },
+          "groupBy": {
+            "type": "GroupBy",
+            "required": true
+          },
+          "type": {
+            "type": "'income' | 'expense'",
+            "required": false
+          },
+          "summary": {
+            "type": "T",
+            "required": false
+          },
+          "items": {
+            "type": "T[]",
+            "required": true
+          },
+          "totalIncome": {
+            "type": "number",
+            "required": false
+          },
+          "totalExpense": {
+            "type": "number",
+            "required": false
+          }
+        }
+      }
+    ]
+  },
+  "types": ["types/types.ts"],
+  "exceptions": [],
+  "utils": [],
+  "tests": [],
+  "entryPoints": [],
+  "routes": [],
+  "typesDetail": [
+    {
+      "kind": "enum",
+      "name": "GroupBy"
+    }
+  ]
+}
