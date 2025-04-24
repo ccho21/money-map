@@ -26,8 +26,8 @@ import {
 } from '@/transactions/dto/transaction-request.dto';
 import { DateRangeWithGroupQueryDTO } from '@/common/dto/filter/date-range-with-group-query.dto';
 import { GroupBy } from '@/common/types/types';
-import { BaseDateQueryDTO } from '@/common/dto/filter/base-date-query.dto';
 import { TransactionGroupSummaryDTO } from './dto/transaction-group-summary.dto';
+import { TransactionDetailDTO } from './dto/transaction-detail.dto';
 
 @ApiTags('Transactions')
 @UseGuards(JwtAuthGuard)
@@ -72,7 +72,7 @@ export class TransactionsController {
   @Get('calendar')
   getCalendarView(
     @GetUser() user: UserPayload,
-    @Query() query: BaseDateQueryDTO,
+    @Query() query: DateRangeWithGroupQueryDTO,
   ) {
     return this.transactionService.getTransactionCalendarView(user.id, query);
   }
@@ -96,7 +96,10 @@ export class TransactionsController {
   }
 
   @Get(':id')
-  findOne(@GetUser() user: UserPayload, @Param('id') id: string) {
+  findOne(
+    @GetUser() user: UserPayload,
+    @Param('id') id: string,
+  ): Promise<TransactionDetailDTO> {
     return this.transactionService.getTransactionById(user.id, id);
   }
 

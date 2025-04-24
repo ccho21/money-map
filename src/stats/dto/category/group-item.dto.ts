@@ -26,15 +26,15 @@ export class StatsCategoryGroupItemDTO extends BaseGroupItemDTO {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  budgetId?: string;
+  budgetId?: string | null;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsNumber()
-  budget?: number;
+  budget?: number | null;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsNumber()
-  budgetRate?: number;
+  budgetRate?: number | null;
 }

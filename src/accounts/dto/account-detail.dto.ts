@@ -29,25 +29,25 @@ export class AccountDetailDTO {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  description?: string;
+  description?: string | null;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  color?: string;
+  color?: string | null;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsInt()
-  settlementDate?: number;
+  settlementDate?: number | null;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsInt()
-  paymentDate?: number;
+  paymentDate?: number | null;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsBoolean()
-  autoPayment?: boolean;
+  autoPayment?: boolean | null;
 }

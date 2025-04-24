@@ -10,7 +10,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { EventsGateway } from 'src/events/events.gateway';
 import { Prisma, TransactionType } from '@prisma/client';
 
-import { format, parseISO } from 'date-fns';
+import { format } from 'date-fns';
 import { toZonedTime } from 'date-fns-tz';
 
 import { getUserTimezone } from '@/libs/timezone';
@@ -25,8 +25,6 @@ import {
   getUTCStartDate,
 } from '@/libs/date.util';
 import { DateRangeWithGroupQueryDTO } from '@/common/dto/filter/date-range-with-group-query.dto';
-import { GroupBy } from '@/common/types/types';
-import { BaseDateQueryDTO } from '@/common/dto/filter/base-date-query.dto';
 import { recalculateAccountBalanceInTx } from './utils/recalculateAccountBalanceInTx.util';
 import { TransactionGroupSummaryDTO } from './dto/transaction-group-summary.dto';
 import { TransactionDetailDTO } from './dto/transaction-detail.dto';
@@ -49,7 +47,7 @@ export class TransactionsService {
     if (!user) throw new Error('User not found');
 
     const category = await this.prisma.category.findUnique({
-      where: { id: dto.categoryId },
+      where: { id: dto.categoryId as string },
     });
     if (!category) {
       throw new NotFoundException('카테고리를 찾을 수 없습니다.');
@@ -86,7 +84,7 @@ export class TransactionsService {
     // ✅ 예산 초과 경고는 트랜잭션 외부에서 처리
     const budgetItem = await this.prisma.budgetCategory.findFirst({
       where: {
-        categoryId: dto.categoryId,
+        categoryId: dto.categoryId as string,
         budget: { userId },
       },
     });
@@ -188,16 +186,66 @@ export class TransactionsService {
     return { message: '삭제 완료' };
   }
 
-  async getTransactionById(userId: string, transactionId: string) {
+  async getTransactionById(
+    userId: string,
+    transactionId: string,
+  ): Promise<TransactionDetailDTO> {
     const tx = await this.prisma.transaction.findUnique({
       where: { id: transactionId },
-      include: { category: true, account: true },
+      include: {
+        category: true,
+        account: true,
+        toAccount: true,
+      },
     });
 
     if (!tx || tx.userId !== userId)
       throw new ForbiddenException('Access denied');
 
-    return tx;
+    const transactionDetailDTO: TransactionDetailDTO = {
+      id: tx.id,
+      type: tx.type,
+      amount: tx.amount,
+      accountId: tx.accountId,
+      toAccountId: tx.toAccountId ?? null,
+      linkedTransferId: tx.linkedTransferId ?? null,
+      date: tx.date.toISOString(),
+      createdAt: tx.createdAt.toISOString(),
+      note: tx.note ?? null,
+      description: tx.description ?? null,
+      dueDate: tx.dueDate?.toISOString() ?? null,
+      paidAt: tx.paidAt?.toISOString() ?? null,
+
+      category: tx.category
+        ? {
+            id: tx.category.id,
+            name: tx.category.name,
+            icon: tx.category.icon,
+            color: tx.category.color,
+            type: tx.category.type,
+          }
+        : null,
+
+      account: {
+        id: tx.account.id,
+        name: tx.account.name,
+        type: tx.account.type,
+        color: tx.account.color ?? null,
+        balance: tx.account.balance,
+      },
+
+      toAccount: tx.toAccount
+        ? {
+            id: tx.toAccount.id,
+            name: tx.toAccount.name,
+            type: tx.toAccount.type,
+            balance: tx.account.balance,
+            color: tx.toAccount.color ?? null,
+          }
+        : null,
+    };
+
+    return transactionDetailDTO;
   }
 
   async getTransactionSummary(
@@ -266,8 +314,8 @@ export class TransactionsService {
         note: tx.note ?? '',
         description: tx.description ?? '',
         accountId: tx.accountId,
-        toAccountId: tx.toAccountId ?? undefined,
-        linkedTransferId: tx.linkedTransferId ?? undefined,
+        toAccountId: tx.toAccountId ?? null,
+        linkedTransferId: tx.linkedTransferId ?? null,
         date: tx.date.toISOString(),
         createdAt: tx.createdAt.toISOString(),
         category: tx.category
@@ -283,14 +331,16 @@ export class TransactionsService {
           id: tx.account.id,
           name: tx.account.name,
           type: tx.account.type,
-          color: tx.account.color ?? undefined,
+          balance: tx.account.balance,
+          color: tx.account.color ?? null,
         },
         toAccount: tx.toAccount
           ? {
               id: tx.toAccount.id,
               name: tx.toAccount.name,
               type: tx.toAccount.type,
-              color: tx.toAccount.color ?? undefined,
+              balance: tx.toAccount.balance,
+              color: tx.toAccount.color ?? null,
             }
           : undefined,
       });
@@ -335,24 +385,21 @@ export class TransactionsService {
 
   async getTransactionCalendarView(
     userId: string,
-    query: BaseDateQueryDTO,
+    query: DateRangeWithGroupQueryDTO,
   ): Promise<TransactionCalendarDTO[]> {
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user) {
-      throw new Error('User not found');
-    }
-    const timezone = getUserTimezone(user);
+    const { startDate, endDate } = query;
 
-    const { date } = query;
-    const { rangeStart, rangeEnd } = getDateRangeAndLabelByGroup(
-      parseISO(date),
-      GroupBy.MONTHLY,
-      timezone,
-    );
+    // 1️⃣ 유저 인증 및 타임존 확보
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new ForbiddenException('사용자를 찾을 수 없습니다.');
+
+    const timezone = getUserTimezone(user);
+    const start = getUTCStartDate(startDate, timezone);
+    const end = getUTCEndDate(endDate, timezone);
 
     const grouped = await this.prisma.transaction.groupBy({
       by: ['date', 'type'],
-      where: { userId, date: { gte: rangeStart, lte: rangeEnd } },
+      where: { userId, date: { gte: start, lte: end } },
       _sum: { amount: true },
     });
 

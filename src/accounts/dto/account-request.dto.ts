@@ -11,6 +11,7 @@ import {
   IsOptional,
   IsString,
   Min,
+  IsBoolean,
 } from 'class-validator';
 import { AccountType } from '@prisma/client';
 
@@ -24,9 +25,9 @@ export class BaseAccountRequestDTO {
   name: string;
 
   @ApiPropertyOptional()
-  @IsString()
   @IsOptional()
-  color?: string;
+  @IsString()
+  color?: string | null;
 
   @ApiProperty({ description: '초기 잔액' })
   @IsNumber()
@@ -34,23 +35,24 @@ export class BaseAccountRequestDTO {
   balance: number;
 
   @ApiPropertyOptional()
+  @IsOptional()
   @IsString()
-  @IsOptional()
-  description?: string;
+  description?: string | null;
 
   @ApiPropertyOptional()
+  @IsOptional()
   @IsInt()
-  @IsOptional()
-  settlementDate?: number;
+  settlementDate?: number | null;
 
   @ApiPropertyOptional()
+  @IsOptional()
   @IsInt()
-  @IsOptional()
-  paymentDate?: number;
+  paymentDate?: number | null;
 
   @ApiPropertyOptional()
   @IsOptional()
-  autoPayment?: boolean;
+  @IsBoolean()
+  autoPayment?: boolean | null;
 }
 
 @ApiExtraModels()

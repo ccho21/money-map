@@ -17,7 +17,7 @@ export class TransactionGroupItemDTO extends BaseGroupItemDTO {
 
   @ApiProperty()
   @IsBoolean()
-  isCurrent?: boolean;
+  isCurrent?: boolean | null;
 
   @ApiProperty({ type: [TransactionDetailDTO] })
   @IsArray()

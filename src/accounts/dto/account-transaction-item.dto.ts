@@ -1,5 +1,5 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsArray, IsNumber, IsString } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsArray, IsNumber, IsOptional, IsString } from 'class-validator';
 import { TransactionDetailDTO } from '@/transactions/dto/transaction-detail.dto';
 import { BaseGroupItemDTO } from '@/common/dto/base-group-item.dto';
 
@@ -27,7 +27,8 @@ export class AccountTransactionItemDTO extends BaseGroupItemDTO {
   @IsNumber()
   totalExpense: number;
 
-  @ApiProperty({ type: [TransactionDetailDTO] })
+  @ApiPropertyOptional({ type: [TransactionDetailDTO] })
+  @IsOptional()
   @IsArray()
-  transactions?: TransactionDetailDTO[];
+  transactions?: TransactionDetailDTO[] | null;
 }

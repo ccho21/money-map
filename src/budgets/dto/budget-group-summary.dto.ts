@@ -7,10 +7,10 @@ export class BudgetGroupSummaryDTO extends BaseListSummaryResponseDTO<BudgetGrou
   @ApiPropertyOptional()
   @IsOptional()
   @IsNumber()
-  totalBudget?: number;
+  totalBudget?: number | null;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsNumber()
-  rate?: number;
+  rate?: number | null;
 }

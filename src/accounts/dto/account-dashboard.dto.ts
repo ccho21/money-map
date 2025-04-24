@@ -33,12 +33,12 @@ export class AccountDashboardItemDTO {
   @ApiPropertyOptional()
   @IsOptional()
   @IsNumber()
-  balancePayable?: number;
+  balancePayable?: number | null;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsNumber()
-  outstandingBalance?: number;
+  outstandingBalance?: number | null;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -53,7 +53,7 @@ export class AccountDashboardItemDTO {
   @ApiPropertyOptional()
   @IsOptional()
   @IsBoolean()
-  autoPayment?: boolean;
+  autoPayment?: boolean | null;
 }
 
 export class AccountDashboardDTO {

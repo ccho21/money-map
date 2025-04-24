@@ -10,13 +10,13 @@ export class StatsBudgetGroupSummaryDTO extends BaseGroupItemDTO {
   expense: number;
 
   @ApiProperty()
-  budgetAmount?: number;
+  budgetAmount?: number | null;
 
   @ApiProperty()
-  remaining?: number;
+  remaining?: number | null;
 
   @ApiProperty()
-  isOver?: boolean;
+  isOver?: boolean | null;
 
   @ApiProperty()
   isCurrent: boolean;

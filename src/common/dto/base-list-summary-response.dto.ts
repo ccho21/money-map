@@ -20,7 +20,7 @@ export class BaseListSummaryResponseDTO<T> {
 
   @ApiProperty({ type: Object })
   @IsOptional()
-  summary?: T;
+  summary?: T | null;
 
   @ApiProperty({ type: [Object] })
   items: T[];
@@ -28,10 +28,10 @@ export class BaseListSummaryResponseDTO<T> {
   @ApiPropertyOptional()
   @IsOptional()
   @IsNumber()
-  totalIncome?: number;
+  totalIncome?: number | null;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsNumber()
-  totalExpense?: number;
+  totalExpense?: number | null;
 }

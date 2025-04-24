@@ -17,7 +17,7 @@ import { toZonedTime } from 'date-fns-tz';
 
 type GroupTransactionInput = Transaction & {
   account: Account;
-  category: Category | null;
+  category?: Category | null;
   toAccount?: Account | null;
 };
 
@@ -101,8 +101,8 @@ export function groupTransactions(
       note: tx.note ?? '',
       description: tx.description ?? '',
       accountId: tx.accountId,
-      toAccountId: tx.toAccountId ?? undefined,
-      linkedTransferId: tx.linkedTransferId ?? undefined,
+      toAccountId: tx.toAccountId ?? null,
+      linkedTransferId: tx.linkedTransferId ?? null,
       date: tx.date.toISOString(),
       createdAt: tx.createdAt.toISOString(),
       category: tx.category
@@ -117,6 +117,7 @@ export function groupTransactions(
         id: tx.account.id,
         name: tx.account.name,
         type: tx.account.type,
+        balance: tx.account.balance,
         color: tx.account.color ?? '#999999',
       },
     };

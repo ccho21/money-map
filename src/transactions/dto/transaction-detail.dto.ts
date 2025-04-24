@@ -1,4 +1,5 @@
-import { CategoryDTO } from '@/categories/dto/category.dto';
+import { AccountDetailDTO } from '@/accounts/dto/account-detail.dto';
+import { CategoryDetailDTO } from '@/categories/dto/category-detail.dto';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { TransactionType } from '@prisma/client';
 import {
@@ -13,58 +14,62 @@ export class TransactionDetailDTO {
   @ApiProperty()
   @IsString()
   id: string;
+
   @ApiProperty()
   @IsEnum(TransactionType)
   type: TransactionType;
+
   @ApiProperty()
   @IsInt()
   amount: number;
+
   @ApiProperty()
   @IsString()
   accountId: string;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  toAccountId?: string;
+  toAccountId?: string | null;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  linkedTransferId?: string;
+  linkedTransferId?: string | null;
+
   @ApiProperty()
   @IsDateString()
   date: string;
+
   @ApiProperty()
   @IsDateString()
   createdAt: string;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  note?: string;
+  note?: string | null;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  description?: string;
-  @ApiPropertyOptional({ type: () => CategoryDTO })
+  description?: string | null;
+
+  @ApiProperty({ type: () => AccountDetailDTO })
+  account: AccountDetailDTO;
+
+  @ApiPropertyOptional({ type: () => AccountDetailDTO })
   @IsOptional()
-  category?: CategoryDTO | null;
-  @ApiProperty()
-  account: {
-    id: string;
-    name: string;
-    type: string;
-    color?: string | null;
-  };
-  @ApiPropertyOptional()
+  toAccount?: AccountDetailDTO | null;
+
+  @ApiPropertyOptional({ type: () => CategoryDetailDTO })
   @IsOptional()
-  toAccount?: {
-    id: string;
-    name: string;
-    type: string;
-    color?: string | null;
-  };
+  category?: CategoryDetailDTO | null;
+
   @ApiPropertyOptional()
   @IsOptional()
   dueDate?: string | null;
+
   @ApiPropertyOptional()
   @IsOptional()
   paidAt?: string | null;

@@ -18,7 +18,7 @@ export class BudgetCategoryItemDTO {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  color?: string;
+  color?: string | null;
 
   @ApiProperty()
   @IsInt()
@@ -43,5 +43,5 @@ export class BudgetCategoryItemDTO {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  budgetId?: string;
+  budgetId?: string | null;
 }

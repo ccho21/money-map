@@ -369,7 +369,7 @@ export class AccountsService {
           date: { gte: startUTC, lte: endUTC },
         },
         orderBy: { date: 'asc' },
-        include: { category: true, account: true },
+        include: { category: true, account: true, toAccount: true },
       });
 
       const txDtos: TransactionDetailDTO[] = transactions.map((tx) => ({
@@ -393,8 +393,18 @@ export class AccountsService {
           id: tx.account.id,
           name: tx.account.name,
           type: tx.account.type,
+          balance: tx.account.balance,
           color: tx.account.color,
         },
+        toAccount: tx.toAccount
+          ? {
+              id: tx.toAccount.id,
+              name: tx.toAccount.name,
+              type: tx.toAccount.type,
+              balance: tx.toAccount.balance,
+              color: tx.toAccount.color,
+            }
+          : null,
       }));
 
       const totalIncome = txDtos
@@ -638,6 +648,7 @@ export class AccountsService {
           id: tx.account.id,
           name: tx.account.name,
           type: tx.account.type,
+          balance: tx.account.balance,
           color: tx.account.color ?? undefined,
         },
         toAccount: tx.toAccount
@@ -645,6 +656,7 @@ export class AccountsService {
               id: tx.toAccount.id,
               name: tx.toAccount.name,
               type: tx.toAccount.type,
+              balance: tx.toAccount.balance,
               color: tx.toAccount.color ?? undefined,
             }
           : undefined,
@@ -675,6 +687,7 @@ export class AccountsService {
         groupIncome: income,
         groupExpense: expense,
         transactions,
+        isCurrent: false,
       });
     }
 

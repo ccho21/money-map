@@ -35,17 +35,17 @@ export class BaseTransactionRequestDTO {
   @ApiPropertyOptional()
   @IsUUID()
   @IsOptional()
-  categoryId?: string;
+  categoryId?: string | null;
 
   @ApiPropertyOptional()
   @IsString()
   @IsOptional()
-  note?: string;
+  note?: string | null;
 
   @ApiPropertyOptional()
   @IsString()
   @IsOptional()
-  description?: string;
+  description?: string | null;
 }
 
 @ApiExtraModels()

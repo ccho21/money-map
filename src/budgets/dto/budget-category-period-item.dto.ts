@@ -24,7 +24,7 @@ export class BudgetCategoryPeriodItemDTO extends BaseGroupItemDTO {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  categoryId?: string;
+  categoryId?: string | null;
 
   @ApiProperty()
   @IsBoolean()

@@ -40,5 +40,5 @@ export class StatsBudgetGroupItemDTO extends BaseGroupItemDTO {
 
   @ApiPropertyOptional()
   @IsOptional()
-  budgetId?: string;
+  budgetId?: string | null;
 }

@@ -2,7 +2,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
 import { CategoryType } from '@prisma/client';
 
-export class CategoryDTO {
+export class CategoryDetailDTO {
   @ApiProperty({ example: 'abc123', description: '카테고리 ID' })
   @IsString()
   @IsNotEmpty()
@@ -22,10 +22,10 @@ export class CategoryDTO {
   @ApiProperty({ example: 'Utensils', description: 'lucide-react 아이콘 이름' })
   @IsOptional()
   @IsString()
-  icon?: string;
+  icon?: string | null;
 
   @ApiProperty({ example: '#ffffff', description: 'color code' })
   @IsOptional()
   @IsString()
-  color?: string;
+  color?: string | null;
 }

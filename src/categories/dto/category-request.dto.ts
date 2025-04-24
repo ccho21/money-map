@@ -15,7 +15,7 @@ export class BaseCategoryDTO {
   @ApiProperty({ example: '#FF6600', required: false })
   @IsOptional()
   @IsString()
-  color?: string;
+  color?: string | null;
 
   @ApiProperty({ enum: CategoryType })
   @IsEnum(CategoryType)
