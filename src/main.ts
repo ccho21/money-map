@@ -11,7 +11,10 @@ async function bootstrap() {
   // eslint-disable-next-line @typescript-eslint/no-unsafe-call
   app.use(cookieParser());
   app.enableCors({
-    origin: ['http://localhost:3001', process.env.FRONTEND_URL],
+    origin: [
+      'http://localhost:3001',
+      'https://money-app-front-git-develop-charles-chos-projects.vercel.app',
+    ],
     credentials: true,
   });
 
