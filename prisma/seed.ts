@@ -163,8 +163,8 @@ async function main() {
     );
   }
 
-  await prisma.transaction.createMany({ data: allTransactions });
-  await prisma.budgetCategory.createMany({ data: budgetCategoryData });
+  // await prisma.transaction.createMany({ data: allTransactions });
+  // await prisma.budgetCategory.createMany({ data: budgetCategoryData });
 
   console.log(
     '✅ Seed with monthly transactions & budget categories completed.',

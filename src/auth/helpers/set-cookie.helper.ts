@@ -26,7 +26,6 @@ export const setAuthCookies = (
   }
 };
 
-
 // res.clearCookie('access_token', {
 //   httpOnly: true,
 //   secure: isProd,

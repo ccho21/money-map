@@ -11,8 +11,8 @@ const allowedOrigins =
     ? ['https://money-map-prod.vercel.app', 'https://money-map-prod.vercel.app']
     : ['http://localhost:3000'];
 
-    console.log('### process.env.NODE_ENV', process.env.NODE_ENV);
-    console.log('### allowed origin', allowedOrigins);
+console.log('### process.env.NODE_ENV', process.env.NODE_ENV);
+console.log('### allowed origin', allowedOrigins);
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   // eslint-disable-next-line @typescript-eslint/no-unsafe-call
