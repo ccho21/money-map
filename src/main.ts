@@ -6,17 +6,20 @@ import * as cookieParser from 'cookie-parser';
 import * as dotenv from 'dotenv';
 dotenv.config();
 
-const allowedOrigins =
-  process.env.NODE_ENV === 'production'
-    ? ['https://money-map-prod.vercel.app']
-    : ['http://localhost:3001'];
+// const allowedOrigins =
+//   process.env.NODE_ENV === 'production'
+//     ? ['https://money-map-prod.vercel.app']
+//     : ['http://localhost:3001'];
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   // eslint-disable-next-line @typescript-eslint/no-unsafe-call
   app.use(cookieParser());
   app.enableCors({
-    origin: allowedOrigins,
+    origin: [
+      'https://money-map-prod.vercel.app',
+      'https://money-app-front-ecru.vercel.app',
+    ],
     credentials: true,
   });
 
