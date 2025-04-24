@@ -43,6 +43,7 @@ import {
   StatsBudgetSummaryDTO,
 } from './dto/budget/summary.dto';
 import { StatsQuery } from './dto/stats-query.dto';
+import { TransactionGroupItemDTO } from '@/transactions/dto/transaction-group-item.dto';
 
 @Injectable()
 export class StatsService {
@@ -86,27 +87,27 @@ export class StatsService {
       grouped.map((g) => [g.categoryId!, g._sum.amount ?? 0]),
     );
 
-    const budgetCategories = await this.prisma.budgetCategory.findMany({
-      where: {
-        categoryId: { in: categories.map((c) => c.id) },
-        startDate: { lte: end },
-        endDate: { gte: start },
-      },
-    });
+    // const budgetCategories = await this.prisma.budgetCategory.findMany({
+    //   where: {
+    //     categoryId: { in: categories.map((c) => c.id) },
+    //     startDate: { lte: end },
+    //     endDate: { gte: start },
+    //   },
+    // });
 
-    const budgetMap = new Map(
-      budgetCategories.map((b) => [
-        b.categoryId,
-        { budgetId: b.budgetId, amount: b.amount },
-      ]),
-    );
+    // const budgetMap = new Map(
+    //   budgetCategories.map((b) => [
+    //     b.categoryId,
+    //     { budgetId: b.budgetId, amount: b.amount },
+    //   ]),
+    // );
 
     let totalExpense = 0;
     let totalIncome = 0;
 
     const items: StatsCategoryGroupItemDTO[] = categories.map((category) => {
       const amount = amountMap.get(category.id) ?? 0;
-      const budget = budgetMap.get(category.id);
+      // const budget = budgetMap.get(category.id);
       const rate =
         amountMap.size > 0
           ? Math.min(
@@ -116,10 +117,10 @@ export class StatsService {
               999,
             )
           : 0;
-      const budgetRate =
-        budget && budget?.amount > 0
-          ? Math.min((amount / budget.amount) * 100, 999)
-          : undefined;
+      // const budgetRate =
+      //   budget && budget?.amount > 0
+      //     ? Math.min((amount / budget.amount) * 100, 999)
+      //     : undefined;
 
       if (category.type === 'expense') totalExpense += amount;
       else totalIncome += amount;
@@ -131,9 +132,9 @@ export class StatsService {
         color: category.color ?? '#999999',
         amount,
         rate,
-        budgetId: budget?.budgetId,
-        budget: budget?.amount,
-        budgetRate,
+        // budgetId: budget?.budgetId,
+        // budget: budget?.amount,
+        // budgetRate,
         // 👇 BaseGroupItemDTO required fields.
         label: category.name,
         rangeStart: startDate,
@@ -424,9 +425,9 @@ export class StatsService {
         date: { gte: start, lte: end },
       },
       include: {
-        category: true,
         account: true,
-        toAccount: true,
+        category: true,
+        // toAccount: true,
       },
       orderBy: { date: 'asc' },
     });
@@ -436,13 +437,14 @@ export class StatsService {
     const totalIncome = grouped.reduce((sum, g) => sum + g.groupIncome, 0);
     const totalExpense = grouped.reduce((sum, g) => sum + g.groupExpense, 0);
 
-    const data: StatsCategoryPeriodDTO[] = grouped.map((g) => ({
+    const items: TransactionGroupItemDTO[] = grouped.map((g) => ({
       label: g.label,
       rangeStart: g.rangeStart,
       rangeEnd: g.rangeEnd,
-      income: g.groupIncome,
-      expense: g.groupExpense,
+      groupIncome: g.groupIncome,
+      groupExpense: g.groupExpense,
       isCurrent: g.isCurrent ?? false,
+      transactions: g.transactions
     }));
 
     return {
@@ -453,7 +455,7 @@ export class StatsService {
       type: category.type,
       totalIncome,
       totalExpense,
-      data,
+      items,
     };
   }
 

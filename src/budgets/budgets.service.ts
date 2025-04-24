@@ -10,7 +10,7 @@ import {
   BudgetCategoryCreateRequestDTO,
   BudgetCategoryUpdateRequestDTO,
 } from './dto/budget-category-request.dto';
-import { BudgetGroupSummaryDTO } from './dto/budget-group-summary.dto';
+import { BudgetGroupSummaryDTO } from './dto/budget-summary.dto';
 import { BudgetCategoryListResponseDTO } from './dto/budget-category-list-response.dto';
 import { BudgetCategoryItemDTO } from './dto/budget-category-item.dto';
 import { BudgetGroupItemDTO } from './dto/budget-group-item.dto';
@@ -78,18 +78,17 @@ export class BudgetsService {
       select: { amount: true },
     });
 
-    const totalExpense = expenses.reduce((sum, tx) => sum + tx.amount, 0);
+    const totalSpent = expenses.reduce((sum, tx) => sum + tx.amount, 0);
     const rate =
-      totalBudget === 0 ? 0 : Math.round((totalExpense / totalBudget) * 100);
+      totalBudget === 0 ? 0 : Math.round((totalSpent / totalBudget) * 100);
 
     return {
-      groupBy,
-      startDate,
-      endDate,
+      label: groupBy,
+      rangeStart: startDate,
+      rangeEnd: endDate,
       totalBudget,
-      totalExpense: totalExpense,
+      totalSpent: totalSpent,
       rate,
-      items: [],
     };
   }
 

@@ -2,7 +2,6 @@ import { PassportStrategy } from '@nestjs/passport';
 import { Strategy, VerifyCallback } from 'passport-google-oauth20';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-
 interface GoogleProfile {
   emails: { value: string }[];
   name: { givenName: string; familyName: string };
@@ -14,7 +13,7 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
     super({
       clientID: config.get('GOOGLE_CLIENT_ID')!,
       clientSecret: config.get('GOOGLE_CLIENT_SECRET')!,
-      callbackURL: 'http://localhost:3000/auth/google/redirect',
+      callbackURL: '/auth/google/redirect',
       scope: ['email', 'profile'],
     });
   }

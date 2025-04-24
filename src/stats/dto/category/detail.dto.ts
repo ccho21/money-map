@@ -1,4 +1,5 @@
 import { BaseGroupItemDTO } from '@/common/dto/base-group-item.dto';
+import { TransactionGroupItemDTO } from '@/transactions/dto/transaction-group-item.dto';
 import { ApiProperty } from '@nestjs/swagger';
 import { CategoryType } from '@prisma/client';
 
@@ -35,6 +36,6 @@ export class StatsCategoryDetailDTO {
   @ApiProperty()
   totalExpense: number;
 
-  @ApiProperty({ type: [StatsCategoryPeriodDTO] })
-  data: StatsCategoryPeriodDTO[];
+  @ApiProperty({ type: [TransactionGroupItemDTO] })
+  items: TransactionGroupItemDTO[];
 }

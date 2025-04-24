@@ -15,26 +15,11 @@ export class StatsCategoryGroupItemDTO extends BaseGroupItemDTO {
   categoryType: CategoryType;
 
   @ApiProperty()
-  color: string;
-
-  @ApiProperty()
   amount: number;
 
   @ApiProperty()
   rate: number;
 
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  budgetId?: string | null;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsNumber()
-  budget?: number | null;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsNumber()
-  budgetRate?: number | null;
+  @ApiProperty()
+  color?: string | null;
 }

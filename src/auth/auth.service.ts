@@ -205,20 +205,7 @@ export class AuthService {
       data: { hashedRefreshToken },
     });
 
-    // ✅ 쿠키로 전송
-    res.cookie('access_token', accessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 1000 * 60 * 15, // 15분
-    });
-
-    res.cookie('refresh_token', refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 1000 * 60 * 60 * 24 * 7, // 7일
-    });
+    setAuthCookies(res, accessToken, refreshToken);
 
     this.logger.log(`✅ access_token 재발급 완료: ${user.email}`);
 

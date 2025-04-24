@@ -99,14 +99,15 @@ export const mockStatsCategoryDetail: StatsCategoryDetailDTO = {
   type: 'expense',
   totalIncome: 0,
   totalExpense: 12000,
-  data: [
+  items: [
     {
       label: '2024-01',
       rangeStart: '2024-01-01',
       rangeEnd: '2024-01-31',
-      income: 0,
-      expense: 12000,
+      groupIncome: 0,
+      groupExpense: 12000,
       isCurrent: true,
+      transactions: [],
     },
   ],
 };
@@ -134,7 +135,7 @@ export const mockCategoryGroupSummary: BaseListSummaryResponseDTO<StatsCategoryG
       categoryType: 'expense',
       amount: 0,
       rate: 100,
-      color: '#3B82F6',
+      // color: '#3B82F6',
       label: 'Summary',
       rangeStart: '2024-01-01',
       rangeEnd: '2024-01-31',

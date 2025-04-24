@@ -8,6 +8,7 @@ import {
   Param,
   Delete,
   Put,
+  Patch,
 } from '@nestjs/common';
 import { TransactionsService } from './transactions.service';
 import { JwtAuthGuard } from '../common/guards/jwt.guard';
@@ -103,7 +104,7 @@ export class TransactionsController {
     return this.transactionService.getTransactionById(user.id, id);
   }
 
-  @Put(':id')
+  @Patch(':id')
   update(
     @GetUser() user: UserPayload,
     @Param('id') id: string,
