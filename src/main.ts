@@ -8,11 +8,16 @@ dotenv.config();
 
 const allowedOrigins =
   process.env.NODE_ENV === 'production'
-    ? ['https://money-map-prod.vercel.app', 'https://money-map-prod.vercel.app']
+    ? [
+        'https://money-map-prod.vercel.app',
+        'https://money-app-front-ecru.vercel.app',
+      ]
     : ['http://localhost:3000'];
 
 console.log('### process.env.NODE_ENV', process.env.NODE_ENV);
 console.log('### allowed origin', allowedOrigins);
+console.log('✅ isProd:', process.env.NODE_ENV);
+
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   // eslint-disable-next-line @typescript-eslint/no-unsafe-call

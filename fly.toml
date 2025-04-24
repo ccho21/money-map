@@ -16,9 +16,12 @@ primary_region = 'yyz'
   force_https = true
   auto_stop_machines = 'stop'
   auto_start_machines = true
-  min_machines_running = 0
+  min_machines_running = 1
   processes = ['app']
-
+ [http_service.concurrency]
+    type = "connections"
+    hard_limit = 50
+    soft_limit = 30
 [[vm]]
   memory = '1gb'
   cpu_kind = 'shared'

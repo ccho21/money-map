@@ -7,6 +7,7 @@ export const setAuthCookies = (
   accessToken: string,
   refreshToken?: string,
 ) => {
+  console.log('### IS PROD', isProd);
   res.cookie('access_token', accessToken, {
     httpOnly: true,
     secure: isProd, // ✅ prod: true, dev: false
