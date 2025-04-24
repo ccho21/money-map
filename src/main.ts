@@ -11,8 +11,8 @@ async function bootstrap() {
   // eslint-disable-next-line @typescript-eslint/no-unsafe-call
   app.use(cookieParser());
   app.enableCors({
-    origin: 'http://localhost:3001', // ✅ 프론트엔드 주소 명시!
-    credentials: true, // ✅ 쿠키 허용 필수
+    origin: ['http://localhost:3001', process.env.FRONTEND_URL],
+    credentials: true,
   });
 
   // Swagger 설정 빌더
@@ -32,7 +32,7 @@ async function bootstrap() {
 
   // 환경 변수에서 포트 번호를 불러오는 예시
   const port = process.env.PORT || 3000;
-  await app.listen(port);
+  await app.listen(port, '0.0.0.0');
   console.log(`Application is running on: http://localhost:${port}`);
 }
 
