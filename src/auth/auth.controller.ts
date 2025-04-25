@@ -62,4 +62,13 @@ export class AuthController {
   ) {
     return this.authService.googleSignin(req.user, res);
   }
+
+  @UseGuards(RefreshTokenGuard)
+  @Post('signout')
+  signout(
+    @GetUser() user: UserPayload,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    return this.authService.signout(user.id, res);
+  }
 }

@@ -27,16 +27,17 @@ export const setAuthCookies = (
   }
 };
 
-// res.clearCookie('access_token', {
-//   httpOnly: true,
-//   secure: isProd,
-//   sameSite: isProd ? 'none' : 'lax',
-//   path: '/',
-// });
-
-// res.clearCookie('refresh_token', {
-//   httpOnly: true,
-//   secure: isProd,
-//   sameSite: isProd ? 'none' : 'lax',
-//   path: '/',
-// });
+export const clearCookie = (res: Response) => {
+  res.clearCookie('access_token', {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: isProd ? 'none' : 'lax',
+    path: '/',
+  });
+  res.clearCookie('refresh_token', {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: isProd ? 'none' : 'lax',
+    path: '/',
+  });
+};

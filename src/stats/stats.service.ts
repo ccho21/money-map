@@ -30,10 +30,7 @@ import {
   StatsBudgetPeriodDTO,
 } from './dto/budget/detail.dto';
 import { StatsNoteDetailDTO, StatsNotePeriodDTO } from './dto/note/detail.dto';
-import {
-  StatsCategoryDetailDTO,
-  StatsCategoryPeriodDTO,
-} from './dto/category/detail.dto';
+import { StatsCategoryDetailDTO } from './dto/category/detail.dto';
 import {
   StatsCategoryGroupSummaryDTO,
   StatsCategorySummaryDTO,
@@ -221,15 +218,11 @@ export class StatsService {
       const amount = txMap.get(category.id) ?? 0;
       const budget = budgetMap.get(category.id);
       const budgetAmount = budget?.amount ?? 0;
-
-      const spent = category.type === 'expense' ? amount : 0;
-      const income = category.type === 'income' ? amount : 0;
-      const remaining = category.type === 'expense' ? budgetAmount - spent : 0;
       const rate =
         budgetAmount > 0 ? Math.min((amount / budgetAmount) * 100, 999) : 0;
 
-      if (category.type === 'expense') totalExpense += spent;
-      else totalIncome += income;
+      if (category.type === 'expense') totalExpense += amount;
+      else totalIncome += amount;
 
       return {
         categoryId: category.id,
@@ -238,10 +231,8 @@ export class StatsService {
         icon: category.icon,
         color: category.color ?? '#999999',
         budgetId: budget?.id,
-        spent,
-        income,
+        amount,
         budget: budgetAmount,
-        remaining,
         rate,
         hasBudget: !!budget,
         label: category.name,
@@ -250,24 +241,17 @@ export class StatsService {
       };
     });
 
-    // summary 항목은 categoryId: "summary"로 설정
+    const totalBudget = budgetCategories.reduce((sum, b) => sum + b.amount, 0);
+
     const summary: StatsBudgetGroupItemDTO = {
       categoryId: 'summary',
       categoryName: 'Summary',
       categoryType: type,
-      icon: 'PieChart',
       color: '#3B82F6',
-      spent: totalExpense,
-      income: totalIncome,
-      budget: budgetCategories.reduce((sum, b) => sum + b.amount, 0),
-      remaining:
-        budgetCategories.reduce((sum, b) => sum + b.amount, 0) - totalExpense,
+      amount: type === 'expense' ? totalExpense : totalIncome,
+      budget: totalBudget,
       rate:
-        totalExpense > 0
-          ? (totalExpense /
-              budgetCategories.reduce((sum, b) => sum + b.amount, 0)) *
-            100
-          : 0,
+        totalBudget > 0 ? Math.min((totalExpense / totalBudget) * 100, 999) : 0,
       hasBudget: false,
       budgetId: undefined,
       label: 'Summary',
@@ -444,7 +428,7 @@ export class StatsService {
       groupIncome: g.groupIncome,
       groupExpense: g.groupExpense,
       isCurrent: g.isCurrent ?? false,
-      transactions: g.transactions
+      transactions: g.transactions,
     }));
 
     return {

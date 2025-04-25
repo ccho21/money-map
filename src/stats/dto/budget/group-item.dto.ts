@@ -15,25 +15,25 @@ export class StatsBudgetGroupItemDTO extends BaseGroupItemDTO {
   categoryType: CategoryType;
 
   @ApiProperty()
-  icon: string;
+  amount: number;
+
+  @ApiProperty()
+  rate: number;
 
   @ApiProperty()
   color: string;
 
-  @ApiProperty()
-  spent: number;
+  // @ApiProperty()
+  // spent: number;
 
-  @ApiProperty()
-  income: number;
+  // @ApiProperty()
+  // income: number;
 
   @ApiProperty()
   budget: number;
 
-  @ApiProperty()
-  remaining: number;
-
-  @ApiProperty()
-  rate: number;
+  // @ApiProperty()
+  // remaining: number;
 
   @ApiProperty()
   hasBudget: boolean;

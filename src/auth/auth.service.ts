@@ -13,7 +13,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { UserPayload } from './types/user-payload.type';
 import { Response } from 'express';
 import { getUserTimezone } from '@/libs/timezone';
-import { setAuthCookies } from './helpers/set-cookie.helper';
+import { setAuthCookies, clearCookie } from './helpers/cookie.helper';
 import { generateTokens } from './helpers/token.helper';
 import { ConfigService } from '@nestjs/config';
 
@@ -210,5 +210,28 @@ export class AuthService {
     this.logger.log(`✅ access_token 재발급 완료: ${user.email}`);
 
     return { message: 'Access token refreshed' };
+  }
+
+  async signout(userId: string, @Res({ passthrough: true }) res: Response) {
+    this.logger.debug(`🚪 Signout attempt: ${userId}`);
+
+    // ✅ 사용자 존재 여부 확인
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      this.logger.warn(`❌ User not found: ${userId}`);
+      throw new ForbiddenException('Invalid user');
+    }
+
+    // ✅ DB에서 refresh 토큰 삭제
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { hashedRefreshToken: null },
+    });
+
+    // ✅ 쿠키 삭제
+    clearCookie(res);
+
+    this.logger.log(`✅ Signout success: ${user.email}`);
+    return { message: 'Signout successful' };
   }
 }

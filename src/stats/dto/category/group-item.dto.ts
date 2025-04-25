@@ -1,6 +1,5 @@
 // 📁 src/stats/dto/category/group-item.dto.ts
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsNumber, IsOptional, IsString } from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
 import { CategoryType } from '@prisma/client';
 import { BaseGroupItemDTO } from '@/common/dto/base-group-item.dto';
 
