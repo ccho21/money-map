@@ -1,9 +1,9 @@
 // 📁 src/stats/dto/note/group-item.dto.ts
 import { ApiProperty } from '@nestjs/swagger';
 import { CategoryType } from '@prisma/client';
-import { StatsNoteGroupPeriodDTO } from './period-item.dto';
+import { BaseGroupItemDTO } from '@/common/dto/base-group-item.dto';
 
-export class StatsNoteGroupItemDTO {
+export class StatsNoteGroupItemDTO extends BaseGroupItemDTO {
   @ApiProperty()
   note: string;
 
@@ -14,11 +14,5 @@ export class StatsNoteGroupItemDTO {
   count: number;
 
   @ApiProperty()
-  totalIncome: number;
-
-  @ApiProperty()
-  totalExpense: number;
-
-  @ApiProperty({ type: [StatsNoteGroupPeriodDTO] })
-  data: StatsNoteGroupPeriodDTO[];
+  amount: number;
 }

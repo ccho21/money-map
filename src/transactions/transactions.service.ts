@@ -584,6 +584,9 @@ export class TransactionsService {
           categoryId: null,
         },
       });
+      console.log('### tx', incoming);
+      console.log('### fromAccountId', outgoing);
+      console.log('###toAccountId', toAccountId);
 
       // ✅ 잔액 재계산
       await Promise.all([

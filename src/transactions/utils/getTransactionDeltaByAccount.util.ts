@@ -17,11 +17,20 @@ export const getTransactionDeltaByAccount = (
   tx: TransactionLike,
   accountId: string,
 ): number => {
-  if (tx.type === 'income' && tx.accountId === accountId) return tx.amount;
-  if (tx.type === 'expense' && tx.accountId === accountId) return -tx.amount;
-  if (tx.type === 'transfer') {
-    if (tx.accountId === accountId) return -tx.amount; // 출금
-    if (tx.toAccountId === accountId) return tx.amount; // 입금
+  if (tx.type === 'income') {
+    return tx.accountId === accountId ? tx.amount : 0;
   }
+
+  if (tx.type === 'expense') {
+    return tx.accountId === accountId ? -tx.amount : 0;
+  }
+
+  if (tx.type === 'transfer') {
+    if (tx.accountId === accountId) {
+      return tx.toAccountId ? -tx.amount : tx.amount;
+    }
+    return 0;
+  }
+
   return 0;
 };

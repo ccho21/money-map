@@ -25,9 +25,12 @@ export const recalculateAccountBalanceInTx = async (
   const balance = transactions.reduce((acc, tx) => {
     if (tx.type === TransactionType.income) return acc + tx.amount;
     if (tx.type === TransactionType.expense) return acc - tx.amount;
+    if (tx.type === TransactionType.transfer)
+      return tx.toAccountId ? acc - tx.amount : acc + tx.amount;
     return acc; // transfer는 from/to로 나뉘어 있기 때문에 여기선 무시 (계좌 2개 기준 따로 처리됨)
   }, 0);
 
+  console.log('### BALANCE', balance);
   await tx.account.update({
     where: { id: accountId },
     data: { balance },

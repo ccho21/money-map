@@ -57,6 +57,7 @@ export class AccountsController {
   ): Promise<AccountDashboardDTO> {
     return this.accountsService.getAccountsDashboard(user.id);
   }
+
   @Get('summary')
   getSummary(
     @GetUser() user: UserPayload,

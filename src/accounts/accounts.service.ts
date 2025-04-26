@@ -437,6 +437,25 @@ export class AccountsService {
   }
 
   async getAccountsDashboard(userId: string): Promise<AccountDashboardDTO> {
+    // TODO: [BalancePayable Carry-over 처리]
+    // 현재 Balance Payable은 이번 정산 기간 (settleStart ~ settleEnd) 동안의 사용액만 합산하고 있다.
+    // 그러나 실제 카드사 청구 로직에서는 다음 항목들을 모두 포함해야 한다:
+    //
+    // 1. 이번 정산 주기 사용액 (settleStart ~ settleEnd)
+    // 2. 과거 정산 주기에서 결제되지 않은 미납 금액 (Carry-over Balance)
+    //
+    // 따라서 Balance Payable을 계산할 때 다음 구조를 추가해야 한다:
+    //
+    // balancePayable =
+    //   (현재 정산 기간 사용액)
+    // + (이전 정산 주기의 미납 carry-over 금액)
+    //
+    // 이 carry-over 금액은 결제 이력 테이블 (예: settlements 테이블)을 통해 unpaid 또는 partial paid 상태인 내역을 조회해서 가져온다.
+    //
+    // 향후 기능 추가 시 getPreviousUnpaidBalance(accountId) 헬퍼 함수 또는 서비스 레이어를 별도로 만들어 관리할 것.
+    //
+    // 참고: Outstanding Balance는 별개로, 정산 종료 이후부터 현재까지 발생한 사용액만 포함해야 하며,
+    //       carry-over 금액과 섞이면 안 된다.
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new Error('User not found');
 
@@ -498,8 +517,8 @@ export class AccountsService {
             type: account.type,
             financialType: accountType,
             amount: account.balance,
-            settlementDate: account.settlementDate || account.settlementDate,
-            paymentDate: account.settlementDate || account.settlementDate,
+            settlementDate: account.settlementDate,
+            paymentDate: account.paymentDate,
           };
 
           // ✅ 정산 정보 추가
@@ -527,6 +546,7 @@ export class AccountsService {
               (t) => t.accountId === account.id || t.toAccountId === account.id,
             );
 
+            console.log('### CARD', cardTxs);
             // ✅ 정산 기간 내
             const balancePayable = cardTxs
               .filter((t) => t.date >= settleStart && t.date <= settleEnd)
@@ -534,6 +554,9 @@ export class AccountsService {
                 (sum, tx) => sum + getTransactionDeltaByAccount(tx, account.id),
                 0,
               );
+            console.log('### balancePayable', balancePayable);
+
+            console.log('### CARD', cardTxs);
 
             // ✅ 정산 이후 ~ 현재까지
             const outstandingBalance = cardTxs
@@ -542,6 +565,8 @@ export class AccountsService {
                 (sum, tx) => sum + getTransactionDeltaByAccount(tx, account.id),
                 0,
               );
+
+            console.log('### outstandingBalance', outstandingBalance);
 
             Object.assign(base, { balancePayable, outstandingBalance });
           }

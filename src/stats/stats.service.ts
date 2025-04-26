@@ -24,12 +24,8 @@ import {
   StatsNoteGroupSummaryDTO,
   StatsNoteSummaryDTO,
 } from './dto/note/summary.dto';
-import { StatsNoteGroupPeriodDTO } from './dto/note/period-item.dto';
-import {
-  StatsBudgetDetailDTO,
-  StatsBudgetPeriodDTO,
-} from './dto/budget/detail.dto';
-import { StatsNoteDetailDTO, StatsNotePeriodDTO } from './dto/note/detail.dto';
+import { StatsBudgetDetailDTO } from './dto/budget/detail.dto';
+import { StatsNoteDetailDTO } from './dto/note/detail.dto';
 import { StatsCategoryDetailDTO } from './dto/category/detail.dto';
 import {
   StatsCategoryGroupSummaryDTO,
@@ -182,6 +178,16 @@ export class StatsService {
     const start = getUTCStartDate(startDate, timezone);
     const end = getUTCEndDate(endDate, timezone);
 
+    const transactions = await this.prisma.transaction.groupBy({
+      by: ['categoryId'],
+      where: {
+        userId,
+        type,
+        date: { gte: start, lte: end },
+      },
+      _sum: { amount: true },
+    });
+
     const categories = await this.prisma.category.findMany({
       where: { userId, type },
     });
@@ -195,34 +201,24 @@ export class StatsService {
       },
     });
 
-    const budgetMap = new Map(budgetCategories.map((b) => [b.categoryId, b]));
-
-    const transactions = await this.prisma.transaction.groupBy({
-      by: ['categoryId'],
-      where: {
-        userId,
-        type,
-        date: { gte: start, lte: end },
-      },
-      _sum: { amount: true },
-    });
-
     const txMap = new Map(
       transactions.map((tx) => [tx.categoryId!, tx._sum.amount ?? 0]),
     );
+    const budgetMap = new Map(budgetCategories.map((b) => [b.categoryId, b]));
 
     let totalIncome = 0;
     let totalExpense = 0;
 
     const items: StatsBudgetGroupItemDTO[] = categories.map((category) => {
-      const amount = txMap.get(category.id) ?? 0;
+      const txAmount = txMap.get(category.id) ?? 0; // transaction amount // expense or income
       const budget = budgetMap.get(category.id);
       const budgetAmount = budget?.amount ?? 0;
-      const rate =
-        budgetAmount > 0 ? Math.min((amount / budgetAmount) * 100, 999) : 0;
 
-      if (category.type === 'expense') totalExpense += amount;
-      else totalIncome += amount;
+      const rate =
+        budgetAmount > 0 ? Math.min((txAmount / budgetAmount) * 100, 999) : 0;
+
+      if (category.type === 'expense') totalExpense += txAmount;
+      else totalIncome += txAmount;
 
       return {
         categoryId: category.id,
@@ -231,7 +227,7 @@ export class StatsService {
         icon: category.icon,
         color: category.color ?? '#999999',
         budgetId: budget?.id,
-        amount,
+        amount: txAmount,
         budget: budgetAmount,
         rate,
         hasBudget: !!budget,
@@ -244,17 +240,16 @@ export class StatsService {
     const totalBudget = budgetCategories.reduce((sum, b) => sum + b.amount, 0);
 
     const summary: StatsBudgetGroupItemDTO = {
-      categoryId: 'summary',
-      categoryName: 'Summary',
+      categoryId: '',
+      categoryName: '',
       categoryType: type,
       color: '#3B82F6',
       amount: type === 'expense' ? totalExpense : totalIncome,
       budget: totalBudget,
-      rate:
-        totalBudget > 0 ? Math.min((totalExpense / totalBudget) * 100, 999) : 0,
+      rate: 0,
       hasBudget: false,
       budgetId: undefined,
-      label: 'Summary',
+      label: groupBy,
       rangeStart: startDate,
       rangeEnd: endDate,
     };
@@ -304,61 +299,55 @@ export class StatsService {
       orderBy: { date: 'asc' },
     });
 
-    const noteMap = new Map<string, typeof transactions>();
-
-    for (const tx of transactions) {
+    // Step 1: transactions를 note별로 그룹핑 + income/expense 집계
+    const noteGroups = transactions.reduce((map, tx) => {
       const note = tx.note?.trim() || '';
-      if (!noteMap.has(note)) {
-        noteMap.set(note, []);
+      if (!map.has(note)) {
+        map.set(note, { transactions: [], income: 0, expense: 0 });
       }
-      noteMap.get(note)!.push(tx);
-    }
+      const group = map.get(note)!;
+      group.transactions.push(tx);
 
+      if (tx.type === 'income') {
+        group.income += tx.amount;
+      } else if (tx.type === 'expense') {
+        group.expense += tx.amount;
+      }
+      return map;
+    }, new Map<string, { transactions: typeof transactions; income: number; expense: number }>());
+
+    // Step 2: 그룹된 데이터를 기반으로 items 생성
+    const items: StatsNoteGroupItemDTO[] = [];
     let totalIncome = 0;
     let totalExpense = 0;
 
-    const items: StatsNoteGroupItemDTO[] = [];
+    noteGroups.forEach(({ transactions, income, expense }, note) => {
+      const grouped = groupTransactions(transactions, groupBy, timezone);
 
-    for (const [note, txList] of noteMap.entries()) {
-      const grouped = groupTransactions(txList, groupBy, timezone);
-
-      const incomeSum = grouped.reduce((sum, g) => sum + g.groupIncome, 0);
-      const expenseSum = grouped.reduce((sum, g) => sum + g.groupExpense, 0);
-
-      totalIncome += incomeSum;
-      totalExpense += expenseSum;
-
-      const periods: StatsNoteGroupPeriodDTO[] = grouped.map((g) => ({
-        label: g.label,
-        rangeStart: g.rangeStart,
-        rangeEnd: g.rangeEnd,
-        income: g.groupIncome,
-        expense: g.groupExpense,
-        isCurrent: g.isCurrent ?? false,
-      }));
-
-      items.push({
-        note,
-        type,
-        count: txList.length,
-        totalIncome: incomeSum,
-        totalExpense: expenseSum,
-        data: periods,
+      grouped.forEach((g) => {
+        items.push({
+          note,
+          type,
+          label: g.label,
+          count: transactions.length,
+          amount: type === 'expense' ? expense : income,
+          rangeStart: g.rangeStart,
+          rangeEnd: g.rangeEnd,
+        });
       });
-    }
 
-    items.sort(
-      (a, b) =>
-        b.totalIncome + b.totalExpense - (a.totalIncome + a.totalExpense),
-    );
+      totalIncome += income;
+      totalExpense += expense;
+    });
 
     const summary: StatsNoteGroupItemDTO = {
       note: 'Summary',
       type,
-      count: items.reduce((sum, i) => sum + i.count, 0),
-      totalIncome,
-      totalExpense,
-      data: [],
+      label: groupBy,
+      amount: type === 'expense' ? totalExpense : totalIncome,
+      count: items.reduce((sum, item) => sum + item.count, 0),
+      rangeStart: startDate,
+      rangeEnd: endDate,
     };
 
     return {
@@ -366,10 +355,10 @@ export class StatsService {
       endDate,
       groupBy,
       type,
-      items,
       summary,
       totalIncome,
       totalExpense,
+      items,
     };
   }
 
@@ -445,7 +434,7 @@ export class StatsService {
 
   async getStatsBudget(
     userId: string,
-    budgetCategoryId: string,
+    categoryId: string,
     query: StatsQuery,
   ): Promise<StatsBudgetDetailDTO> {
     const { startDate, endDate, groupBy, type } = query;
@@ -463,8 +452,14 @@ export class StatsService {
     const start = getUTCStartDate(startDate, timezone);
     const end = getUTCEndDate(endDate, timezone);
 
-    const budgetCategory = await this.prisma.budgetCategory.findUnique({
-      where: { id: budgetCategoryId },
+    const budgetCategory = await this.prisma.budgetCategory.findFirst({
+      where: {
+        categoryId,
+        type,
+        startDate: { lte: end },
+        endDate: { gte: start },
+        budget: { userId },
+      },
       include: {
         category: true,
       },
@@ -494,25 +489,20 @@ export class StatsService {
 
     const grouped = groupTransactions(transactions, groupBy, timezone);
 
-    const data: StatsBudgetPeriodDTO[] = grouped.map((g) => {
-      const remaining = budgetAmount - g.groupExpense;
-      const isOver = remaining < 0;
-
+    const items: TransactionGroupItemDTO[] = grouped.map((g) => {
       return {
         label: g.label,
         rangeStart: g.rangeStart,
         rangeEnd: g.rangeEnd,
-        income: g.groupIncome,
-        expense: g.groupExpense,
-        budget: budgetAmount,
-        remaining,
-        isOver,
+        groupIncome: g.groupIncome,
+        groupExpense: g.groupExpense,
         isCurrent: g.isCurrent ?? false,
+        transactions: g.transactions,
       };
     });
 
-    const totalExpense = data.reduce((sum, d) => sum + d.expense, 0);
-    const totalRemaining = data.reduce((sum, d) => sum + d.remaining, 0);
+    const totalExpense = items.reduce((sum, d) => sum + d.groupExpense, 0);
+    const totalRemaining = items.reduce((sum, d) => sum + d.groupIncome, 0);
     const isOver = totalRemaining < 0;
 
     return {
@@ -525,7 +515,7 @@ export class StatsService {
       totalBudget: budgetAmount,
       totalRemaining,
       isOver,
-      data,
+      items,
     };
   }
 
@@ -553,13 +543,12 @@ export class StatsService {
       where: {
         userId,
         type,
-        note: { equals: note },
+        note: { equals: note === '_' ? null : note }, //
         date: { gte: start, lte: end },
       },
       include: {
         category: true,
         account: true,
-        toAccount: true,
       },
       orderBy: { date: 'asc' },
     });
@@ -569,20 +558,23 @@ export class StatsService {
     const totalIncome = grouped.reduce((sum, g) => sum + g.groupIncome, 0);
     const totalExpense = grouped.reduce((sum, g) => sum + g.groupExpense, 0);
 
-    const data: StatsNotePeriodDTO[] = grouped.map((g) => ({
-      label: g.label,
-      rangeStart: g.rangeStart,
-      rangeEnd: g.rangeEnd,
-      income: g.groupIncome,
-      expense: g.groupExpense,
-      isCurrent: g.isCurrent ?? false,
-    }));
+    const items: TransactionGroupItemDTO[] = grouped.map((g) => {
+      return {
+        label: g.label,
+        rangeStart: g.rangeStart,
+        rangeEnd: g.rangeEnd,
+        groupIncome: g.groupIncome,
+        groupExpense: g.groupExpense,
+        isCurrent: g.isCurrent ?? false,
+        transactions: g.transactions,
+      };
+    });
 
     return {
       note,
       totalIncome,
       totalExpense,
-      data,
+      items,
     };
   }
 

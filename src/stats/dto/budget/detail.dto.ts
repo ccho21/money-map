@@ -1,26 +1,27 @@
-import { BaseGroupItemDTO } from '@/common/dto/base-group-item.dto';
+// import { BaseGroupItemDTO } from '@/common/dto/base-group-item.dto';
+import { TransactionGroupItemDTO } from '@/transactions/dto/transaction-group-item.dto';
 import { ApiProperty } from '@nestjs/swagger';
 import { CategoryType } from '@prisma/client';
 
-export class StatsBudgetPeriodDTO extends BaseGroupItemDTO {
-  @ApiProperty()
-  income: number;
+// export class StatsBudgetPeriodDTO extends BaseGroupItemDTO {
+//   @ApiProperty()
+//   income: number;
 
-  @ApiProperty()
-  expense: number;
+//   @ApiProperty()
+//   expense: number;
 
-  @ApiProperty()
-  budget: number;
+//   @ApiProperty()
+//   budget: number;
 
-  @ApiProperty()
-  remaining: number;
+//   @ApiProperty()
+//   remaining: number;
 
-  @ApiProperty()
-  isOver: boolean;
+//   @ApiProperty()
+//   isOver: boolean;
 
-  @ApiProperty()
-  isCurrent: boolean;
-}
+//   @ApiProperty()
+//   isCurrent: boolean;
+// }
 
 export class StatsBudgetDetailDTO {
   @ApiProperty()
@@ -50,6 +51,6 @@ export class StatsBudgetDetailDTO {
   @ApiProperty()
   isOver: boolean;
 
-  @ApiProperty({ type: [StatsBudgetPeriodDTO] })
-  data: StatsBudgetPeriodDTO[];
+  @ApiProperty({ type: [TransactionGroupItemDTO] })
+  items: TransactionGroupItemDTO[];
 }

@@ -7,7 +7,6 @@ import {
   UseGuards,
   Param,
   Delete,
-  Put,
   Patch,
 } from '@nestjs/common';
 import { TransactionsService } from './transactions.service';
@@ -78,7 +77,7 @@ export class TransactionsController {
     return this.transactionService.getTransactionCalendarView(user.id, query);
   }
 
-  @Put('/transfer/:id')
+  @Patch('/transfer/:id')
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: '이체 트랜잭션 수정' })
   updateTransfer(

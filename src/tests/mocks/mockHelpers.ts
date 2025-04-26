@@ -174,7 +174,7 @@ export const mockStatsBudgetDetail: StatsBudgetDetailDTO = {
   totalBudget: 100000,
   totalRemaining: 40000,
   isOver: false,
-  data: [],
+  items: [],
 };
 
 export const mockStatsBudgetSummary: StatsBudgetSummaryDTO = {
@@ -255,34 +255,17 @@ export const mockStatsNoteGroupItem: StatsNoteGroupItemDTO = {
   note: 'Starbucks',
   type: 'expense',
   count: 1,
-  totalIncome: 0,
-  totalExpense: 18000,
-  data: [
-    {
-      label: '2024-01',
-      rangeStart: '2024-01-01',
-      rangeEnd: '2024-01-31',
-      income: 0,
-      expense: 18000,
-      isCurrent: true,
-    },
-  ],
+  label: '2024-01',
+  amount: 0,
+  rangeStart: '2024-01-01',
+  rangeEnd: '2024-01-31',
 };
 
 export const mockStatsNoteDetail: StatsNoteDetailDTO = {
   note: 'Starbucks',
   totalIncome: 0,
   totalExpense: 18000,
-  data: [
-    {
-      label: '2024-01',
-      rangeStart: '2024-01-01',
-      rangeEnd: '2024-01-31',
-      income: 0,
-      expense: 18000,
-      isCurrent: true,
-    },
-  ],
+  items: [],
 };
 
 export const mockStatsNoteSummary: StatsNoteSummaryDTO = {

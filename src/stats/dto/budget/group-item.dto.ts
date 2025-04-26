@@ -21,19 +21,7 @@ export class StatsBudgetGroupItemDTO extends BaseGroupItemDTO {
   rate: number;
 
   @ApiProperty()
-  color: string;
-
-  // @ApiProperty()
-  // spent: number;
-
-  // @ApiProperty()
-  // income: number;
-
-  @ApiProperty()
-  budget: number;
-
-  // @ApiProperty()
-  // remaining: number;
+  color?: string | null;
 
   @ApiProperty()
   hasBudget: boolean;
@@ -41,4 +29,7 @@ export class StatsBudgetGroupItemDTO extends BaseGroupItemDTO {
   @ApiPropertyOptional()
   @IsOptional()
   budgetId?: string | null;
+
+  @ApiProperty()
+  budget: number;
 }

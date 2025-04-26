@@ -1,17 +1,5 @@
-import { BaseGroupItemDTO } from '@/common/dto/base-group-item.dto';
+import { TransactionGroupItemDTO } from '@/transactions/dto/transaction-group-item.dto';
 import { ApiProperty } from '@nestjs/swagger';
-
-export class StatsNotePeriodDTO extends BaseGroupItemDTO {
-  @ApiProperty()
-  income: number;
-
-  @ApiProperty()
-  expense: number;
-
-  @ApiProperty()
-  isCurrent: boolean;
-}
-
 export class StatsNoteDetailDTO {
   @ApiProperty()
   note: string;
@@ -22,6 +10,6 @@ export class StatsNoteDetailDTO {
   @ApiProperty()
   totalExpense: number;
 
-  @ApiProperty({ type: [StatsNotePeriodDTO] })
-  data: StatsNotePeriodDTO[];
+  @ApiProperty({ type: [TransactionGroupItemDTO] })
+  items: TransactionGroupItemDTO[];
 }
