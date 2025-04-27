@@ -77,13 +77,13 @@ export class BudgetsController {
     );
   }
 
-  @Put('by-category/:id')
+  @Put('/by-category/:categoryId')
   @UseGuards(JwtAuthGuard)
   updateBudgetCategory(
     @GetUser() user: UserPayload,
-    @Param('id') budgetId: string,
+    @Param('categoryId') categoryId: string,
     @Body() dto: BudgetCategoryUpdateRequestDTO,
   ) {
-    return this.budgetsService.updateBudgetCategory(user.id, budgetId, dto);
+    return this.budgetsService.updateBudgetCategory(user.id, categoryId, dto);
   }
 }

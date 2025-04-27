@@ -22,7 +22,6 @@ import {
   getUTCStartDate,
 } from '@/libs/date.util';
 import { getUserTimezone } from '@/libs/timezone';
-import { Prisma } from '@prisma/client';
 import { isSameDay, parseISO } from 'date-fns';
 
 @Injectable()
@@ -102,18 +101,21 @@ export class BudgetsService {
     const timezone = getUserTimezone(user);
     const { startDate, endDate } = query;
     const start = getUTCStartDate(startDate, timezone);
-    const end = getUTCStartDate(endDate, timezone);
+    const end = getUTCEndDate(endDate, timezone);
 
     const categories = await this.prisma.category.findMany({
       where: { userId },
     });
+    console.log('### categories', categories);
+
     const budgetCategories = await this.prisma.budgetCategory.findMany({
       where: {
         budget: { userId },
-        startDate: start,
-        endDate: end,
+        startDate: { lte: start },
+        endDate: { gte: end },
       },
     });
+    console.log('### budgetCategories', budgetCategories);
 
     const budgetMap = new Map(
       budgetCategories.map((bc) => [bc.categoryId, bc]),
@@ -121,6 +123,7 @@ export class BudgetsService {
 
     const items: BudgetCategoryItemDTO[] = categories.map((c) => {
       const bc = budgetMap.get(c.id);
+      console.log('### BC', bc);
       const amount = bc?.amount ?? 0;
       return {
         categoryId: c.id,
@@ -200,13 +203,17 @@ export class BudgetsService {
 
   async updateBudgetCategory(
     userId: string,
-    budgetId: string,
+    categoryId: string,
     dto: BudgetCategoryUpdateRequestDTO,
   ): Promise<{ budgetId: string; message: string }> {
-    const budget = await this.prisma.budgetCategory.findUnique({
-      where: { id: budgetId },
-      include: { budget: true, category: true },
+    const budget = await this.prisma.budgetCategory.findFirst({
+      where: { categoryId: categoryId },
+      include: {
+        budget: true,
+        category: true, // ✅ category.type을 사용하기 위함
+      },
     });
+
     if (!budget || budget.budget.userId !== userId) {
       throw new NotFoundException('Budget not found or access denied.');
     }
@@ -214,7 +221,8 @@ export class BudgetsService {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new NotFoundException('User not found');
 
-    const timezone = user.timezone || 'Asia/Seoul';
+    const timezone = getUserTimezone(user);
+
     const start = dto.startDate
       ? getUTCStartDate(dto.startDate, timezone)
       : undefined;
@@ -222,16 +230,14 @@ export class BudgetsService {
       ? getUTCStartDate(dto.endDate, timezone)
       : undefined;
 
-    const updateData: Prisma.BudgetCategoryUpdateInput = {
-      ...(dto.amount !== undefined && { amount: dto.amount }),
-      ...(start && { startDate: start }),
-      ...(end && { endDate: end }),
-      type: budget.category.type,
-    };
-
     const updated = await this.prisma.budgetCategory.update({
-      where: { id: budgetId },
-      data: updateData,
+      where: { id: budget.id },
+      data: {
+        ...(dto.amount !== undefined && { amount: dto.amount }),
+        ...(start && { startDate: start }),
+        ...(end && { endDate: end }),
+        type: budget.category.type, // ✅ type은 반드시 포함되어야 하므로 기존 값 사용
+      },
     });
 
     return {
@@ -278,13 +284,16 @@ export class BudgetsService {
     const categoryType = categoryInfo.type;
 
     let defaultAmount = 0;
+    // defaultamount  구하는 방법이 조금 이상한것같아.
+    // 버젯을 처음 셋팅한후에는, isCurrent: true 인 버젯 기준으로 default 버젯이설정되어야 되는데, 지금은,
+    // allBudgetCategories 에서 startDate endDate 같은것 기준으로만 찾으니까 뭔가 지금 꼬이는거같은데,
     for (const range of ranges) {
       const match = allBudgetCategories.find(
         (b) =>
-          isSameDay(b.startDate, getUTCStartDate(range.startDate, timezone)) &&
-          isSameDay(b.endDate, getUTCStartDate(range.endDate, timezone)),
+          isSameDay(b.startDate, getUTCStartDate(startDate, timezone)) &&
+          isSameDay(b.endDate, getUTCStartDate(endDate, timezone)),
       );
-      if (match) {
+      if (match && range.isCurrent) {
         defaultAmount = match.amount;
         break;
       }
@@ -305,7 +314,7 @@ export class BudgetsService {
         rangeEnd: range.endDate,
         amount,
         used: 0,
-        remaining: amount,
+        remaining: 0,
         isOver: false,
         isCurrent: range.isCurrent,
         categoryId: matched ? matched.categoryId : undefined,
