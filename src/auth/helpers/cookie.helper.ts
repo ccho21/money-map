@@ -12,7 +12,7 @@ export const setAuthCookies = (
     httpOnly: true,
     secure: isProd, // ✅ prod: true, dev: false
     sameSite: isProd ? 'none' : 'lax', // ✅ prod: none, dev: lax
-    maxAge: 15 * 60 * 1000, // 15분
+    maxAge: 60 * 60 * 1000, // 1시간
     path: '/',
   });
 
