@@ -28,6 +28,10 @@ import { DateRangeWithGroupQueryDTO } from '@/common/dto/filter/date-range-with-
 import { GroupBy } from '@/common/types/types';
 import { TransactionGroupSummaryDTO } from './dto/transaction-group-summary.dto';
 import { TransactionDetailDTO } from './dto/transaction-detail.dto';
+import {
+  TransactionCursorSummaryResponseDTO,
+  TransactionSummaryCursorQueryDTO,
+} from './dto/transaction-summary-cursor-query.dto';
 
 @ApiTags('Transactions')
 @UseGuards(JwtAuthGuard)
@@ -57,6 +61,23 @@ export class TransactionsController {
     @Query() query: DateRangeWithGroupQueryDTO,
   ): Promise<TransactionGroupSummaryDTO> {
     return this.transactionService.getTransactionSummary(user.id, query);
+  }
+
+  @Get('summary/scroll')
+  @ApiQuery({ name: 'groupBy', enum: GroupBy, required: true })
+  @ApiQuery({ name: 'limit', type: Number, required: true })
+  @ApiQuery({ name: 'cursorDate', type: String, required: true })
+  @ApiQuery({ name: 'cursorId', type: String, required: true })
+  @ApiQuery({ name: 'startDate', type: String, required: false })
+  @ApiQuery({ name: 'endDate', type: String, required: false })
+  getTransactionSummaryByCursor(
+    @GetUser() user: UserPayload,
+    @Query() query: TransactionSummaryCursorQueryDTO,
+  ): Promise<TransactionCursorSummaryResponseDTO> {
+    return this.transactionService.getTransactionSummaryByCursor(
+      user.id,
+      query,
+    );
   }
 
   @Post('/transfer')
