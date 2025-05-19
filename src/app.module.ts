@@ -11,6 +11,8 @@ import { BudgetsModule } from './budgets/budgets.module';
 import { EventsModule } from './events/events.module';
 import { AccountsModule } from './accounts/accounts.module';
 import { StatsModule } from './stats/stats.module';
+import { DashboardModule } from './dashboard/dashboard.module';
+import { InsightsModule } from './insights/insights.module';
 
 @Module({
   imports: [
@@ -23,6 +25,8 @@ import { StatsModule } from './stats/stats.module';
     EventsModule,
     AccountsModule,
     StatsModule,
+    InsightsModule,
+    DashboardModule,
   ],
   controllers: [AppController],
   providers: [AppService, PrismaService],

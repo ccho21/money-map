@@ -11,7 +11,7 @@ import { StatsNoteDetailDTO } from '@/stats/dto/note/detail.dto';
 import { StatsNoteGroupItemDTO } from '@/stats/dto/note/group-item.dto';
 import { StatsNoteSummaryDTO } from '@/stats/dto/note/summary.dto';
 import { StatsQuery } from '@/stats/dto/stats-query.dto';
-import { TransactionCalendarDTO } from '@/transactions/dto/transaction-calendar.dto';
+import { TransactionCalendarDTO } from '@/transactions/dto/transactions/transaction-calendar.dto';
 import {
   TransactionCreateRequestDTO,
   TransactionTransferRequestDTO,

@@ -19,6 +19,9 @@ import {
   isSameYear,
   lastDayOfMonth,
   subMonths,
+  subDays,
+  subWeeks,
+  subYears,
 } from 'date-fns';
 import { GroupBy } from '@/common/types/types';
 
@@ -204,4 +207,39 @@ export function getCardBillingRange(
     billingStart,
     billingEnd: settlementDateThisMonth,
   };
+}
+
+
+
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+export function getPreviousPeriod(
+  timeframe: 'daily' | 'weekly' | 'monthly' | 'yearly',
+  start: Date,
+  end: Date,
+): { start: Date; end: Date } {
+  switch (timeframe) {
+    case 'daily':
+      return {
+        start: subDays(start, 1),
+        end: subDays(end, 1),
+      };
+    case 'weekly':
+      return {
+        start: subWeeks(start, 1),
+        end: subWeeks(end, 1),
+      };
+    case 'monthly':
+      return {
+        start: subMonths(start, 1),
+        end: subMonths(end, 1),
+      };
+    case 'yearly':
+      return {
+        start: subYears(start, 1),
+        end: subYears(end, 1),
+      };
+    default:
+      throw new Error(`Unsupported timeframe: ${timeframe}`);
+  }
 }
