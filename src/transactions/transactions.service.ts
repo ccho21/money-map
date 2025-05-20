@@ -27,10 +27,7 @@ import {
 import { recalculateAccountBalanceInTx } from './utils/recalculateAccountBalanceInTx.util';
 import { TransactionDetailDTO } from './dto/transaction-detail.dto';
 import { TransactionCalendarDTO } from './dto/transactions/transaction-calendar.dto';
-import {
-  Timeframe,
-  TransactionGroupQueryDTO,
-} from './dto/params/transaction-group-query.dto';
+import { TransactionGroupQueryDTO } from './dto/params/transaction-group-query.dto';
 import { TransactionGroupListResponseDTO } from './dto/transactions/transaction-group-list-response.dto';
 import { TransactionItemDTO } from './dto/transactions/transaction-item.dto';
 import { TransactionGroupItemDTO } from './dto/transactions/transaction-group-item.dto';
@@ -47,6 +44,8 @@ import {
   TransactionChartBudgetDTO,
 } from './dto/charts/transaction-chart-budget.dto';
 import { ChartFlowInsightService } from '@/insights/services/chart-flow-insight.service';
+import { CategoryDetailDTO } from '@/categories/dto/category-detail.dto';
+import { AccountDetailDTO } from '@/accounts/dto/account-detail.dto';
 
 export type TransactionFilterWhereInput = Prisma.TransactionWhereInput;
 
@@ -516,7 +515,7 @@ export class TransactionsService {
     userId: string,
     query: TransactionGroupQueryDTO,
   ): Promise<TransactionCalendarDTO[]> {
-    const { startDate, endDate, timeframe } = query;
+    const { startDate, endDate } = query;
 
     // 1️⃣ 사용자 인증 및 타임존 확보
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
@@ -826,9 +825,9 @@ export class TransactionsService {
 
   convertToTransactionDetailDTO = (
     tx: Transaction & {
-      category?: any;
-      account: any;
-      toAccount?: any | null;
+      category?: CategoryDetailDTO;
+      account: AccountDetailDTO;
+      toAccount?: AccountDetailDTO | null;
     },
   ): TransactionDetailDTO => {
     return {
@@ -982,7 +981,7 @@ export class TransactionsService {
       totalIncome,
       totalExpense,
       netBalance,
-      timeframe: query.timeframe as Timeframe,
+      timeframe: query.timeframe,
       groupBy: query.groupBy,
       startDate: query.startDate,
       endDate: query.endDate,
@@ -1295,9 +1294,9 @@ export class TransactionsService {
       case 'date':
         return this.groupByDate(user.id, start, end, query, timezone);
       case 'category':
-        return this.groupByCategory(user.id, start, end, query, timezone);
+        return this.groupByCategory(user.id, start, end, query);
       case 'account':
-        return this.groupByAccount(user.id, start, end, query, timezone);
+        return this.groupByAccount(user.id, start, end, query);
       default:
         throw new BadRequestException('지원하지 않는 groupBy 값입니다.');
     }
@@ -1366,7 +1365,6 @@ export class TransactionsService {
     start: Date,
     end: Date,
     query: TransactionGroupQueryDTO,
-    timezone: string,
   ): Promise<TransactionGroupListResponseDTO> {
     const allTx = await this.prisma.transaction.findMany({
       where: {
@@ -1421,7 +1419,6 @@ export class TransactionsService {
     start: Date,
     end: Date,
     query: TransactionGroupQueryDTO,
-    timezone: string,
   ): Promise<TransactionGroupListResponseDTO> {
     const allTx = await this.prisma.transaction.findMany({
       where: {
@@ -1483,7 +1480,8 @@ export class TransactionsService {
   ): TransactionItemDTO => {
     return {
       id: tx.id,
-      title: tx.note || tx.description || '(제목 없음)',
+      note: tx.note,
+      description: tx.note,
       amount: tx.amount,
       type: tx.type,
       date: tx.date.toISOString(),
@@ -1504,38 +1502,4 @@ export class TransactionsService {
       },
     };
   };
-
-  groupTransactionsByTimeframe(transactions, timeframe, timezone) {
-    const grouped = new Map<
-      string,
-      { label: string; transactions: typeof transactions }
-    >();
-
-    for (const tx of transactions) {
-      const date = toZonedTime(tx.date, timezone);
-
-      let key = '';
-      let label = '';
-      if (timeframe === 'monthly') {
-        key = format(date, 'yyyy-MM');
-        label = format(date, 'MMMM');
-      } else if (timeframe === 'daily') {
-        key = format(date, 'yyyy-MM-dd');
-        label = key;
-      } else if (timeframe === 'weekly') {
-        key = format(date, "yyyy-'W'II");
-        label = key;
-      } else {
-        key = format(date, 'yyyy');
-        label = key;
-      }
-
-      if (!grouped.has(key)) {
-        grouped.set(key, { label, transactions: [] });
-      }
-      grouped.get(key)!.transactions.push(tx);
-    }
-
-    return [...grouped.values()];
-  }
 }
