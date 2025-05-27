@@ -61,7 +61,7 @@ describe('BudgetsService', () => {
       const result = await service.getSummary(mockUser.id, {
         startDate: '2024-01-01',
         endDate: '2024-01-31',
-        groupBy: GroupBy.MONTHLY,
+        groupBy: GroupBy.monthly,
       });
 
       expect(result.totalBudget).toBe(mockBudgetCategory.amount);
@@ -92,7 +92,7 @@ describe('BudgetsService', () => {
       const result = await service.getBudgetCategories(mockUser.id, {
         startDate: '2024-01-01',
         endDate: '2024-01-31',
-        groupBy: GroupBy.MONTHLY,
+        groupBy: GroupBy.monthly,
       });
 
       expect(result.data).toHaveLength(1);

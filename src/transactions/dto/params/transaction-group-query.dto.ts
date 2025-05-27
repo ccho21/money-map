@@ -49,4 +49,7 @@ export class TransactionGroupQueryDTO {
   @Transform(({ value }) => parseInt(value, 10))
   @IsInt()
   limit?: number;
+
+  @IsOptional()
+  note?: string;
 }

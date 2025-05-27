@@ -4,7 +4,6 @@ import { Injectable } from '@nestjs/common';
 import {
   DashboardBudgetComparisonDTO,
   DashboardDTO,
-  DashboardInsightDTO,
   DashboardMonthlyComparisonDTO,
 } from './dto/dashboard.dto';
 import { startOfDay, subDays } from 'date-fns';
@@ -17,6 +16,7 @@ import {
   getUTCEndDate,
   getUTCStartDate,
 } from '@/libs/date.util';
+import { InsightQueryDTO } from '@/insights/dto/query.dto';
 
 @Injectable()
 export class DashboardService {
@@ -29,6 +29,7 @@ export class DashboardService {
     userId: string,
     query: TransactionGroupQueryDTO,
   ): Promise<DashboardDTO> {
+    console.log('### user id', userId);
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new Error('User not found');
 
@@ -115,7 +116,6 @@ export class DashboardService {
       { name: string; amount: number; color?: string }
     >();
     for (const tx of monthlyTx) {
-      console.log('###TX', tx);
       const catId = tx.categoryId ?? 'uncategorized';
       const name = tx.category?.name ?? 'Other';
       categoryMap.set(catId, {
@@ -144,17 +144,16 @@ export class DashboardService {
       orderBy: { date: 'asc' },
     });
 
-    const periods = this.insightService.buildChartFlowPeriods(
-      chartTx,
-      query.timeframe,
-      timezone,
+    const insightQuery: InsightQueryDTO = {
+      startDate: query.startDate,
+      endDate: query.endDate,
+      timeframe: query.timeframe,
+    };
+    const insights = await this.insightService.generateInsights(
+      userId,
+      ['dashboard'],
+      insightQuery,
     );
-    const rawInsights = this.insightService.generateFromChartPeriods(periods);
-    const insights: DashboardInsightDTO[] = rawInsights.map((i) => ({
-      id: i.id,
-      message: i.message,
-      value: i.value,
-    }));
 
     return {
       balance,

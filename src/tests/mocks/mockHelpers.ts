@@ -2,21 +2,9 @@ import { AccountCreateRequestDTO } from '@/accounts/dto/account-request.dto';
 import { BaseListSummaryResponseDTO } from '@/common/dto/base-list-summary-response.dto';
 import { GroupBy } from '@/common/types/types';
 import { PrismaService } from '@/prisma/prisma.service';
-import { StatsBudgetDetailDTO } from '@/stats/dto/budget/detail.dto';
-import { StatsBudgetSummaryDTO } from '@/stats/dto/budget/summary.dto';
-import { StatsCategoryDetailDTO } from '@/stats/dto/category/detail.dto';
-import { StatsCategoryGroupItemDTO } from '@/stats/dto/category/group-item.dto';
-import { StatsCategorySummaryDTO } from '@/stats/dto/category/summary.dto';
-import { StatsNoteDetailDTO } from '@/stats/dto/note/detail.dto';
-import { StatsNoteGroupItemDTO } from '@/stats/dto/note/group-item.dto';
-import { StatsNoteSummaryDTO } from '@/stats/dto/note/summary.dto';
-import { StatsQuery } from '@/stats/dto/stats-query.dto';
 import { TransactionCalendarDTO } from '@/transactions/dto/transactions/transaction-calendar.dto';
-import {
-  TransactionCreateRequestDTO,
-  TransactionTransferRequestDTO,
-  TransactionUpdateRequestDTO,
-} from '@/transactions/dto/transaction-request.dto';
+import { CreateTransactionDTO } from '@/transactions/dto/transactions/transaction-create.dto';
+import { UpdateTransactionDTO } from '@/transactions/dto/transactions/transaction-update.dto';
 import { CategoryType, TransactionType } from '@prisma/client';
 
 //
@@ -91,58 +79,6 @@ export const mockCategory = {
   color: '#ff0000',
 };
 
-export const mockStatsCategoryDetail: StatsCategoryDetailDTO = {
-  categoryId: 'cat1',
-  categoryName: 'Food',
-  icon: '🍔',
-  color: '#FF6600',
-  type: 'expense',
-  totalIncome: 0,
-  totalExpense: 12000,
-  items: [
-    {
-      label: '2024-01',
-      rangeStart: '2024-01-01',
-      rangeEnd: '2024-01-31',
-      groupIncome: 0,
-      groupExpense: 12000,
-      isCurrent: true,
-      transactions: [],
-    },
-  ],
-};
-
-export const mockStatsCategorySummary: StatsCategorySummaryDTO = {
-  startDate: '2024-01-01',
-  endDate: '2024-03-31',
-  groupBy: GroupBy.MONTHLY,
-  type: 'expense',
-  totalIncome: 0,
-  totalExpense: 240000,
-  items: [],
-};
-
-export const mockCategoryGroupSummary: BaseListSummaryResponseDTO<StatsCategoryGroupItemDTO> =
-  {
-    startDate: '2024-01-01',
-    endDate: '2024-01-31',
-    groupBy: 'monthly' as GroupBy,
-    type: 'expense',
-    items: [],
-    summary: {
-      categoryId: 'summary',
-      categoryName: 'Summary',
-      categoryType: 'expense',
-      amount: 0,
-      rate: 100,
-      // color: '#3B82F6',
-      label: 'Summary',
-      rangeStart: '2024-01-01',
-      rangeEnd: '2024-01-31',
-    },
-    totalIncome: 0,
-    totalExpense: 0,
-  };
 //
 // ========================= 💸 BUDGETS =========================
 //
@@ -162,29 +98,6 @@ export const mockBudgetCategory = {
   startDate: new Date('2024-01-01'),
   endDate: new Date('2024-01-31'),
   type: 'expense',
-};
-
-export const mockStatsBudgetDetail: StatsBudgetDetailDTO = {
-  categoryId: 'cat-transport',
-  categoryName: 'Transport',
-  icon: 'Car',
-  color: '#3B82F6',
-  type: 'expense',
-  totalExpense: 60000,
-  totalBudget: 100000,
-  totalRemaining: 40000,
-  isOver: false,
-  items: [],
-};
-
-export const mockStatsBudgetSummary: StatsBudgetSummaryDTO = {
-  startDate: '2024-04-01',
-  endDate: '2024-04-30',
-  groupBy: GroupBy.MONTHLY,
-  type: 'expense',
-  totalIncome: 0,
-  totalExpense: 100000,
-  items: [],
 };
 
 //
@@ -210,7 +123,7 @@ export const mockTransaction = {
   category: null,
 };
 
-export const mockCreateTransactionDto: TransactionCreateRequestDTO = {
+export const mockCreateTransactionDto: CreateTransactionDTO = {
   type: TransactionType.expense,
   amount: 5000,
   date: new Date('2024-04-10').toISOString(),
@@ -220,7 +133,7 @@ export const mockCreateTransactionDto: TransactionCreateRequestDTO = {
   description: 'Lunch at cafe',
 };
 
-export const mockUpdateTransactionDto: TransactionUpdateRequestDTO = {
+export const mockUpdateTransactionDto: UpdateTransactionDTO = {
   amount: 10000,
   categoryId: 'cat-002',
   note: 'Updated note',
@@ -228,7 +141,7 @@ export const mockUpdateTransactionDto: TransactionUpdateRequestDTO = {
   date: new Date('2024-04-11').toISOString(),
 };
 
-export const mockTransferTransactionDto: TransactionTransferRequestDTO = {
+export const mockTransferTransactionDto: CreateTransactionDTO = {
   type: TransactionType.transfer,
   amount: 15000,
   date: new Date('2024-04-12').toISOString(),
@@ -251,40 +164,6 @@ export const mockTransactionCalendarItem: TransactionCalendarDTO = {
 //
 // ========================= 📝 STATS / NOTE =========================
 //
-export const mockStatsNoteGroupItem: StatsNoteGroupItemDTO = {
-  note: 'Starbucks',
-  type: 'expense',
-  count: 1,
-  label: '2024-01',
-  amount: 0,
-  rangeStart: '2024-01-01',
-  rangeEnd: '2024-01-31',
-};
-
-export const mockStatsNoteDetail: StatsNoteDetailDTO = {
-  note: 'Starbucks',
-  totalIncome: 0,
-  totalExpense: 18000,
-  items: [],
-};
-
-export const mockStatsNoteSummary: StatsNoteSummaryDTO = {
-  startDate: '2024-04-01',
-  endDate: '2024-04-30',
-  groupBy: GroupBy.MONTHLY,
-  type: 'expense',
-  totalIncome: 0,
-  totalExpense: 18000,
-  items: [],
-};
-
-///////////////
-export const statsQuery: StatsQuery = {
-  startDate: '2024-01-01',
-  endDate: '2024-01-31',
-  groupBy: GroupBy.MONTHLY,
-  type: CategoryType.expense,
-};
 
 export const mockAccountCreateRequest: AccountCreateRequestDTO = {
   name: 'Test Account',

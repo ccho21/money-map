@@ -34,7 +34,7 @@ describe('getDateRangeAndLabelByGroup', () => {
   it('should return correct label and range for monthly', () => {
     const result = getDateRangeAndLabelByGroup(
       baseDate,
-      GroupBy.MONTHLY,
+      GroupBy.monthly,
       timezone,
     );
     expect(result.label).toMatch(/Jan|2024-01/);
@@ -45,7 +45,7 @@ describe('getDateRangeAndLabelByGroup', () => {
   it('should return correct label and range for yearly', () => {
     const result = getDateRangeAndLabelByGroup(
       baseDate,
-      GroupBy.YEARLY,
+      GroupBy.yearly,
       timezone,
     );
     expect(result.label).toBe('2024');

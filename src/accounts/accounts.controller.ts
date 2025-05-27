@@ -18,7 +18,6 @@ import { AccountTransactionSummaryDTO } from './dto/account-transaction-summary.
 import { AccountDashboardDTO } from './dto/account-dashboard.dto';
 import { DateQueryDTO } from '@/common/dto/filter/date-query.dto';
 import { DateRangeWithGroupQueryDTO } from '@/common/dto/filter/date-range-with-group-query.dto';
-import { TransactionGroupSummaryDTO } from '@/transactions/dto/transaction-group-summary.dto';
 import {
   AccountCreateRequestDTO,
   AccountUpdateRequestDTO,
@@ -66,14 +65,14 @@ export class AccountsController {
     return this.accountsService.getSummary(user.id, filter);
   }
 
-  @Get(':accountId/summary')
-  async getAccountSummary(
-    @Param('accountId') accountId: string,
-    @Query() filter: DateRangeWithGroupQueryDTO,
-    @GetUser() user: UserPayload,
-  ): Promise<TransactionGroupSummaryDTO> {
-    return this.accountsService.getAccountSummary(accountId, user.id, filter);
-  }
+  // @Get(':accountId/summary')
+  // async getAccountSummary(
+  //   @Param('accountId') accountId: string,
+  //   @Query() filter: DateRangeWithGroupQueryDTO,
+  //   @GetUser() user: UserPayload,
+  // ): Promise<TransactionGroupSummaryDTO> {
+  //   return this.accountsService.getAccountSummary(accountId, user.id, filter);
+  // }
 
   @Get(':id')
   findOne(@Param('id') id: string, @GetUser() user: UserPayload) {
@@ -90,7 +89,8 @@ export class AccountsController {
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string, @GetUser() user: UserPayload) {
-    return this.accountsService.remove(user.id, id);
+  async remove(@GetUser() user: UserPayload, @Param('id') id: string) {
+    await this.accountsService.remove(user.id, id);
+    return { success: true };
   }
 }

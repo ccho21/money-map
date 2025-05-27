@@ -14,7 +14,6 @@ export const generateTokens = async (
     timezone: payload.timezone,
   };
 
-  console.log('### payload', jwtPayload);
   const accessToken = await jwt.signAsync(jwtPayload, {
     expiresIn: '15m',
   });

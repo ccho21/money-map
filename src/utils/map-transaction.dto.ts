@@ -1,6 +1,6 @@
 import { AccountDetailDTO } from '@/accounts/dto/account-detail.dto';
 import { CategoryDetailDTO } from '@/categories/dto/category-detail.dto';
-import { TransactionDetailDTO } from '@/transactions/dto/transaction-detail.dto';
+import { TransactionDetailDTO } from '@/transactions/dto/transactions/transaction-detail.dto';
 
 /**
  * 계좌 정보 매핑 (Account → AccountDetailDTO)

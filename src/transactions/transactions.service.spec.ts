@@ -183,7 +183,7 @@ describe('TransactionsService', () => {
       const result = await service.getTransactionSummary(mockUser.id, {
         startDate: '2024-01-01',
         endDate: '2024-01-31',
-        groupBy: GroupBy.MONTHLY,
+        groupBy: GroupBy.monthly,
       });
 
       expect(result).toBeDefined();

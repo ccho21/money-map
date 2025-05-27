@@ -30,6 +30,13 @@ enum TransactionType {
   transfer
 }
 
+enum RecurringFrequency {
+  daily
+  weekly
+  monthly
+  yearly
+}
+
 model User {
   id                 String        @id @default(uuid())
   email              String        @unique
@@ -40,7 +47,9 @@ model User {
   categories         Category[]
   budgets            Budget[]
   accounts           Account[]
-  hashedRefreshToken String? // ✅ 이 필드가 없으면 추가!
+  hashedRefreshToken String?
+  //
+  recurringTransactions RecurringTransaction[]
 }
 
 model Account {
@@ -61,6 +70,10 @@ model Account {
   settlementDate Int?
   paymentDate    Int?
   autoPayment    Boolean?
+
+  // Recurring Transaction
+  recurringFromTransactions RecurringTransaction[] @relation("FromRecurringAccount")
+  recurringToTransactions   RecurringTransaction[] @relation("ToRecurringAccount")   
 }
 
 model Transaction {
@@ -86,6 +99,11 @@ model Transaction {
   dueDate   DateTime? // 카드 결제 예정일
   paidAt    DateTime? // 실제 결제 완료일
   isOpening Boolean   @default(false)
+
+  // Recurring Transaction
+  recurringTransactionId String?
+  recurringTransaction   RecurringTransaction? @relation(fields: [recurringTransactionId], references: [id]) // ✅ 추가
+
 }
 
 model Category {
@@ -98,6 +116,9 @@ model Category {
   transactions Transaction[]
   budgets      BudgetCategory[]
   user         User             @relation(fields: [userId], references: [id])
+
+  // Recurring Transaction
+  recurringTransactions RecurringTransaction[] // ✅ 추가
 }
 
 model Budget {
@@ -125,4 +146,30 @@ model BudgetCategory {
   category Category @relation(fields: [categoryId], references: [id])
 
   @@unique([categoryId, startDate, endDate]) // ✅ 중복 방지
+}
+
+model RecurringTransaction {
+  id           String          @id @default(uuid())
+  userId       String
+  accountId    String
+  toAccountId  String?
+  categoryId   String?
+  type         TransactionType
+  amount       Int
+  startDate    DateTime
+  frequency    RecurringFrequency
+  anchorDay    Int?
+  interval     Int             @default(1)
+  endDate      DateTime?
+  note         String?
+  description  String?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  user         User            @relation(fields: [userId], references: [id])
+  account      Account         @relation("FromRecurringAccount", fields: [accountId], references: [id])
+  toAccount    Account?        @relation("ToRecurringAccount", fields: [toAccountId], references: [id])
+  category     Category?       @relation(fields: [categoryId], references: [id])
+
+  transactions Transaction[]
 }

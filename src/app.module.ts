@@ -10,9 +10,10 @@ import { CategoriesModule } from './categories/categories.module';
 import { BudgetsModule } from './budgets/budgets.module';
 import { EventsModule } from './events/events.module';
 import { AccountsModule } from './accounts/accounts.module';
-import { StatsModule } from './stats/stats.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { InsightsModule } from './insights/insights.module';
+import { RecurringModule } from './recurring/recurring.module';
+import { ScheduleModule } from '@nestjs/schedule'
 
 @Module({
   imports: [
@@ -24,9 +25,10 @@ import { InsightsModule } from './insights/insights.module';
     BudgetsModule,
     EventsModule,
     AccountsModule,
-    StatsModule,
     InsightsModule,
     DashboardModule,
+    RecurringModule,
+    ScheduleModule.forRoot(),
   ],
   controllers: [AppController],
   providers: [AppService, PrismaService],

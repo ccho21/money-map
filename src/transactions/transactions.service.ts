@@ -8,24 +8,18 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventsGateway } from 'src/events/events.gateway';
-import { Prisma, Transaction } from '@prisma/client';
+import { Prisma, RecurringTransaction, Transaction } from '@prisma/client';
 
 import { addMonths, format, isAfter, startOfMonth } from 'date-fns';
 import { formatInTimeZone, toZonedTime } from 'date-fns-tz';
 
 import { getUserTimezone } from '@/libs/timezone';
 import {
-  TransactionCreateRequestDTO,
-  TransactionUpdateRequestDTO,
-  TransactionTransferRequestDTO,
-} from '@/transactions/dto/transaction-request.dto';
-import {
   getPreviousPeriod,
   getUTCEndDate,
   getUTCStartDate,
 } from '@/libs/date.util';
 import { recalculateAccountBalanceInTx } from './utils/recalculateAccountBalanceInTx.util';
-import { TransactionDetailDTO } from './dto/transaction-detail.dto';
 import { TransactionCalendarDTO } from './dto/transactions/transaction-calendar.dto';
 import { TransactionGroupQueryDTO } from './dto/params/transaction-group-query.dto';
 import { TransactionGroupListResponseDTO } from './dto/transactions/transaction-group-list-response.dto';
@@ -43,9 +37,13 @@ import {
   BudgetUsageDTO,
   TransactionChartBudgetDTO,
 } from './dto/charts/transaction-chart-budget.dto';
-import { ChartFlowInsightService } from '@/insights/services/chart-flow-insight.service';
+// import { ChartFlowInsightService } from '@/insights/services/chart-flow-insight.service';
 import { CategoryDetailDTO } from '@/categories/dto/category-detail.dto';
 import { AccountDetailDTO } from '@/accounts/dto/account-detail.dto';
+import { TransactionChartAccountDTO } from './dto/charts/transaction-chart-account.dto';
+import { TransactionDetailDTO } from './dto/transactions/transaction-detail.dto';
+import { CreateTransactionDTO } from './dto/transactions/transaction-create.dto';
+import { UpdateTransactionDTO } from './dto/transactions/transaction-update.dto';
 
 export type TransactionFilterWhereInput = Prisma.TransactionWhereInput;
 
@@ -56,56 +54,78 @@ export class TransactionsService {
   constructor(
     private prisma: PrismaService,
     private eventsGateway: EventsGateway,
-    private readonly chartFlowInsightService: ChartFlowInsightService,
+    // private readonly chartFlowInsightService: ChartFlowInsightService,
   ) {}
 
-  async create(userId: string, dto: TransactionCreateRequestDTO) {
+  async create(userId: string, dto: CreateTransactionDTO) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new Error('User not found');
-
+  
     const category = await this.prisma.category.findUnique({
       where: { id: dto.categoryId as string },
     });
     if (!category) {
       throw new NotFoundException('카테고리를 찾을 수 없습니다.');
     }
-
+  
     const account = await this.prisma.account.findUnique({
       where: { id: dto.accountId },
     });
     if (!account) {
       throw new NotFoundException('계좌를 찾을 수 없습니다.');
     }
-
+  
+    let recurring: RecurringTransaction | null = null;
+  
+    // ✅ 먼저 RecurringTransaction을 생성 (있다면)
+    if (dto.recurring?.frequency && dto.recurring?.startDate) {
+      recurring = await this.prisma.recurringTransaction.create({
+        data: {
+          userId,
+          type: dto.type,
+          amount: dto.amount,
+          categoryId: dto.categoryId,
+          accountId: dto.accountId,
+          toAccountId: dto.toAccountId ?? null,
+          note: dto.note,
+          description: dto.description,
+          frequency: dto.recurring.frequency,
+          interval: dto.recurring.interval,
+          startDate: new Date(dto.recurring.startDate),
+          endDate: dto.recurring.endDate ? new Date(dto.recurring.endDate) : null,
+        },
+      });
+    }
+  
+    // ✅ 트랜잭션 생성 (recurringTransactionId 연결 포함)
     const transaction = await this.prisma.$transaction(async (tx) => {
-      // ✅ 트랜잭션 생성
       const created = await tx.transaction.create({
         data: {
           type: dto.type,
           amount: dto.amount,
           categoryId: dto.categoryId,
           accountId: dto.accountId,
+          toAccountId: dto.toAccountId ?? null,
           note: dto.note,
           description: dto.description,
           date: dto.date,
           userId,
+          recurringTransactionId: recurring?.id ?? null,
         },
       });
-
-      // ✅ 계좌 잔액 재계산
+  
       await recalculateAccountBalanceInTx(tx, dto.accountId, userId);
-
       return created;
     });
-
-    // ✅ 예산 초과 경고는 트랜잭션 외부에서 처리
+  
+    // ✅ 예산 초과 알림
     const budgetItem = await this.prisma.budgetCategory.findFirst({
       where: {
         categoryId: dto.categoryId as string,
         budget: { userId },
       },
     });
-
+  
     if (budgetItem) {
       const spent = await this.prisma.transaction.aggregate({
         where: {
@@ -115,7 +135,7 @@ export class TransactionsService {
         },
         _sum: { amount: true },
       });
-
+  
       const totalSpent = spent._sum.amount || 0;
       if (totalSpent > budgetItem.amount) {
         const exceed = totalSpent - budgetItem.amount;
@@ -125,23 +145,27 @@ export class TransactionsService {
         });
       }
     }
-
+  
     return transaction;
   }
 
-  async update(userId: string, id: string, dto: TransactionUpdateRequestDTO) {
-    const existing = await this.prisma.transaction.findFirst({
-      where: { id, userId },
+  async update(userId: string, id: string, dto: UpdateTransactionDTO) {
+    const existing = await this.prisma.transaction.findUnique({
+      where: { id },
     });
-    if (!existing) throw new NotFoundException('거래를 찾을 수 없습니다.');
-
+  
+    if (!existing || existing.userId !== userId) {
+      throw new NotFoundException('거래를 찾을 수 없습니다.');
+    }
+  
     if (existing.isOpening) {
       throw new BadRequestException('Opening Balance는 삭제할 수 없습니다.');
     }
-
+  
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new Error('User not found');
-
+  
+    // ✅ 업데이트를 실행하며 recurringTransactionId도 변경 가능
     const updatedTransaction = await this.prisma.$transaction(async (tx) => {
       const updated = await tx.transaction.update({
         where: { id },
@@ -157,7 +181,7 @@ export class TransactionsService {
           }),
         },
       });
-
+  
       const promises = [
         recalculateAccountBalanceInTx(tx, existing.accountId, userId),
       ];
@@ -165,41 +189,98 @@ export class TransactionsService {
         promises.push(recalculateAccountBalanceInTx(tx, dto.accountId, userId));
       }
       await Promise.all(promises);
-
+  
       return updated;
     });
-
+  
+    // ✅ 기존 recurringTransaction 연결 여부 확인
+    const existingRecurringId = existing.recurringTransactionId;
+  
+    // 🔻 recurring 삭제 요청 (기존 연결이 있는데, dto.recurring이 없음)
+    if (!dto.recurring && existingRecurringId) {
+      await this.prisma.recurringTransaction.delete({
+        where: { id: existingRecurringId },
+      });
+  
+      await this.prisma.transaction.update({
+        where: { id },
+        data: { recurringTransactionId: null },
+      });
+    }
+  
+    // 🔄 recurring 생성/업데이트
+    if (dto.recurring) {
+      const recurringData = {
+        userId,
+        type: dto.type ?? existing.type,
+        amount: dto.amount ?? existing.amount,
+        categoryId: dto.categoryId ?? existing.categoryId,
+        accountId: dto.accountId ?? existing.accountId,
+        toAccountId: dto.toAccountId ?? null,
+        note: dto.note ?? existing.note,
+        description: dto.description ?? existing.description,
+        frequency: dto.recurring.frequency,
+        interval: dto.recurring.interval,
+        startDate: new Date(dto.recurring.startDate),
+        endDate: dto.recurring.endDate ? new Date(dto.recurring.endDate) : null,
+      };
+  
+      if (existingRecurringId) {
+        await this.prisma.recurringTransaction.update({
+          where: { id: existingRecurringId },
+          data: recurringData,
+        });
+      } else {
+        const newRecurring = await this.prisma.recurringTransaction.create({
+          data: recurringData,
+        });
+  
+        await this.prisma.transaction.update({
+          where: { id },
+          data: { recurringTransactionId: newRecurring.id },
+        });
+      }
+    }
+  
     return updatedTransaction;
   }
+  
 
   async delete(userId: string, id: string): Promise<{ message: string }> {
     const existing = await this.prisma.transaction.findFirst({
       where: { id, userId },
     });
-
+  
     if (!existing) {
       throw new NotFoundException('거래를 찾을 수 없습니다.');
     }
-
+  
     if (existing.isOpening) {
       throw new BadRequestException('Opening Balance는 삭제할 수 없습니다.');
     }
-
+  
     await this.prisma.$transaction(async (tx) => {
       // ✅ 트랜잭션 삭제
       await tx.transaction.delete({
         where: { id },
       });
-
-      // ✅ 잔액 재계산 (기존 계좌)
+  
+      // ✅ 잔액 재계산
       await recalculateAccountBalanceInTx(tx, existing.accountId, userId);
-
-      // ✅ transfer인 경우 입금 계좌도 재계산 필요
+  
+      // ✅ transfer라면 입금 계좌도 재계산
       if (existing.type === 'transfer' && existing.toAccountId) {
         await recalculateAccountBalanceInTx(tx, existing.toAccountId, userId);
       }
     });
-
+  
+    // ✅ 연결된 recurring 삭제
+    if (existing.recurringTransactionId) {
+      await this.prisma.recurringTransaction.delete({
+        where: { id: existing.recurringTransactionId },
+      });
+    }
+  
     return { message: '삭제 완료' };
   }
 
@@ -564,39 +645,68 @@ export class TransactionsService {
       .sort((a, b) => a.date.localeCompare(b.date)); // 날짜순 정렬 (옵션)
   }
 
-  async createTransfer(userId: string, dto: TransactionTransferRequestDTO) {
+  async createTransfer(userId: string, dto: CreateTransactionDTO) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new Error('User not found');
-
+  
     const { amount, fromAccountId, toAccountId, date, note, description } = dto;
-
-    if (fromAccountId === toAccountId) {
-      throw new BadRequestException('같은 계좌 간 이체는 허용되지 않습니다.');
+  
+    if (!fromAccountId || !toAccountId) {
+      throw new BadRequestException(
+        'Transfer transaction requires both fromAccountId and toAccountId',
+      );
     }
-
+  
+    if (fromAccountId === toAccountId) {
+      throw new BadRequestException(
+        'fromAccountId and toAccountId cannot be the same',
+      );
+    }
+  
     try {
+      let recurring: RecurringTransaction | null = null;
+  
+      // ✅ 먼저 recurring 생성 (필요할 경우)
+      if (dto.recurring?.frequency && dto.recurring?.startDate) {
+        recurring = await this.prisma.recurringTransaction.create({
+          data: {
+            userId,
+            type: 'transfer',
+            amount,
+            accountId: fromAccountId,
+            toAccountId: toAccountId,
+            note,
+            description,
+            frequency: dto.recurring.frequency,
+            interval: dto.recurring.interval,
+            startDate: new Date(dto.recurring.startDate),
+            endDate: dto.recurring.endDate
+              ? new Date(dto.recurring.endDate)
+              : null,
+          },
+        });
+      }
+  
       const result = await this.prisma.$transaction(async (tx) => {
         // ✅ 계좌 확인
         const [fromAccount, toAccount] = await Promise.all([
           tx.account.findUnique({ where: { id: fromAccountId } }),
           tx.account.findUnique({ where: { id: toAccountId } }),
         ]);
-
+  
         if (!fromAccount || !toAccount) {
-          throw new NotFoundException(
-            '출금 또는 입금 계좌를 찾을 수 없습니다.',
-          );
+          throw new NotFoundException('출금 또는 입금 계좌를 찾을 수 없습니다.');
         }
-
+  
         if (fromAccount.userId !== userId || toAccount.userId !== userId) {
           throw new ForbiddenException('본인의 계좌만 사용할 수 있습니다.');
         }
-
+  
         if (fromAccount.type !== 'CARD' && fromAccount.balance < amount) {
           throw new BadRequestException('출금 계좌의 잔액이 부족합니다.');
         }
-
-        // ✅ 트랜스퍼 생성
+  
+        // ✅ 출금 트랜잭션 생성 (recurring 연결 포함)
         const outTx = await tx.transaction.create({
           data: {
             type: 'transfer',
@@ -607,9 +717,11 @@ export class TransactionsService {
             date,
             note,
             description,
+            recurringTransactionId: recurring?.id ?? null,
           },
         });
-
+  
+        // ✅ 입금 트랜잭션 생성
         const inTx = await tx.transaction.create({
           data: {
             type: 'transfer',
@@ -623,96 +735,99 @@ export class TransactionsService {
             description,
           },
         });
-
+  
+        // ✅ 출금 트랜잭션 ↔ 입금 트랜잭션 연결
         await tx.transaction.update({
           where: { id: outTx.id },
           data: { linkedTransferId: inTx.id },
         });
-
-        // ✅ 트랜잭션 후 잔액 재계산
+  
+        // ✅ 잔액 재계산
         await Promise.all([
           recalculateAccountBalanceInTx(tx, fromAccountId, userId),
           recalculateAccountBalanceInTx(tx, toAccountId, userId),
         ]);
-
+  
         return { outgoing: outTx, incoming: inTx };
       });
-
+  
       return result;
     } catch (err) {
       this.logger.error('❌ createTransfer 실패:', err);
       throw new InternalServerErrorException('이체 중 오류가 발생했습니다.');
     }
   }
+  
 
-  async updateTransfer(
-    userId: string,
-    id: string,
-    dto: TransactionTransferRequestDTO,
-  ) {
+  async updateTransfer(userId: string, id: string, dto: UpdateTransactionDTO) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new Error('User not found');
-
+  
     const { amount, fromAccountId, toAccountId, date, note, description } = dto;
-
-    if (fromAccountId === toAccountId) {
-      throw new BadRequestException('같은 계좌로 이체할 수 없습니다.');
+  
+    if (!fromAccountId || !toAccountId) {
+      throw new BadRequestException(
+        'Transfer transaction requires both fromAccountId and toAccountId',
+      );
     }
-
+  
+    if (fromAccountId === toAccountId) {
+      throw new BadRequestException(
+        'fromAccountId and toAccountId cannot be the same',
+      );
+    }
+  
     const original = await this.prisma.transaction.findUnique({
       where: { id },
       include: { account: true },
     });
-
+  
     if (!original || original.userId !== userId) {
       throw new NotFoundException('수정할 트랜잭션을 찾을 수 없습니다.');
     }
-
-    return await this.prisma.$transaction(async (tx) => {
+  
+    const result = await this.prisma.$transaction(async (tx) => {
       const [fromAccount, toAccount] = await Promise.all([
         tx.account.findUnique({ where: { id: fromAccountId } }),
         tx.account.findUnique({ where: { id: toAccountId } }),
       ]);
-
+  
       if (!fromAccount || !toAccount) {
         throw new NotFoundException('계좌 정보를 찾을 수 없습니다.');
       }
-
+  
       if (fromAccount.userId !== userId || toAccount.userId !== userId) {
         throw new ForbiddenException('본인의 계좌만 사용할 수 있습니다.');
       }
-
+  
       const fromIsCard = fromAccount.type === 'CARD';
-
       if (!fromIsCard) {
-        const simulated = fromAccount.balance + original.amount - amount;
+        const simulated = fromAccount.balance + original.amount - (amount ?? 0);
         if (simulated < 0) {
           throw new BadRequestException('출금 계좌의 잔액이 부족합니다.');
         }
       }
-
+  
       // 기존 입금 트랜잭션 제거
       if (original.type === 'transfer' && original.linkedTransferId) {
-        await tx.transaction.delete({
-          where: { id: original.linkedTransferId },
-        });
+        await tx.transaction.delete({ where: { id: original.linkedTransferId } });
       }
-
+  
       // 새 입금 트랜잭션 생성
       const incoming = await tx.transaction.create({
         data: {
           type: 'transfer',
           userId,
-          amount,
+          amount: amount ?? 0,
           accountId: toAccountId,
           toAccountId: null,
           linkedTransferId: original.id,
-          date,
+          date: date ?? new Date(),
           note,
           description,
         },
       });
-
+  
       // 기존 출금 트랜잭션 업데이트
       const outgoing = await tx.transaction.update({
         where: { id },
@@ -728,25 +843,73 @@ export class TransactionsService {
           categoryId: null,
         },
       });
-      console.log('### tx', incoming);
-      console.log('### fromAccountId', outgoing);
-      console.log('###toAccountId', toAccountId);
-
-      // ✅ 잔액 재계산
+  
       await Promise.all([
         recalculateAccountBalanceInTx(tx, fromAccountId, userId),
         recalculateAccountBalanceInTx(tx, toAccountId, userId),
       ]);
-
+  
       return { updatedOutgoing: outgoing, updatedIncoming: incoming };
     });
+  
+    // ✅ Recurring 처리
+    const existingRecurringId = original.recurringTransactionId;
+  
+    // ❌ 삭제 요청: dto.recurring이 없고, 기존에 연결되어 있음
+    if (!dto.recurring && existingRecurringId) {
+      await this.prisma.recurringTransaction.delete({
+        where: { id: existingRecurringId },
+      });
+  
+      await this.prisma.transaction.update({
+        where: { id },
+        data: { recurringTransactionId: null },
+      });
+    }
+  
+    // 🔄 생성 또는 업데이트
+    if (dto.recurring) {
+      const recurringData = {
+        userId,
+        type: 'transfer' as const,
+        amount: amount ?? original.amount,
+        accountId: fromAccountId,
+        toAccountId,
+        note: note ?? original.note,
+        description: description ?? original.description,
+        frequency: dto.recurring.frequency,
+        interval: dto.recurring.interval,
+        startDate: new Date(dto.recurring.startDate),
+        endDate: dto.recurring.endDate ? new Date(dto.recurring.endDate) : null,
+      };
+  
+      if (existingRecurringId) {
+        await this.prisma.recurringTransaction.update({
+          where: { id: existingRecurringId },
+          data: recurringData,
+        });
+      } else {
+        const newRecurring = await this.prisma.recurringTransaction.create({
+          data: recurringData,
+        });
+  
+        await this.prisma.transaction.update({
+          where: { id },
+          data: { recurringTransactionId: newRecurring.id },
+        });
+      }
+    }
+  
+    return result;
   }
+  
+
   async deleteTransfer(userId: string, id: string) {
     const outgoing = await this.prisma.transaction.findUnique({
       where: { id },
       include: { account: true },
     });
-
+  
     if (
       !outgoing ||
       outgoing.type !== 'transfer' ||
@@ -754,16 +917,16 @@ export class TransactionsService {
     ) {
       throw new NotFoundException('삭제할 트랜잭션을 찾을 수 없습니다.');
     }
-
+  
     const incoming = await this.prisma.transaction.findUnique({
       where: { id: outgoing.linkedTransferId ?? undefined },
       include: { account: true },
     });
-
+  
     if (!incoming) {
       throw new NotFoundException('연결된 입금 트랜잭션을 찾을 수 없습니다.');
     }
-
+  
     await this.prisma.$transaction(async (tx) => {
       // ✅ 트랜잭션 삭제
       await tx.transaction.deleteMany({
@@ -771,16 +934,24 @@ export class TransactionsService {
           id: { in: [outgoing.id, incoming.id] },
         },
       });
-
+  
       // ✅ 잔액 재계산
       await Promise.all([
         recalculateAccountBalanceInTx(tx, outgoing.accountId, userId),
         recalculateAccountBalanceInTx(tx, incoming.accountId, userId),
       ]);
     });
-
+  
+    // ✅ RecurringTransaction 연결이 있으면 삭제
+    if (outgoing.recurringTransactionId) {
+      await this.prisma.recurringTransaction.delete({
+        where: { id: outgoing.recurringTransactionId },
+      });
+    }
+  
     return { success: true };
   }
+  
 
   async recalculateAccountBalance(accountId: string) {
     const account = await this.prisma.account.findUnique({
@@ -873,6 +1044,84 @@ export class TransactionsService {
   };
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  // services/transaction.service.ts
+  async getRecommendedKeywords(
+    userId: string,
+    limit = 5,
+    sampleSize = 100,
+  ): Promise<string[]> {
+    const recent = await this.prisma.transaction.findMany({
+      where: { userId, note: { not: null } },
+      select: { note: true },
+      orderBy: { date: 'desc' },
+      take: sampleSize,
+    });
+
+    const freq: Record<string, number> = {};
+    for (const { note } of recent) {
+      note!
+        .toLowerCase()
+        .replace(/[^\p{L}\p{N}\s]/gu, '') // 특수문자 제거(유니코드 지원)
+        .split(/\s+/)
+        .forEach((w) => {
+          if (w.length < 3) return; // 3자 미만 제외
+          freq[w] = (freq[w] ?? 0) + 1;
+        });
+    }
+
+    return Object.entries(freq)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, limit)
+      .map(([word]) => word);
+  }
+
+  async getGroupedTransactions(
+    userId: string,
+    query: TransactionGroupQueryDTO,
+  ): Promise<TransactionGroupListResponseDTO> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new ForbiddenException('사용자를 찾을 수 없습니다.');
+
+    const timezone = getUserTimezone(user);
+    const start = getUTCStartDate(query.startDate, timezone);
+    const end = getUTCEndDate(query.endDate, timezone);
+
+    const baseWhere: Prisma.TransactionWhereInput = {
+      userId,
+      date: { gte: start, lte: end },
+
+      ...(query.transactionType && { type: query.transactionType }),
+      ...(query.categoryId && { categoryId: query.categoryId }),
+      ...(query.accountId && {
+        OR: [{ accountId: query.accountId }, { toAccountId: query.accountId }],
+      }),
+
+      ...(query.note?.trim() && {
+        note: {
+          contains: query.note.trim(),
+          mode: 'insensitive',
+        },
+      }),
+    };
+
+    switch (query.groupBy ?? 'date') {
+      case 'date':
+        return this.groupByDate(
+          user.id,
+          start,
+          end,
+          query,
+          timezone,
+          baseWhere,
+        );
+      case 'category':
+        return this.groupByCategory(user.id, start, end, query, baseWhere);
+      case 'account':
+        return this.groupByAccount(user.id, start, end, query, baseWhere);
+      default:
+        throw new BadRequestException('지원하지 않는 groupBy 값입니다.');
+    }
+  }
 
   async getTransactionSummary(
     userId: string,
@@ -885,12 +1134,24 @@ export class TransactionsService {
     const start = getUTCStartDate(query.startDate, timezone);
     const end = getUTCEndDate(query.endDate, timezone);
 
+    const whereClause: Prisma.TransactionWhereInput = {
+      userId,
+      date: { gte: start, lte: end },
+      ...(query.transactionType && { type: query.transactionType }),
+      ...(query.categoryId && { categoryId: query.categoryId }),
+      ...(query.accountId && {
+        OR: [{ accountId: query.accountId }, { toAccountId: query.accountId }],
+      }),
+      ...(query.note?.trim() && {
+        note: {
+          contains: query.note.trim(),
+          mode: 'insensitive',
+        },
+      }),
+    };
+
     const allTx = await this.prisma.transaction.findMany({
-      where: {
-        userId,
-        date: { gte: start, lte: end },
-        OR: [{ type: 'income' }, { type: 'expense' }, { type: 'transfer' }],
-      },
+      where: whereClause,
       include: {
         category: true,
         account: true,
@@ -913,7 +1174,6 @@ export class TransactionsService {
 
     const netBalance = totalIncome - totalExpense;
 
-    // ✅ Top spending 항목은 groupBy 기준에 따라 다르게 집계
     type TopSpendingItem = {
       id: string;
       name: string;
@@ -955,17 +1215,30 @@ export class TransactionsService {
       (a, b) => b.amount - a.amount,
     )[0];
 
-    // ✅ 전월 대비 비교 (custom 제외)
     let comparison: { difference: number; percent: string } | undefined =
       undefined;
 
     if (query.timeframe !== 'custom') {
       const prevRange = getPreviousPeriod(query.timeframe, start, end);
+
       const prevTx = await this.prisma.transaction.findMany({
         where: {
           userId,
           date: { gte: prevRange.start, lte: prevRange.end },
           type: 'expense',
+          ...(query.categoryId && { categoryId: query.categoryId }),
+          ...(query.accountId && {
+            OR: [
+              { accountId: query.accountId },
+              { toAccountId: query.accountId },
+            ],
+          }),
+          ...(query.note?.trim() && {
+            note: {
+              contains: query.note.trim(),
+              mode: 'insensitive',
+            },
+          }),
         },
       });
 
@@ -1062,18 +1335,18 @@ export class TransactionsService {
     });
 
     // 🔹 Step 2: 인사이트 생성
-    const rawInsights = this.chartFlowInsightService.generateInsights(periods); // 주입 필요
-    const sorted = rawInsights.sort(
-      (a, b) => (a.priority ?? 99) - (b.priority ?? 99),
-    );
-    const insights = sorted.slice(0, query.limit ?? 1);
+    // const rawInsights = this.chartFlowInsightService.generateInsights(periods); // 주입 필요
+    // const sorted = rawInsights.sort(
+    //   (a, b) => (a.priority ?? 99) - (b.priority ?? 99),
+    // );
+    // const insights = sorted.slice(0, query.limit ?? 1);
 
     // 🔹 Step 3: 응답 객체 구성
     return {
       timeframe: query.timeframe,
       startDate: query.startDate,
       endDate: query.endDate ?? query.startDate,
-      insights,
+      insights: [],
       periods,
     };
   }
@@ -1178,6 +1451,91 @@ export class TransactionsService {
     };
   }
 
+  async getChartAccount(
+    userId: string,
+    query: TransactionGroupQueryDTO,
+  ): Promise<TransactionChartAccountDTO> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new ForbiddenException('User not found');
+
+    const timezone = getUserTimezone(user);
+    const start = getUTCStartDate(query.startDate, timezone);
+    const end = getUTCEndDate(query.endDate, timezone);
+
+    const accounts = await this.prisma.account.findMany({
+      where: { userId },
+    });
+
+    const transactions = await this.prisma.transaction.findMany({
+      where: {
+        userId,
+        date: { gte: start, lte: end },
+        OR: [{ type: 'income' }, { type: 'expense' }],
+      },
+    });
+
+    const incomeMap = new Map<string, number>();
+    const expenseMap = new Map<string, number>();
+    let totalIncome = 0;
+    let totalExpense = 0;
+    let totalBalance = 0;
+
+    for (const tx of transactions) {
+      if (tx.type === 'income') {
+        totalIncome += tx.amount;
+        incomeMap.set(
+          tx.accountId,
+          (incomeMap.get(tx.accountId) ?? 0) + tx.amount,
+        );
+      } else if (tx.type === 'expense') {
+        totalExpense += tx.amount;
+        expenseMap.set(
+          tx.accountId,
+          (expenseMap.get(tx.accountId) ?? 0) + tx.amount,
+        );
+      }
+    }
+
+    const accountsData = accounts
+      .map((account) => {
+        const income = incomeMap.get(account.id) ?? 0;
+        const expense = expenseMap.get(account.id) ?? 0;
+        const balance = account.balance;
+        totalBalance += balance;
+
+        return {
+          accountId: account.id,
+          name: account.name,
+          type: account.type,
+          income,
+          expense,
+          balance,
+          incomePercent: 0, // 나중에 계산됨
+          expensePercent: 0,
+          balancePercent: 0,
+          color: account.color ?? undefined,
+        };
+      })
+      .sort((a, b) => b.expense - a.expense);
+
+    for (const item of accountsData) {
+      item.incomePercent =
+        totalIncome > 0 ? Math.round((item.income / totalIncome) * 100) : 0;
+      item.expensePercent =
+        totalExpense > 0 ? Math.round((item.expense / totalExpense) * 100) : 0;
+      item.balancePercent =
+        totalBalance > 0 ? Math.round((item.balance / totalBalance) * 100) : 0;
+    }
+
+    return {
+      timeframe: query.timeframe,
+      startDate: query.startDate,
+      endDate: query.endDate ?? query.startDate,
+      accounts: accountsData,
+      insights: [], // TODO: 인사이트 연동
+    };
+  }
+
   async getChartBudget(
     userId: string,
     query: TransactionGroupQueryDTO,
@@ -1260,6 +1618,8 @@ export class TransactionsService {
       }
     }
 
+    breakdown.sort((a, b) => b.used - a.used);
+    const filteredBreakdown = breakdown.filter((b) => b.budget > 0);
     const totalBudget = breakdown.reduce((sum, b) => sum + b.budget, 0);
     const totalUsed = breakdown.reduce((sum, b) => sum + b.used, 0);
     const usageRate = totalBudget > 0 ? (totalUsed / totalBudget) * 100 : 0;
@@ -1275,31 +1635,8 @@ export class TransactionsService {
       usageRate: Math.round(usageRate),
       overBudget,
       overCategoryCount,
-      breakdown,
+      breakdown: filteredBreakdown,
     };
-  }
-
-  async getGroupedTransactions(
-    userId: string,
-    query: TransactionGroupQueryDTO,
-  ): Promise<TransactionGroupListResponseDTO> {
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user) throw new ForbiddenException('사용자를 찾을 수 없습니다.');
-
-    const timezone = getUserTimezone(user);
-    const start = getUTCStartDate(query.startDate, timezone);
-    const end = getUTCEndDate(query.endDate, timezone);
-
-    switch (query.groupBy ?? 'date') {
-      case 'date':
-        return this.groupByDate(user.id, start, end, query, timezone);
-      case 'category':
-        return this.groupByCategory(user.id, start, end, query);
-      case 'account':
-        return this.groupByAccount(user.id, start, end, query);
-      default:
-        throw new BadRequestException('지원하지 않는 groupBy 값입니다.');
-    }
   }
 
   async groupByDate(
@@ -1308,34 +1645,23 @@ export class TransactionsService {
     end: Date,
     query: TransactionGroupQueryDTO,
     timezone: string,
+    where: Prisma.TransactionWhereInput,
   ): Promise<TransactionGroupListResponseDTO> {
     const allTx = await this.prisma.transaction.findMany({
-      where: {
-        userId,
-        date: { gte: start, lte: end },
-        OR: [
-          { type: 'income' },
-          { type: 'expense' },
-          { type: 'transfer', toAccountId: { not: null } },
-        ],
-        ...(query.accountId && { accountId: query.accountId }),
-        ...(query.categoryId && { categoryId: query.categoryId }),
-        ...(query.transactionType && { type: query.transactionType }),
-      },
+      where,
       include: {
         category: true,
         account: true,
         toAccount: true,
       },
       orderBy: { date: 'desc' },
-      ...(query.limit && { take: Number(query.limit) }), // 🔥 핵심
+      ...(query.limit && { take: Number(query.limit) }),
     });
 
     const grouped = new Map<string, TransactionItemDTO[]>();
 
     for (const tx of allTx) {
-      const label = formatInTimeZone(tx.date, timezone, 'yyyy-MM-dd'); // Daily label
-
+      const label = formatInTimeZone(tx.date, timezone, 'yyyy-MM-dd');
       if (!grouped.has(label)) grouped.set(label, []);
       grouped.get(label)!.push(this.convertToTransactionItemDTO(tx));
     }
@@ -1365,19 +1691,10 @@ export class TransactionsService {
     start: Date,
     end: Date,
     query: TransactionGroupQueryDTO,
+    where: Prisma.TransactionWhereInput,
   ): Promise<TransactionGroupListResponseDTO> {
     const allTx = await this.prisma.transaction.findMany({
-      where: {
-        userId,
-        date: { gte: start, lte: end },
-        OR: [
-          { type: 'income' },
-          { type: 'expense' },
-          { type: 'transfer', toAccountId: { not: null } },
-        ],
-        ...(query.accountId && { accountId: query.accountId }),
-        ...(query.transactionType && { type: query.transactionType }),
-      },
+      where,
       include: {
         category: true,
         account: true,
@@ -1419,19 +1736,10 @@ export class TransactionsService {
     start: Date,
     end: Date,
     query: TransactionGroupQueryDTO,
+    where: Prisma.TransactionWhereInput,
   ): Promise<TransactionGroupListResponseDTO> {
     const allTx = await this.prisma.transaction.findMany({
-      where: {
-        userId,
-        date: { gte: start, lte: end },
-        OR: [
-          { type: 'income' },
-          { type: 'expense' },
-          { type: 'transfer', toAccountId: { not: null } },
-        ],
-        ...(query.categoryId && { categoryId: query.categoryId }),
-        ...(query.transactionType && { type: query.transactionType }),
-      },
+      where,
       include: {
         category: true,
         account: true,
@@ -1486,6 +1794,7 @@ export class TransactionsService {
       type: tx.type,
       date: tx.date.toISOString(),
       payment: tx.account.name,
+      recurringId: tx.recurringTransactionId,
       category: tx.category
         ? {
             name: tx.category.name,

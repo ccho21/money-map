@@ -3,11 +3,31 @@ import {
   AccountType,
   CategoryType,
   TransactionType,
+  RecurringFrequency,
 } from '@prisma/client';
 import bcrypt from 'bcrypt';
 import { set } from 'date-fns';
 
 const prisma = new PrismaClient();
+
+type NewTransaction = {
+  userId: string;
+  accountId: string;
+  type: TransactionType;
+  categoryId: string;
+  amount: number;
+  date: Date;
+  description?: string;
+};
+
+type NewBudgetCategory = {
+  budgetId: string;
+  categoryId: string;
+  amount: number;
+  startDate: Date;
+  endDate: Date;
+  type: CategoryType;
+};
 
 async function main() {
   const hashedPassword = await bcrypt.hash('secure123', 10);
@@ -28,7 +48,7 @@ async function main() {
         userId: user.id,
         name: 'Cash',
         type: AccountType.CASH,
-        color: '#10B981',
+        color: '--chart-1',
         description: 'Main cash account',
       },
     }),
@@ -37,7 +57,7 @@ async function main() {
         userId: user.id,
         name: 'Card',
         type: AccountType.CARD,
-        color: '#3B82F6',
+        color: '--chart-2',
         description: 'Visa card',
         settlementDate: 5,
         paymentDate: 25,
@@ -51,19 +71,19 @@ async function main() {
       name: 'Pay',
       icon: 'BadgeDollarSign',
       type: CategoryType.income,
-      color: '#3B82F6',
+      color: '--chart-3',
     },
     {
       name: 'Food',
       icon: 'Utensils',
       type: CategoryType.expense,
-      color: '#F97316',
+      color: '--chart-4',
     },
     {
       name: 'Ride',
       icon: 'Car',
       type: CategoryType.expense,
-      color: '#EF4444',
+      color: '--chart-5',
     },
   ];
 
@@ -83,24 +103,8 @@ async function main() {
   const makeDate = (month: number, day: number) =>
     set(new Date(), { month: month - 1, date: day, hours: 12 });
 
-  const allTransactions: {
-    userId: string;
-    accountId: string;
-    type: TransactionType;
-    amount: number;
-    date: Date;
-    description?: string;
-    categoryId?: string;
-  }[] = [];
-
-  const budgetCategoryData: {
-    budgetId: string;
-    categoryId: string;
-    amount: number;
-    startDate: Date;
-    endDate: Date;
-    type: CategoryType;
-  }[] = [];
+  const allTransactions: NewTransaction[] = [];
+  const budgetCategoryData: NewBudgetCategory[] = [];
 
   const budget = await prisma.budget.create({
     data: {
@@ -163,12 +167,43 @@ async function main() {
     );
   }
 
-  // await prisma.transaction.createMany({ data: allTransactions });
-  // await prisma.budgetCategory.createMany({ data: budgetCategoryData });
+  await prisma.transaction.createMany({ data: allTransactions });
+  await prisma.budgetCategory.createMany({ data: budgetCategoryData });
 
-  console.log(
-    '✅ Seed with monthly transactions & budget categories completed.',
-  );
+  console.log('✅ Seed with monthly transactions & budget categories completed.');
+
+  await prisma.recurringTransaction.createMany({
+    data: [
+      {
+        userId: user.id,
+        accountId: cashAccount.id,
+        categoryId: payCategory.id,
+        type: TransactionType.income,
+        amount: 2600,
+        startDate: new Date(new Date().getFullYear(), 0, 5),
+        frequency: RecurringFrequency.monthly,
+        interval: 1,
+        anchorDay: 5,
+        note: '월급',
+        description: '정기 급여 지급',
+      },
+      {
+        userId: user.id,
+        accountId: cardAccount.id,
+        categoryId: foodCategory.id,
+        type: TransactionType.expense,
+        amount: 15,
+        startDate: new Date(new Date().getFullYear(), 0, 10),
+        frequency: RecurringFrequency.monthly,
+        interval: 1,
+        anchorDay: 10,
+        note: '넷플릭스',
+        description: '정기 구독료',
+      },
+    ],
+  });
+
+  console.log('✅ Seed with recurring transactions completed.');
 }
 
 main()

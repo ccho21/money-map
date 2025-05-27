@@ -1,7 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsArray, IsNumber, IsOptional, IsString } from 'class-validator';
-import { TransactionDetailDTO } from '@/transactions/dto/transaction-detail.dto';
 import { BaseGroupItemDTO } from '@/common/dto/base-group-item.dto';
+import { TransactionDetailDTO } from '@/transactions/dto/transactions/transaction-detail.dto';
 
 /**
  * 기간 단위로 묶인 단일 계좌의 거래 요약

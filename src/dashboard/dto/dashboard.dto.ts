@@ -1,16 +1,5 @@
+import { InsightDTO } from '@/insights/dto/insight.dto';
 import { ApiProperty } from '@nestjs/swagger';
-
-// dashboard-insight.dto.ts
-export class DashboardInsightDTO {
-  @ApiProperty()
-  id: string;
-
-  @ApiProperty()
-  message: string; // ✅ title → message로 바꿔야 함
-
-  @ApiProperty({ required: false })
-  value?: string;
-}
 
 export class DashboardCategoryMonthlyDTO {
   @ApiProperty()
@@ -89,6 +78,6 @@ export class DashboardDTO {
   @ApiProperty({ type: [DashboardCategoryMonthlyDTO] })
   categoryMonthly: DashboardCategoryMonthlyDTO[];
 
-  @ApiProperty({ type: [DashboardInsightDTO] })
-  insights: DashboardInsightDTO[];
+  @ApiProperty({ type: [InsightDTO] })
+  insights: InsightDTO[];
 }

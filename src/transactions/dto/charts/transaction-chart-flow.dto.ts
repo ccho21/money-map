@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Timeframe } from '../params/transaction-group-query.dto';
-import { Insight } from '@/insights/types/insight.type';
+import { InsightDTO } from '@/insights/dto/insight.dto';
 
 export class PeriodDataDTO {
   @ApiProperty({
@@ -36,7 +36,7 @@ export class TransactionChartFlowDTO {
   endDate: string;
 
   @ApiProperty({ example: '이번 분기 지출이 18% 증가했어요' })
-  insights: Insight[];
+  insights: InsightDTO[];
 
   @ApiProperty({ type: [PeriodDataDTO] })
   periods: PeriodDataDTO[];
