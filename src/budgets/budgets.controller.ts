@@ -66,7 +66,7 @@ export class BudgetsController {
   async getBudgetCategoryByCategoryId(
     @GetUser() user: UserPayload,
     @Param('categoryId') categoryId: string,
-    @Body() body: DateRangeWithGroupQueryDTO,
+    @Body() body: BudgetQueryDTO,
   ) {
     return this.budgetsService.getGroupedBudgetCategories(
       user.id,

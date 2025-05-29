@@ -247,10 +247,10 @@ export class BudgetsService {
   async getGroupedBudgetCategories(
     userId: string,
     categoryId: string,
-    query: DateRangeWithGroupQueryDTO,
+    query: BudgetQueryDTO,
   ): Promise<BudgetGroupItemDTO> {
-    const { startDate, endDate, groupBy } = query;
-    if (!startDate || !endDate || !groupBy) {
+    const { startDate, endDate, timeframe } = query;
+    if (!startDate || !endDate || !timeframe) {
       throw new NotFoundException('startDate, endDate, groupBy는 필수입니다.');
     }
 
@@ -259,7 +259,7 @@ export class BudgetsService {
 
     const timezone = getUserTimezone(user);
     const baseDate = parseISO(startDate);
-    const ranges = getDateRangeList(baseDate, groupBy, timezone);
+    const ranges = getDateRangeList(baseDate, timeframe, timezone);
 
     const start = getUTCStartDate(ranges[0].startDate, timezone);
     const end = getUTCStartDate(ranges[ranges.length - 1].endDate, timezone);

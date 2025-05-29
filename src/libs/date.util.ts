@@ -24,6 +24,7 @@ import {
   subYears,
 } from 'date-fns';
 import { GroupBy } from '@/common/types/types';
+import { Timeframe } from '@/transactions/dto/params/transaction-group-query.dto';
 
 /**
  * 유저 타임존 기준 → UTC로 변환해서 DB 저장 시 사용
@@ -107,7 +108,7 @@ export function getDateRangeAndLabelByGroup(
 
 export function getDateRangeList(
   date: Date,
-  groupBy: GroupBy,
+  groupBy: Timeframe,
   timezone: string,
 ) {
   const centerDate = toZonedTime(date, timezone);
@@ -209,12 +210,9 @@ export function getCardBillingRange(
   };
 }
 
-
-
-
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 export function getPreviousPeriod(
-  timeframe: 'daily' | 'weekly' | 'monthly' | 'yearly',
+  timeframe: Timeframe,
   start: Date,
   end: Date,
 ): { start: Date; end: Date } {
