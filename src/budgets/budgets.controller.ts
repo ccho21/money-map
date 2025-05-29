@@ -19,6 +19,7 @@ import {
   BudgetCategoryCreateRequestDTO,
   BudgetCategoryUpdateRequestDTO,
 } from './dto/budget-category-request.dto';
+import { BudgetQueryDTO } from './dto/params/budget-query.dto';
 
 @ApiTags('Budgets')
 @ApiBearerAuth('access-token')
@@ -47,10 +48,7 @@ export class BudgetsController {
 
   @Get('by-category')
   @UseGuards(JwtAuthGuard)
-  getByCategory(
-    @GetUser() user: UserPayload,
-    @Query() query: DateRangeWithGroupQueryDTO,
-  ) {
+  getByCategory(@GetUser() user: UserPayload, @Query() query: BudgetQueryDTO) {
     return this.budgetsService.getBudgetCategories(user.id, query);
   }
 

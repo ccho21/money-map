@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { BudgetCategoryItemDTO } from './budget-category-item.dto';
+import { BudgetCategoryItemDTO } from './budgetCategory/budget-category-item.dto';
 
 export class BudgetCategoryListResponseDTO {
   @ApiProperty()

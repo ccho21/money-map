@@ -5,14 +5,13 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { BudgetDetailDTO } from './dto/budget-detail.dto';
+import { BudgetDetailDTO } from './dto/budget/budget-detail.dto';
 import {
   BudgetCategoryCreateRequestDTO,
   BudgetCategoryUpdateRequestDTO,
 } from './dto/budget-category-request.dto';
 import { BudgetGroupSummaryDTO } from './dto/budget-summary.dto';
-import { BudgetCategoryListResponseDTO } from './dto/budget-category-list-response.dto';
-import { BudgetCategoryItemDTO } from './dto/budget-category-item.dto';
+import { BudgetCategoryItemDTO } from './dto/budgetCategory/budget-category-item.dto';
 import { BudgetGroupItemDTO } from './dto/budget-group-item.dto';
 import { BudgetCategoryPeriodItemDTO } from './dto/budget-category-period-item.dto';
 import { DateRangeWithGroupQueryDTO } from '@/common/dto/filter/date-range-with-group-query.dto';
@@ -23,6 +22,8 @@ import {
 } from '@/libs/date.util';
 import { getUserTimezone } from '@/libs/timezone';
 import { isSameDay, parseISO } from 'date-fns';
+import { BudgetCategoryListResponseDTO } from './dto/budget-category-list-response.dto';
+import { BudgetQueryDTO } from './dto/params/budget-query.dto';
 
 @Injectable()
 export class BudgetsService {
@@ -93,7 +94,7 @@ export class BudgetsService {
 
   async getBudgetCategories(
     userId: string,
-    query: DateRangeWithGroupQueryDTO,
+    query: BudgetQueryDTO,
   ): Promise<BudgetCategoryListResponseDTO> {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new NotFoundException('User not found');
@@ -106,7 +107,6 @@ export class BudgetsService {
     const categories = await this.prisma.category.findMany({
       where: { userId },
     });
-    console.log('### categories', categories);
 
     const budgetCategories = await this.prisma.budgetCategory.findMany({
       where: {
@@ -115,7 +115,6 @@ export class BudgetsService {
         endDate: { gte: end },
       },
     });
-    console.log('### budgetCategories', budgetCategories);
 
     const budgetMap = new Map(
       budgetCategories.map((bc) => [bc.categoryId, bc]),
@@ -123,7 +122,6 @@ export class BudgetsService {
 
     const items: BudgetCategoryItemDTO[] = categories.map((c) => {
       const bc = budgetMap.get(c.id);
-      console.log('### BC', bc);
       const amount = bc?.amount ?? 0;
       return {
         categoryId: c.id,
