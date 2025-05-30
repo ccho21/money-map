@@ -15,7 +15,6 @@ import { GetUser } from '../common/decorators/get-user.decorator';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { UserPayload } from 'src/auth/types/user-payload.type';
 
-import { DateRangeWithGroupQueryDTO } from '@/common/dto/filter/date-range-with-group-query.dto';
 import { TransactionGroupQueryDTO } from './dto/params/transaction-group-query.dto';
 import { TransactionChartFlowDTO } from './dto/charts/transaction-chart-flow.dto';
 import { TransactionChartCategoryDTO } from './dto/charts/transaction-chart-category.dto';
@@ -33,10 +32,7 @@ export class TransactionsController {
   constructor(private readonly transactionService: TransactionsService) {}
 
   @Post()
-  create(
-    @GetUser() user: UserPayload,
-    @Body() dto: CreateTransactionDTO,
-  ) {
+  create(@GetUser() user: UserPayload, @Body() dto: CreateTransactionDTO) {
     return this.transactionService.create(user.id, dto);
   }
 
@@ -64,11 +60,8 @@ export class TransactionsController {
     return this.transactionService.getTransactionCalendarView(user.id, query);
   }
 
-
   @Get('keyword/recommendations')
-  getKeywords(
-    @GetUser() user: UserPayload,
-  ) {
+  getKeywords(@GetUser() user: UserPayload) {
     return this.transactionService.getRecommendedKeywords(user.id);
   }
 

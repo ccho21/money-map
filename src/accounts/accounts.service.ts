@@ -20,7 +20,6 @@ import {
 } from '@/accounts/dto/account-dashboard.dto';
 import { toZonedTime } from 'date-fns-tz';
 import { format, subMonths } from 'date-fns';
-import { TransactionType } from '@prisma/client';
 import { DateQueryDTO } from '@/common/dto/filter/date-query.dto';
 import { DateRangeWithGroupQueryDTO } from '@/common/dto/filter/date-range-with-group-query.dto';
 import { recalculateAccountBalanceInTx } from '@/transactions/utils/recalculateAccountBalanceInTx.util';
@@ -33,8 +32,6 @@ import {
 } from './dto/account-request.dto';
 import { AccountTransactionItemDTO } from './dto/account-transaction-item.dto';
 import { GroupBy } from '@/common/types/types';
-import { TransactionGroupSummaryDTO } from '@/transactions/dto/summary/transaction-group-summary.dto';
-import { TransactionGroupItemDTO } from '@/transactions/dto/transactions/transaction-group-item.dto';
 import { TransactionDetailDTO } from '@/transactions/dto/transactions/transaction-detail.dto';
 
 @Injectable()

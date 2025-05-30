@@ -121,34 +121,10 @@ export class TransactionsService {
     });
 
     // ✅ 예산 초과 알림
-    const budgetItem = await this.prisma.budgetCategory.findFirst({
-      where: {
-        categoryId: dto.categoryId as string,
-        budget: { userId },
-        startDate: { lte: dto.date },
-        endDate: { gte: dto.date },
-      },
-    });
-
-    if (budgetItem) {
-      const spent = await this.prisma.transaction.aggregate({
-        where: {
-          categoryId: dto.categoryId,
-          userId,
-          type: 'expense',
-          date: { gte: budgetItem.startDate, lte: budgetItem.endDate },
-        },
-        _sum: { amount: true },
-      });
-
-      const totalSpent = spent._sum.amount ?? 0;
-      if (totalSpent > budgetItem.amount) {
-        const exceed = totalSpent - budgetItem.amount;
-        this.eventsGateway.emitBudgetAlert(userId, {
-          category: category.name,
-          message: `예산 초과! ₩${exceed}`,
-        });
-      }
+    if (dto.categoryId && dto.date) {
+      const categoryId = dto.categoryId;
+      const date = new Date(dto.date);
+      await this.checkAndEmitBudgetAlert(userId, categoryId, date);
     }
 
     return transaction;
@@ -247,7 +223,17 @@ export class TransactionsService {
       }
     }
 
-    // ✅ 예산 초과 알림
+    // ✅ 예산 초과 알림 로직 추가
+    const categoryId = dto.categoryId ?? existing.categoryId;
+    const rawDate = dto.date ?? existing.date;
+    if (!categoryId) {
+      throw new BadRequestException('Category ID is required.');
+    }
+    if (!rawDate) {
+      throw new BadRequestException('Transaction date is required.');
+    }
+    const date = rawDate instanceof Date ? rawDate : new Date(rawDate);
+    await this.checkAndEmitBudgetAlert(userId, categoryId, date);
 
     return updatedTransaction;
   }
@@ -1818,4 +1804,45 @@ export class TransactionsService {
       },
     };
   };
+
+  private async checkAndEmitBudgetAlert(
+    userId: string,
+    categoryId: string,
+    date: Date,
+  ) {
+    const budgetItem = await this.prisma.budgetCategory.findFirst({
+      where: {
+        categoryId,
+        budget: { userId },
+        startDate: { lte: date },
+        endDate: { gte: date },
+      },
+    });
+
+    if (!budgetItem) return;
+
+    const spent = await this.prisma.transaction.aggregate({
+      where: {
+        categoryId,
+        userId,
+        type: 'expense',
+        date: { gte: budgetItem.startDate, lte: budgetItem.endDate },
+      },
+      _sum: { amount: true },
+    });
+
+    const totalSpent = spent._sum.amount ?? 0;
+
+    if (totalSpent > budgetItem.amount) {
+      // const exceed = totalSpent - budgetItem.amount;
+      const category = await this.prisma.category.findUnique({
+        where: { id: categoryId },
+      });
+
+      this.eventsGateway.emitBudgetAlert(userId, {
+        category: category?.name ?? 'Unknown',
+        message: `You've exceeded your $${budgetItem.amount.toLocaleString()} budget for "${category?.name ?? 'Unknown'}". \n Total spent: $${totalSpent.toLocaleString()}.`,
+      });
+    }
+  }
 }

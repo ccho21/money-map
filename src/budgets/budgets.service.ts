@@ -261,9 +261,7 @@ export class BudgetsService {
     const start = dto.startDate
       ? getUTCStartDate(dto.startDate, timezone)
       : undefined;
-    const end = dto.endDate
-      ? getUTCStartDate(dto.endDate, timezone)
-      : undefined;
+    const end = dto.endDate ? getUTCEndDate(dto.endDate, timezone) : undefined;
 
     const updated = await this.prisma.budgetCategory.update({
       where: { id: budget.id },

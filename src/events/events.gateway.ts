@@ -1,7 +1,8 @@
 import { WebSocketGateway, WebSocketServer } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
-import { UserPayload } from 'src/auth/types/user-payload.type';
+import { JwtPayload } from 'src/auth/types/user-payload.type';
+import { parse } from 'cookie';
 
 const allowedOrigins =
   process.env.NODE_ENV === 'production'
@@ -25,9 +26,23 @@ export class EventsGateway {
 
   async handleConnection(client: Socket) {
     try {
-      const token: string = client.handshake.auth.token as string;
-      const payload: UserPayload = this.jwt.verify<UserPayload>(token);
-      const userId: string = payload.id;
+      let token = client.handshake.auth.token as string | undefined;
+      if (!token) {
+        const rawCookie = client.handshake.headers?.cookie ?? '';
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-call
+        const cookies = parse(rawCookie) as Record<string, string>;
+        token = cookies.access_token;
+      }
+      if (!token) {
+        const auth = client.handshake.headers?.authorization;
+        if (auth?.startsWith('Bearer ')) {
+          token = auth.replace('Bearer ', '');
+        }
+      }
+      if (!token) throw new Error('jwt must be provided');
+
+      const payload: JwtPayload = this.jwt.verify<JwtPayload>(token);
+      const userId: string = payload.sub;
 
       await client.join(userId); // 🟢 타입 안전
       console.log(`✅ User ${userId} connected to socket`);
@@ -35,9 +50,8 @@ export class EventsGateway {
       if (err instanceof Error) {
         console.warn('❌ 소켓 인증 실패', err.message);
       } else {
-        console.warn('❌ 소켓 인증 실패: Unknown error');
+        console.warn('❌ 소켓 인증 실패', JSON.stringify(err));
       }
-      client.disconnect();
     }
   }
 

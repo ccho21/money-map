@@ -1,6 +1,5 @@
 import { ApiExtraModels, ApiProperty, PartialType } from '@nestjs/swagger';
-import { IsDateString, IsEnum, IsInt, IsUUID } from 'class-validator';
-import { CategoryType } from '@prisma/client';
+import { IsDateString, IsInt, IsUUID } from 'class-validator';
 
 export class BaseBudgetCategoryRequestDTO {
   @ApiProperty()

@@ -16,6 +16,7 @@ export class RefreshTokenStrategy extends PassportStrategy(
 
     super({
       jwtFromRequest: (req: Request): string => {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
         const token = req.cookies?.refresh_token as string;
         if (!token) {
           throw new UnauthorizedException('Refresh token not found');
