@@ -6,6 +6,7 @@ import { PatternInsightResponseDTO } from './dto/pattern.dto';
 import { TransactionDataService } from '@/transactions/data/transaction-data.service';
 import { InsightQueryDTO } from './dto/query.dto';
 import { BudgetInsightResponseDTO } from './dto/budget.dto';
+import { GenericInsightResponseDTO } from './dto/generic-insight.dto';
 
 @Injectable()
 export class InsightService {
@@ -84,5 +85,27 @@ export class InsightService {
       endDate,
       timeframe,
     };
+  }
+
+  async getRecurringInsights(
+    userId: string,
+    query: InsightQueryDTO,
+  ): Promise<GenericInsightResponseDTO> {
+    const insights = await this.registry.generate(userId, ['dashboard'], query);
+    const filtered = insights.filter((i) => i.type === 'recurring');
+
+    const { startDate, endDate, timeframe } = query;
+    return { insights: filtered, startDate, endDate, timeframe };
+  }
+
+  async getAlertInsights(
+    userId: string,
+    query: InsightQueryDTO,
+  ): Promise<GenericInsightResponseDTO> {
+    const insights = await this.registry.generate(userId, ['dashboard'], query);
+    const filtered = insights.filter((i) => i.type === 'alert');
+
+    const { startDate, endDate, timeframe } = query;
+    return { insights: filtered, startDate, endDate, timeframe };
   }
 }

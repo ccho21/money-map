@@ -12,6 +12,7 @@ import { IncomeDropRule } from './rules/IncomeDropRule';
 import { CardOveruseRule } from './rules/CardOveruseRule';
 import { InsightDTO } from './dto/insight.dto';
 import { InsightQueryDTO } from './dto/query.dto';
+import { RecurringIncreaseRule } from './rules/RecurringIncreaseRule';
 
 @Injectable()
 export class InsightRuleRegistryService {
@@ -24,6 +25,7 @@ export class InsightRuleRegistryService {
     private readonly sameDayMultipleTxRule: SameDayMultipleTxRule,
     private readonly incomeDropRule: IncomeDropRule,
     private readonly cardOveruseRule: CardOveruseRule,
+    private readonly recurringIncreaseRule: RecurringIncreaseRule,
   ) {}
 
   private getAllRules(): InsightRuleBase[] {
@@ -36,6 +38,7 @@ export class InsightRuleRegistryService {
       this.sameDayMultipleTxRule,
       this.incomeDropRule,
       this.cardOveruseRule,
+      this.recurringIncreaseRule,
     ];
   }
 
@@ -48,10 +51,12 @@ export class InsightRuleRegistryService {
   async generate(
     userId: string,
     contexts: InsightContextType[],
-    query: InsightQueryDTO
+    query: InsightQueryDTO,
   ): Promise<InsightDTO[]> {
     const rules = this.getRulesForContext(contexts);
-    const results = await Promise.all(rules.map((r) => r.generate(userId, query)));
+    const results = await Promise.all(
+      rules.map((r) => r.generate(userId, query)),
+    );
     return results.flat();
   }
 }

@@ -15,6 +15,7 @@ import { SameDayMultipleTxRule } from './rules/SameDayMultipleTxRule';
 import { IncomeDropRule } from './rules/IncomeDropRule';
 import { CardOveruseRule } from './rules/CardOveruseRule';
 import { InsightsController } from './insights.controller';
+import { RecurringIncreaseRule } from './rules/RecurringIncreaseRule';
 
 @Module({
   controllers: [InsightsController],
@@ -34,6 +35,7 @@ import { InsightsController } from './insights.controller';
     SameDayMultipleTxRule,
     IncomeDropRule,
     CardOveruseRule,
+    RecurringIncreaseRule,
   ],
   exports: [InsightService],
 })
