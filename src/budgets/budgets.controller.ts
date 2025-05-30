@@ -62,16 +62,16 @@ export class BudgetsController {
   }
 
   @UseGuards(JwtAuthGuard)
-  @Post('/by-category/:categoryId')
+  @Get('/by-category/:categoryId')
   async getBudgetCategoryByCategoryId(
     @GetUser() user: UserPayload,
     @Param('categoryId') categoryId: string,
-    @Body() body: BudgetQueryDTO,
+    @Query() query: BudgetQueryDTO,
   ) {
     return this.budgetsService.getGroupedBudgetCategories(
       user.id,
       categoryId,
-      body,
+      query,
     );
   }
 

@@ -18,10 +18,6 @@ export class BaseBudgetCategoryRequestDTO {
   @ApiProperty()
   @IsDateString()
   endDate: string;
-
-  @ApiProperty({ enum: CategoryType })
-  @IsEnum(CategoryType)
-  type: CategoryType;
 }
 
 @ApiExtraModels()

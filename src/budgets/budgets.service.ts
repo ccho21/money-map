@@ -251,7 +251,7 @@ export class BudgetsService {
   ): Promise<BudgetGroupItemDTO> {
     const { startDate, endDate, timeframe } = query;
     if (!startDate || !endDate || !timeframe) {
-      throw new NotFoundException('startDate, endDate, groupBy는 필수입니다.');
+      throw new NotFoundException('startDate, endDate, timeFrame 필수입니다.');
     }
 
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
@@ -274,28 +274,37 @@ export class BudgetsService {
       include: { category: true },
     });
 
-    if (!allBudgetCategories.length) {
-      throw new NotFoundException('해당 카테고리 예산 정보가 없습니다.');
+    const categoryInfo =
+      allBudgetCategories[0]?.category ??
+      (await this.prisma.category.findUnique({
+        where: { id: categoryId },
+      }));
+
+    if (!categoryInfo || categoryInfo.userId !== userId) {
+      throw new NotFoundException('카테고리 정보가 없습니다.');
     }
 
-    const categoryInfo = allBudgetCategories[0].category;
     const categoryType = categoryInfo.type;
 
+    // ✅ defaultAmount는 현재 기간의 match에서만 가져옴
     let defaultAmount = 0;
-    // defaultamount  구하는 방법이 조금 이상한것같아.
-    // 버젯을 처음 셋팅한후에는, isCurrent: true 인 버젯 기준으로 default 버젯이설정되어야 되는데, 지금은,
-    // allBudgetCategories 에서 startDate endDate 같은것 기준으로만 찾으니까 뭔가 지금 꼬이는거같은데,
     for (const range of ranges) {
+      if (!range.isCurrent) continue;
+
       const match = allBudgetCategories.find(
         (b) =>
-          isSameDay(b.startDate, getUTCStartDate(startDate, timezone)) &&
-          isSameDay(b.endDate, getUTCStartDate(endDate, timezone)),
+          isSameDay(b.startDate, getUTCStartDate(range.startDate, timezone)) &&
+          isSameDay(b.endDate, getUTCStartDate(range.endDate, timezone)),
       );
-      if (match && range.isCurrent) {
+
+      if (match) {
         defaultAmount = match.amount;
         break;
       }
     }
+
+    // ✅ 각 기간별 Budget DTO 생성
+    let latestAmount = 0;
 
     const budgets: BudgetCategoryPeriodItemDTO[] = ranges.map((range) => {
       const matched = allBudgetCategories.find(
@@ -304,19 +313,23 @@ export class BudgetsService {
           isSameDay(b.endDate, getUTCStartDate(range.endDate, timezone)),
       );
 
-      const amount = matched ? matched.amount : defaultAmount;
+      if (matched) {
+        latestAmount = matched.amount;
+      }
 
       return {
         label: range.label,
         rangeStart: range.startDate,
         rangeEnd: range.endDate,
-        amount,
+        amount: latestAmount,
         used: 0,
         remaining: 0,
         isOver: false,
         isCurrent: range.isCurrent,
-        categoryId: matched ? matched.categoryId : undefined,
+        categoryId: categoryId,
+        budgetId: matched?.budgetId,
         type: categoryType,
+        isUnconfigured: !matched,
       };
     });
 
