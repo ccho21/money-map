@@ -3,9 +3,18 @@ import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
 import { UserPayload } from 'src/auth/types/user-payload.type';
 
+const allowedOrigins =
+  process.env.NODE_ENV === 'production'
+    ? [
+        'https://money-map-prod.vercel.app',
+        'https://money-app-front-ecru.vercel.app',
+      ]
+    : ['http://localhost:3000', 'http://localhost:3001'];
+
 @WebSocketGateway({
   cors: {
-    origin: '*',
+    origin: allowedOrigins,
+    credentials: true,
   },
 })
 export class EventsGateway {
@@ -37,6 +46,9 @@ export class EventsGateway {
     payload: { category: string; message: string },
   ) {
     console.log(`✅ alert is sent to ${userId}`);
+    // Frontend clients can listen for this event after establishing a socket
+    // connection using the user's access token. The event name is
+    // `budget_alert` and the payload contains the category and message.
     this.server.to(userId).emit('budget_alert', payload);
   }
 }

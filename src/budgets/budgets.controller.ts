@@ -20,6 +20,7 @@ import {
   BudgetCategoryUpdateRequestDTO,
 } from './dto/budget-category-request.dto';
 import { BudgetQueryDTO } from './dto/params/budget-query.dto';
+import { BudgetAlertDTO } from './dto/alert/budget-alert.dto';
 
 @ApiTags('Budgets')
 @ApiBearerAuth('access-token')
@@ -32,11 +33,10 @@ export class BudgetsController {
   findAll(@GetUser() user: UserPayload) {
     return this.budgetsService.findAll(user.id);
   }
-
-  // @Get('alerts')
-  // alerts(@GetUser() user: UserPayload): Promise<BudgetAlert[]> {
-  //   return this.budgetsService.getBudgetAlerts(user.id);
-  // }
+  @Get('alerts')
+  alerts(@GetUser() user: UserPayload): Promise<BudgetAlertDTO[]> {
+    return this.budgetsService.getBudgetAlerts(user.id);
+  }
 
   @Get('summary')
   getBudgetSummary(

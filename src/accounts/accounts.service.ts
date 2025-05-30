@@ -224,7 +224,6 @@ export class AccountsService {
 
     // 👉 연결된 트랜잭션 등도 함께 제거 (예시: cascade delete)
     await this.prisma.$transaction([
-
       //TODO: 나중에 다시오자
       this.prisma.transaction.deleteMany({
         where: { accountId },
@@ -570,7 +569,6 @@ export class AccountsService {
                 (sum, tx) => sum + getTransactionDeltaByAccount(tx, account.id),
                 0,
               );
-            console.log('### balancePayable', balancePayable);
 
             console.log('### CARD', cardTxs);
 

@@ -24,6 +24,7 @@ import { getUserTimezone } from '@/libs/timezone';
 import { isSameDay, parseISO } from 'date-fns';
 import { BudgetCategoryListResponseDTO } from './dto/budget-category-list-response.dto';
 import { BudgetQueryDTO } from './dto/params/budget-query.dto';
+import { BudgetAlertDTO } from './dto/alert/budget-alert.dto';
 
 @Injectable()
 export class BudgetsService {
@@ -90,6 +91,42 @@ export class BudgetsService {
       totalSpent: totalSpent,
       rate,
     };
+  }
+
+  async getBudgetAlerts(userId: string): Promise<BudgetAlertDTO[]> {
+    const now = new Date();
+    const budgetCategories = await this.prisma.budgetCategory.findMany({
+      where: {
+        budget: { userId },
+        startDate: { lte: now },
+        endDate: { gte: now },
+      },
+      include: { category: true },
+    });
+
+    const alerts: BudgetAlertDTO[] = [];
+
+    for (const bc of budgetCategories) {
+      const agg = await this.prisma.transaction.aggregate({
+        where: {
+          userId,
+          categoryId: bc.categoryId,
+          type: 'expense',
+          date: { gte: bc.startDate, lte: bc.endDate },
+        },
+        _sum: { amount: true },
+      });
+
+      const spent = agg._sum.amount || 0;
+      if (spent > bc.amount) {
+        alerts.push({
+          category: bc.category.name,
+          message: `예산 초과! ₩${spent - bc.amount}`,
+        });
+      }
+    }
+
+    return alerts;
   }
 
   async getBudgetCategories(
@@ -285,23 +322,6 @@ export class BudgetsService {
     }
 
     const categoryType = categoryInfo.type;
-
-    // ✅ defaultAmount는 현재 기간의 match에서만 가져옴
-    let defaultAmount = 0;
-    for (const range of ranges) {
-      if (!range.isCurrent) continue;
-
-      const match = allBudgetCategories.find(
-        (b) =>
-          isSameDay(b.startDate, getUTCStartDate(range.startDate, timezone)) &&
-          isSameDay(b.endDate, getUTCStartDate(range.endDate, timezone)),
-      );
-
-      if (match) {
-        defaultAmount = match.amount;
-        break;
-      }
-    }
 
     // ✅ 각 기간별 Budget DTO 생성
     let latestAmount = 0;
