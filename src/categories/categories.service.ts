@@ -71,6 +71,7 @@ export class CategoriesService {
         name: dto.name,
         icon: dto.icon,
         type: dto.type,
+        color: dto.color,
       },
     });
 

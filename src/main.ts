@@ -14,9 +14,8 @@ const allowedOrigins =
       ]
     : ['http://localhost:3000', 'http://localhost:3001'];
 
-// console.log('### process.env.NODE_ENV', process.env.NODE_ENV);
-// console.log('### allowed origin', allowedOrigins);
-// console.log('✅ isProd:', process.env.NODE_ENV);
+console.log('### process.env.NODE_ENV', process.env.NODE_ENV);
+console.log('### allowed origin', allowedOrigins);
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);

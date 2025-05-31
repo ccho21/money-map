@@ -1,6 +1,6 @@
 // insights/InsightRuleRegistryService.ts
 import { Injectable } from '@nestjs/common';
-import { InsightRuleBase } from './rules/InsightRuleBase';
+import { InsightRuleBase } from './rules/base/InsightRuleBase';
 import { BudgetExceededRule } from './rules/BudgetExceededRule'; // 일단 이거 하나만
 import { InsightContextType } from './types/type';
 import { WeekendSpendingRule } from './rules/WeekendSpendingRule';

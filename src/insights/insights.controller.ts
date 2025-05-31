@@ -7,7 +7,8 @@ import { InsightQueryDTO } from './dto/query.dto';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '@/common/guards/jwt.guard';
 import { BudgetInsightResponseDTO } from './dto/budget.dto';
-import { GenericInsightResponseDTO } from './dto/generic-insight.dto';
+import { AlertInsightResponseDTO } from './dto/alert.dto';
+import { RecurringInsightResponseDTO } from './dto/recurring.dto';
 
 @ApiTags('insights')
 @ApiBearerAuth('access-token')
@@ -27,7 +28,7 @@ export class InsightsController {
   @Get('budget')
   getBudgetInsights(
     @GetUser() user: UserPayload,
-    @Query() query: InsightQueryDTO, // 기간, 사용자 등
+    @Query() query: InsightQueryDTO, 
   ): Promise<BudgetInsightResponseDTO> {
     return this.insightsService.getBudgetInsights(user.id, query);
   }
@@ -36,7 +37,7 @@ export class InsightsController {
   getRecurringInsights(
     @GetUser() user: UserPayload,
     @Query() query: InsightQueryDTO,
-  ): Promise<GenericInsightResponseDTO> {
+  ): Promise<RecurringInsightResponseDTO> {
     return this.insightsService.getRecurringInsights(user.id, query);
   }
 
@@ -44,7 +45,7 @@ export class InsightsController {
   getAlertInsights(
     @GetUser() user: UserPayload,
     @Query() query: InsightQueryDTO,
-  ): Promise<GenericInsightResponseDTO> {
+  ): Promise<AlertInsightResponseDTO> {
     return this.insightsService.getAlertInsights(user.id, query);
   }
 }

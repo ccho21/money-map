@@ -1,7 +1,7 @@
 // insights/rules/CardOveruseRule.ts
 import { Injectable } from '@nestjs/common';
 import { formatISO } from 'date-fns';
-import { InsightRuleBase } from './InsightRuleBase';
+import { InsightRuleBase } from './base/InsightRuleBase';
 import { TransactionDataService } from '@/transactions/data/transaction-data.service';
 import { InsightContextType } from '../types/type';
 import { InsightDTO } from '../dto/insight.dto';
@@ -13,7 +13,7 @@ export class CardOveruseRule extends InsightRuleBase {
   }
 
   getSupportedContexts(): InsightContextType[] {
-    return ['dashboard', 'insightPattern', 'chartAccount', 'insightBudget'];
+    return ['dashboard', 'insightPattern', 'chartAccount', 'insightBudget', 'insightAlert'];
   }
 
   async generate(userId: string): Promise<InsightDTO[]> {

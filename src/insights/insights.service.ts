@@ -6,13 +6,16 @@ import { PatternInsightResponseDTO } from './dto/pattern.dto';
 import { TransactionDataService } from '@/transactions/data/transaction-data.service';
 import { InsightQueryDTO } from './dto/query.dto';
 import { BudgetInsightResponseDTO } from './dto/budget.dto';
-import { GenericInsightResponseDTO } from './dto/generic-insight.dto';
+import { RecurringInsightResponseDTO } from './dto/recurring.dto';
+import { RecurringDataService } from '@/recurring/data/RecurringDataService';
+import { AlertInsightResponseDTO } from './dto/alert.dto';
 
 @Injectable()
 export class InsightService {
   constructor(
     private readonly registry: InsightRuleRegistryService,
     private transactionDataService: TransactionDataService,
+    private recurringDataService: RecurringDataService,
   ) {}
 
   /**
@@ -90,20 +93,42 @@ export class InsightService {
   async getRecurringInsights(
     userId: string,
     query: InsightQueryDTO,
-  ): Promise<GenericInsightResponseDTO> {
-    const insights = await this.registry.generate(userId, ['dashboard'], query);
-    const filtered = insights.filter((i) => i.type === 'recurring');
+  ): Promise<RecurringInsightResponseDTO> {
+    const insights = await this.registry.generate(
+      userId,
+      ['insightRecurring'],
+      query,
+    );
 
+    const recurringSummary =
+      await this.recurringDataService.buildRecurringSummaryFromData(
+        userId,
+        query,
+      );
     const { startDate, endDate, timeframe } = query;
-    return { insights: filtered, startDate, endDate, timeframe };
+
+    return {
+      insights: insights,
+      recurringSummary,
+      startDate,
+      endDate,
+      timeframe,
+    };
   }
 
   async getAlertInsights(
     userId: string,
     query: InsightQueryDTO,
-  ): Promise<GenericInsightResponseDTO> {
-    const insights = await this.registry.generate(userId, ['dashboard'], query);
-    const filtered = insights.filter((i) => i.type === 'alert');
+  ): Promise<AlertInsightResponseDTO> {
+    const insights = await this.registry.generate(
+      userId,
+      ['insightAlert'],
+      query,
+    );
+
+    const filtered = insights.filter((i) =>
+      ['warning', 'critical'].includes(i.severity),
+    );
 
     const { startDate, endDate, timeframe } = query;
     return { insights: filtered, startDate, endDate, timeframe };

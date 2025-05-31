@@ -2,7 +2,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import { InsightDTO } from './insight.dto';
 import { Timeframe } from '@/transactions/dto/params/transaction-group-query.dto';
 
-export class GenericInsightResponseDTO {
+export class AlertInsightResponseDTO {
   @ApiProperty({ type: [InsightDTO] })
   insights: InsightDTO[];
 

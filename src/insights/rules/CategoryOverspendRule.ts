@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { formatISO } from 'date-fns';
-import { InsightRuleBase } from './InsightRuleBase';
+import { InsightRuleBase } from './base/InsightRuleBase';
 import { TransactionDataService } from '@/transactions/data/transaction-data.service';
 import { InsightContextType } from '../types/type';
 import { CategoryDataService } from '@/categories/data/CategoryDataService';
@@ -16,7 +16,7 @@ export class CategoryOverspendRule extends InsightRuleBase {
   }
 
   getSupportedContexts(): InsightContextType[] {
-    return ['dashboard', 'insightPattern', 'chartCategory'];
+    return ['dashboard', 'insightPattern', 'chartCategory', 'insightAlert'];
   }
 
   async generate(userId: string): Promise<InsightDTO[]> {

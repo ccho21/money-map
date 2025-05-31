@@ -23,11 +23,7 @@ describe('EventsGateway', () => {
   });
 
   it('should join room using token from auth', async () => {
-    const token = jwtService.sign({
-      sub: 'user1',
-      email: 'e',
-      timezone: 'UTC',
-    });
+    const token = jwtService.sign({ sub: 'user1', email: 'e', timezone: 'UTC' });
     const joinMock = jest.fn();
     const client = {
       handshake: { auth: { token }, headers: {} },
@@ -40,11 +36,7 @@ describe('EventsGateway', () => {
   });
 
   it('should join room using token from cookies', async () => {
-    const token = jwtService.sign({
-      sub: 'user2',
-      email: 'e',
-      timezone: 'UTC',
-    });
+    const token = jwtService.sign({ sub: 'user2', email: 'e', timezone: 'UTC' });
     const joinMock = jest.fn();
     const client = {
       handshake: { auth: {}, headers: { cookie: `access_token=${token}` } },
@@ -54,5 +46,18 @@ describe('EventsGateway', () => {
 
     await gateway.handleConnection(client);
     expect(joinMock).toHaveBeenCalledWith('user2');
+  });
+
+  it('should join room using Authorization header', async () => {
+    const token = jwtService.sign({ sub: 'user3', email: 'e', timezone: 'UTC' });
+    const joinMock = jest.fn();
+    const client = {
+      handshake: { auth: {}, headers: { authorization: `Bearer ${token}` } },
+      join: joinMock,
+      disconnect: jest.fn(),
+    } as unknown as Socket;
+
+    await gateway.handleConnection(client);
+    expect(joinMock).toHaveBeenCalledWith('user3');
   });
 });

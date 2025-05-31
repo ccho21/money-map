@@ -1,7 +1,7 @@
 // insights/rules/BudgetExceededRule.ts
 import { Injectable } from '@nestjs/common';
 import { formatISO } from 'date-fns';
-import { InsightRuleBase } from './InsightRuleBase';
+import { InsightRuleBase } from './base/InsightRuleBase';
 import { BudgetDataService } from '@/budgets/data/BudgetDataService';
 import { TransactionDataService } from '@/transactions/data/transaction-data.service';
 import { InsightContextType } from '../types/type';
@@ -18,7 +18,7 @@ export class BudgetExceededRule extends InsightRuleBase {
   }
 
   getSupportedContexts(): InsightContextType[] {
-    return ['dashboard', 'chartBudget', 'insightPattern'];
+    return ['dashboard', 'chartBudget', 'insightPattern', 'insightAlert'];
   }
 
   async generate(

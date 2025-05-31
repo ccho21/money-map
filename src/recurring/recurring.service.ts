@@ -9,7 +9,6 @@ export class RecurringService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(userId: string, dto: CreateRecurringTransactionDto) {
-    console.log('Creating recurring:', dto);
 
     return this.prisma.recurringTransaction.create({
       data: {
@@ -42,7 +41,6 @@ export class RecurringService {
 
     for (const recurring of recurringList) {
       const match = this.shouldGenerateForToday(recurring, today, {allowDuplicates});
-      console.log('### match', match);
       if (!match) continue;
 
       // 중복 방지: 이미 생성된 트랜잭션이 있는지 확인

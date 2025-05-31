@@ -558,7 +558,6 @@ export class AccountsService {
               (t) => t.accountId === account.id || t.toAccountId === account.id,
             );
 
-            console.log('### CARD', cardTxs);
             // ✅ 정산 기간 내
             const balancePayable = cardTxs
               .filter((t) => t.date >= settleStart && t.date <= settleEnd)
@@ -567,8 +566,6 @@ export class AccountsService {
                 0,
               );
 
-            console.log('### CARD', cardTxs);
-
             // ✅ 정산 이후 ~ 현재까지
             const outstandingBalance = cardTxs
               .filter((t) => t.date > settleEnd && t.date <= nowUTC)
@@ -576,8 +573,6 @@ export class AccountsService {
                 (sum, tx) => sum + getTransactionDeltaByAccount(tx, account.id),
                 0,
               );
-
-            console.log('### outstandingBalance', outstandingBalance);
 
             Object.assign(base, { balancePayable, outstandingBalance });
           }

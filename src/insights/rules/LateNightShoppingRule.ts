@@ -4,7 +4,7 @@ import { PrismaService } from '@/prisma/prisma.service';
 import { getUserTimezone } from '@/libs/timezone';
 import { toZonedTime } from 'date-fns-tz';
 import { formatISO } from 'date-fns';
-import { InsightRuleBase } from './InsightRuleBase';
+import { InsightRuleBase } from './base/InsightRuleBase';
 import { TransactionDataService } from '@/transactions/data/transaction-data.service';
 import { InsightContextType } from '../types/type';
 import { InsightDTO } from '../dto/insight.dto';
@@ -19,7 +19,7 @@ export class LateNightShoppingRule extends InsightRuleBase {
   }
 
   getSupportedContexts(): InsightContextType[] {
-    return ['dashboard', 'insightPattern', 'chartFlow'];
+    return ['dashboard', 'insightPattern', 'chartFlow', 'insightRecurring', 'insightAlert'];
   }
 
   async generate(userId: string): Promise<InsightDTO[]> {

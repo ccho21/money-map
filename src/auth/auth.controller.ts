@@ -35,7 +35,6 @@ export class AuthController {
     @GetUser() user: UserPayload,
     @Res({ passthrough: true }) res: Response,
   ) {
-    console.log('### user', user.id);
     return this.authService.refreshAccessToken(user.id, res);
   }
 

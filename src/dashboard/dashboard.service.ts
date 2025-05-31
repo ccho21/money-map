@@ -29,7 +29,6 @@ export class DashboardService {
     userId: string,
     query: TransactionGroupQueryDTO,
   ): Promise<DashboardDTO> {
-    console.log('### user id', userId);
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new Error('User not found');
 

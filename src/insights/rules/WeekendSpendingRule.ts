@@ -2,25 +2,26 @@ import { Injectable } from '@nestjs/common';
 import { InsightContextType } from '../types/type';
 import { formatISO } from 'date-fns';
 import { TransactionDataService } from '@/transactions/data/transaction-data.service';
-import { InsightRuleBase } from './InsightRuleBase';
+import { InsightRuleBase } from './base/InsightRuleBase';
 import { InsightDTO } from '../dto/insight.dto';
 
 @Injectable()
 export class WeekendSpendingRule extends InsightRuleBase {
-  constructor(
-    private readonly transactionDataService: TransactionDataService
-  ) {
+  constructor(private readonly transactionDataService: TransactionDataService) {
     super();
   }
 
   getSupportedContexts(): InsightContextType[] {
-    return ['dashboard', 'chartFlow', 'insightPattern'];
+    return ['dashboard', 'chartFlow', 'insightPattern', 'insightAlert'];
   }
 
   async generate(userId: string): Promise<InsightDTO[]> {
     console.log('### WeekendSpendingRule ###');
 
-    const last7daysTx = await this.transactionDataService.getRecentTransactions(userId, 7);
+    const last7daysTx = await this.transactionDataService.getRecentTransactions(
+      userId,
+      7,
+    );
 
     const totalSpent = last7daysTx.reduce((sum, tx) => sum + tx.amount, 0);
     const weekendSpent = last7daysTx

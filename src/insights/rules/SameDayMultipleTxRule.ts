@@ -2,7 +2,7 @@
 import { Injectable } from '@nestjs/common';
 import { formatISO } from 'date-fns';
 import { InsightContextType } from '../types/type';
-import { InsightRuleBase } from './InsightRuleBase';
+import { InsightRuleBase } from './base/InsightRuleBase';
 import { TransactionDataService } from '@/transactions/data/transaction-data.service';
 import { InsightDTO } from '../dto/insight.dto';
 
@@ -13,7 +13,7 @@ export class SameDayMultipleTxRule extends InsightRuleBase {
   }
 
   getSupportedContexts(): InsightContextType[] {
-    return ['dashboard', 'insightPattern'];
+    return ['dashboard', 'insightPattern', 'insightAlert'];
   }
 
   async generate(userId: string): Promise<InsightDTO[]> {

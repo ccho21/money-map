@@ -8,4 +8,6 @@ export type InsightContextType =
   | 'transactionDetail'
   | 'calendarDay'
   | 'insightPattern'
-  | 'insightBudget';
+  | 'insightBudget'
+  | 'insightRecurring'
+  | 'insightAlert';
