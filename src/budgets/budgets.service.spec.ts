@@ -8,8 +8,6 @@ import {
   mockBudgetCategory,
   mockTransaction,
 } from '@/tests/mocks/mockHelpers';
-import { GroupBy } from '@/common/types/types';
-
 describe('BudgetsService', () => {
   let service: BudgetsService;
   let prisma: jest.Mocked<PrismaService>;
@@ -61,11 +59,11 @@ describe('BudgetsService', () => {
       const result = await service.getSummary(mockUser.id, {
         startDate: '2024-01-01',
         endDate: '2024-01-31',
-        groupBy: GroupBy.monthly,
+        timeframe: 'monthly',
       });
 
       expect(result.totalBudget).toBe(mockBudgetCategory.amount);
-      expect(result.totalExpense).toBe(mockTransaction.amount);
+      expect(result.totalSpent).toBe(mockTransaction.amount);
       expect(result.rate).toBe(
         Math.round((mockTransaction.amount / mockBudgetCategory.amount) * 100),
       );
@@ -73,30 +71,72 @@ describe('BudgetsService', () => {
   });
 
   describe('getBudgetCategories', () => {
+    const category = {
+      id: 'cat1',
+      name: 'Food',
+      icon: '🍔',
+      type: 'expense',
+      userId: mockUser.id,
+      color: '#ff0000',
+    };
+
+    const fallbackBudgetCategory = {
+      ...mockBudgetCategory,
+      categoryId: category.id,
+      amount: 400,
+      startDate: new Date('2023-12-01'),
+      endDate: new Date('2023-12-31'),
+      budgetId: 'fallback-budget-id',
+    };
+
+    const currentBudgetCategory = {
+      ...mockBudgetCategory,
+      categoryId: category.id,
+      amount: 300,
+      startDate: new Date('2024-01-01'),
+      endDate: new Date('2024-01-31'),
+      budgetId: 'current-budget-id',
+    };
+
     it('should return budget categories for user and range', async () => {
       (prisma.user.findUnique as jest.Mock).mockResolvedValueOnce(mockUser);
+      (prisma.category.findMany as jest.Mock).mockResolvedValueOnce([category]);
+
+      // current range contains budget
       (prisma.budgetCategory.findMany as jest.Mock).mockResolvedValueOnce([
-        mockBudgetCategory,
-      ]);
-      (prisma.category.findMany as jest.Mock).mockResolvedValueOnce([
-        {
-          id: 'cat1',
-          name: 'Food',
-          icon: '🍔',
-          type: 'expense',
-          userId: mockUser.id,
-          color: '#ff0000',
-        },
-      ]);
+        currentBudgetCategory,
+      ]); // current range
+      // fallback call may not be triggered if current range exists
 
       const result = await service.getBudgetCategories(mockUser.id, {
         startDate: '2024-01-01',
         endDate: '2024-01-31',
-        groupBy: GroupBy.monthly,
+        timeframe: 'monthly',
       });
 
-      expect(result.data).toHaveLength(1);
-      expect(result.data[0].categoryId).toBe(mockBudgetCategory.categoryId);
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0].categoryId).toBe(category.id);
+      expect(result.items[0].amount).toBe(300);
+    });
+
+    it('should use fallback budget when no current range match', async () => {
+      (prisma.user.findUnique as jest.Mock).mockResolvedValueOnce(mockUser);
+      (prisma.category.findMany as jest.Mock).mockResolvedValueOnce([category]);
+
+      (prisma.budgetCategory.findMany as jest.Mock)
+        .mockResolvedValueOnce([]) // current range
+        .mockResolvedValueOnce([fallbackBudgetCategory]); // fallback
+
+      const result = await service.getBudgetCategories(mockUser.id, {
+        startDate: '2024-02-01',
+        endDate: '2024-02-29',
+        timeframe: 'monthly',
+      });
+
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0].categoryId).toBe(category.id);
+      expect(result.items[0].amount).toBe(400);
+      expect(result.items[0].budgetId).toBe('fallback-budget-id');
     });
   });
 });

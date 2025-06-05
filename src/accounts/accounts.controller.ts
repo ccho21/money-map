@@ -16,12 +16,11 @@ import { GetUser } from 'src/common/decorators/get-user.decorator';
 import { ApiOkResponse, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { AccountTransactionSummaryDTO } from './dto/account-transaction-summary.dto';
 import { AccountDashboardDTO } from './dto/account-dashboard.dto';
-import { DateQueryDTO } from '@/common/dto/filter/date-query.dto';
-import { DateRangeWithGroupQueryDTO } from '@/common/dto/filter/date-range-with-group-query.dto';
 import {
   AccountCreateRequestDTO,
   AccountUpdateRequestDTO,
 } from './dto/account-request.dto';
+import { AccountQueryDTO } from './dto/query/account-query.dto';
 
 @ApiTags('Accounts')
 @UseGuards(JwtAuthGuard)
@@ -44,7 +43,7 @@ export class AccountsController {
   @ApiQuery({ name: 'endDate', required: false, type: String })
   async getGroupedTransactions(
     @GetUser() user: UserPayload,
-    @Query() query: DateQueryDTO,
+    @Query() query: AccountQueryDTO,
   ): Promise<AccountTransactionSummaryDTO> {
     return this.accountsService.getGroupedTransactions(user.id, query);
   }
@@ -58,10 +57,7 @@ export class AccountsController {
   }
 
   @Get('summary')
-  getSummary(
-    @GetUser() user: UserPayload,
-    @Query() filter: DateRangeWithGroupQueryDTO,
-  ) {
+  getSummary(@GetUser() user: UserPayload, @Query() filter: AccountQueryDTO) {
     return this.accountsService.getSummary(user.id, filter);
   }
 

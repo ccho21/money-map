@@ -72,14 +72,14 @@ export function getValidDay(year: number, month: number, day: number): number {
 
 export function getDateRangeAndLabelByGroup(
   date: Date,
-  groupBy: GroupBy,
+  timeFrame: Timeframe,
   timezone: string,
 ) {
   let rangeStart: Date;
   let rangeEnd: Date;
   let label: string;
   const zonedDate = toZonedTime(date, timezone);
-  switch (groupBy) {
+  switch (timeFrame) {
     case GroupBy.DAILY:
       rangeStart = startOfDay(zonedDate);
       rangeEnd = endOfDay(zonedDate);

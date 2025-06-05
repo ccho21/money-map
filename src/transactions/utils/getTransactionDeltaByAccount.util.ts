@@ -26,9 +26,8 @@ export const getTransactionDeltaByAccount = (
   }
 
   if (tx.type === 'transfer') {
-    if (tx.accountId === accountId) {
-      return tx.toAccountId ? -tx.amount : tx.amount;
-    }
+    if (tx.accountId === accountId) return -tx.amount;
+    if (tx.toAccountId === accountId) return tx.amount;
     return 0;
   }
 

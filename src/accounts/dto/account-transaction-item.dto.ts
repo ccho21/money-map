@@ -6,7 +6,7 @@ import { TransactionDetailDTO } from '@/transactions/dto/transactions/transactio
 /**
  * 기간 단위로 묶인 단일 계좌의 거래 요약
  */
-export class AccountTransactionItemDTO extends BaseGroupItemDTO {
+export class AccountTransactionItemDTO {
   @ApiProperty()
   @IsString()
   accountId: string;
@@ -31,4 +31,16 @@ export class AccountTransactionItemDTO extends BaseGroupItemDTO {
   @IsOptional()
   @IsArray()
   transactions?: TransactionDetailDTO[] | null;
+
+  @ApiProperty({ example: '2024-04', description: '그룹 레이블 (월/주 등)' })
+  @IsString()
+  label: string;
+
+  @ApiProperty({ example: '2024-04-01', description: '그룹 시작일' })
+  @IsString()
+  rangeStart: string;
+
+  @ApiProperty({ example: '2024-04-30', description: '그룹 종료일' })
+  @IsString()
+  rangeEnd: string;
 }

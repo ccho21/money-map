@@ -25,6 +25,7 @@ import { isSameDay, parseISO } from 'date-fns';
 import { BudgetCategoryListResponseDTO } from './dto/budget-category-list-response.dto';
 import { BudgetQueryDTO } from './dto/params/budget-query.dto';
 import { BudgetAlertDTO } from './dto/alert/budget-alert.dto';
+import { BudgetCategory } from '@prisma/client';
 
 @Injectable()
 export class BudgetsService {
@@ -51,7 +52,7 @@ export class BudgetsService {
 
   async getSummary(
     userId: string,
-    { startDate, endDate, groupBy }: DateRangeWithGroupQueryDTO,
+    { startDate, endDate, timeframe }: BudgetQueryDTO,
   ): Promise<BudgetGroupSummaryDTO> {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new NotFoundException('User not found');
@@ -84,7 +85,7 @@ export class BudgetsService {
       totalBudget === 0 ? 0 : Math.round((totalSpent / totalBudget) * 100);
 
     return {
-      label: groupBy,
+      label: timeframe,
       rangeStart: startDate,
       rangeEnd: endDate,
       totalBudget,
@@ -145,6 +146,17 @@ export class BudgetsService {
       where: { userId },
     });
 
+    const transactions = await this.prisma.transaction.findMany({
+      where: {
+        userId,
+        type: 'expense',
+        date: {
+          gte: start,
+          lte: end,
+        },
+      },
+    });
+
     const budgetCategories = await this.prisma.budgetCategory.findMany({
       where: {
         budget: { userId },
@@ -157,18 +169,43 @@ export class BudgetsService {
       budgetCategories.map((bc) => [bc.categoryId, bc]),
     );
 
+    const fallbackBudgets = await this.prisma.budgetCategory.findMany({
+      where: {
+        budget: { userId },
+        startDate: { lt: start },
+      },
+      orderBy: { startDate: 'desc' },
+    });
+
+    const fallbackMap = new Map<string, BudgetCategory>();
+    for (const fb of fallbackBudgets) {
+      if (!budgetMap.has(fb.categoryId) && !fallbackMap.has(fb.categoryId)) {
+        fallbackMap.set(fb.categoryId, fb);
+      }
+    }
+
+    const usedMap = new Map<string, number>();
+    for (const t of transactions) {
+      if (!t.categoryId) continue;
+      usedMap.set(t.categoryId, (usedMap.get(t.categoryId) ?? 0) + t.amount);
+    }
+
     const items: BudgetCategoryItemDTO[] = categories.map((c) => {
-      const bc = budgetMap.get(c.id);
+      const bc = budgetMap.get(c.id) ?? fallbackMap.get(c.id);
       const amount = bc?.amount ?? 0;
+      const used = usedMap.get(c.id) ?? 0;
+      const remaining = amount - used;
+      const isOver = remaining < 0;
+
       return {
         categoryId: c.id,
         categoryName: c.name,
         icon: c.icon,
         color: c.color ?? undefined,
         amount,
-        used: 0,
-        remaining: amount,
-        isOver: false,
+        used,
+        remaining,
+        isOver,
         type: c.type,
         budgetId: bc?.budgetId ?? undefined,
       };

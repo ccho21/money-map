@@ -20,8 +20,6 @@ import {
 } from '@/accounts/dto/account-dashboard.dto';
 import { toZonedTime } from 'date-fns-tz';
 import { format, subMonths } from 'date-fns';
-import { DateQueryDTO } from '@/common/dto/filter/date-query.dto';
-import { DateRangeWithGroupQueryDTO } from '@/common/dto/filter/date-range-with-group-query.dto';
 import { recalculateAccountBalanceInTx } from '@/transactions/utils/recalculateAccountBalanceInTx.util';
 import { getTransactionDeltaByAccount } from '@/transactions/utils/getTransactionDeltaByAccount.util';
 import { AccountTransactionSummaryDTO } from './dto/account-transaction-summary.dto';
@@ -31,8 +29,9 @@ import {
   AccountUpdateRequestDTO,
 } from './dto/account-request.dto';
 import { AccountTransactionItemDTO } from './dto/account-transaction-item.dto';
-import { GroupBy } from '@/common/types/types';
 import { TransactionDetailDTO } from '@/transactions/dto/transactions/transaction-detail.dto';
+import { AccountQueryDTO } from './dto/query/account-query.dto';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class AccountsService {
@@ -234,14 +233,14 @@ export class AccountsService {
   // ✅ 요약 API - 타임존 로직 개선
   async getSummary(
     userId: string,
-    { startDate, endDate, groupBy }: DateRangeWithGroupQueryDTO,
+    { startDate, endDate, timeframe }: AccountQueryDTO,
   ): Promise<AccountTransactionSummaryDTO> {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new Error('User not found');
 
-    if (!startDate || !endDate || !groupBy) {
+    if (!startDate || !endDate || !timeframe) {
       throw new BadRequestException(
-        'startDate, endDate, groupBy are required.',
+        'startDate, endDate, timeframe are required.',
       );
     }
 
@@ -288,7 +287,7 @@ export class AccountsService {
       const zoned = toZonedTime(tx.date, timezone);
       const { rangeStart, rangeEnd } = getDateRangeAndLabelByGroup(
         zoned,
-        groupBy,
+        timeframe,
         timezone,
       );
 
@@ -319,7 +318,7 @@ export class AccountsService {
       if (keys.length === 0) {
         // No transactions, still return empty summary
         result.push({
-          label: groupBy,
+          label: timeframe,
           accountId: account.id,
           accountName: account.name,
           balance: account.balance,
@@ -332,7 +331,7 @@ export class AccountsService {
         for (const key of keys) {
           const summary = summaryMap.get(key)!;
           result.push({
-            label: groupBy,
+            label: timeframe,
             accountId: account.id,
             accountName: account.name,
             balance: account.balance,
@@ -348,14 +347,14 @@ export class AccountsService {
     return {
       startDate: startDate,
       endDate: endDate,
-      groupBy: groupBy,
+      timeframe: timeframe,
       items: result,
     };
   }
 
   async getGroupedTransactions(
     userId: string,
-    query: DateQueryDTO,
+    query: AccountQueryDTO,
   ): Promise<AccountTransactionSummaryDTO> {
     const { startDate, endDate } = query;
 
@@ -443,7 +442,7 @@ export class AccountsService {
     return {
       startDate: startDate,
       endDate: endDate,
-      groupBy: 'monthly' as GroupBy,
+      timeframe: 'monthly',
       items: results,
     };
   }
@@ -468,6 +467,7 @@ export class AccountsService {
     //
     // 참고: Outstanding Balance는 별개로, 정산 종료 이후부터 현재까지 발생한 사용액만 포함해야 하며,
     //       carry-over 금액과 섞이면 안 된다.
+
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new Error('User not found');
 
@@ -511,16 +511,10 @@ export class AccountsService {
 
         for (const account of accounts) {
           const isCard = account.type === 'CARD';
-          const accountType = isCard ? 'LIABILITY' : ('ASSET' as const);
+          const accountType = isCard ? 'LIABILITY' : 'ASSET';
 
-          // ✅ 자산 누적
           if (accountType === 'ASSET') {
             response.asset += account.balance;
-          }
-
-          // ✅ 카드 부채 계산 (잔액이 음수일 경우만 부채 반영)
-          if (isCard && account.balance < 0) {
-            response.liability += Math.abs(account.balance);
           }
 
           const base: AccountDashboardItemDTO = {
@@ -533,7 +527,6 @@ export class AccountsService {
             paymentDate: account.paymentDate,
           };
 
-          // ✅ 정산 정보 추가
           if (isCard && account.settlementDate !== null) {
             const year = nowUTC.getFullYear();
             const month = nowUTC.getMonth() + 1;
@@ -558,15 +551,22 @@ export class AccountsService {
               (t) => t.accountId === account.id || t.toAccountId === account.id,
             );
 
-            // ✅ 정산 기간 내
-            const balancePayable = cardTxs
+            const currentUsage = cardTxs
               .filter((t) => t.date >= settleStart && t.date <= settleEnd)
               .reduce(
                 (sum, tx) => sum + getTransactionDeltaByAccount(tx, account.id),
                 0,
               );
 
-            // ✅ 정산 이후 ~ 현재까지
+            // ✅ carry-over: 미납된 과거 금액 계산
+            const carryOver = await this.getPreviousUnpaidBalance(
+              tx,
+              account.id,
+              settleStart,
+            );
+
+            const balancePayable = currentUsage + carryOver;
+
             const outstandingBalance = cardTxs
               .filter((t) => t.date > settleEnd && t.date <= nowUTC)
               .reduce(
@@ -575,6 +575,9 @@ export class AccountsService {
               );
 
             Object.assign(base, { balancePayable, outstandingBalance });
+
+            // ✅ 총 부채에 반영
+            response.liability += balancePayable + outstandingBalance;
           }
 
           response.data[account.type].push(base);
@@ -589,6 +592,24 @@ export class AccountsService {
       this.logger.error('📉 [getAccountsDashboard] 실패:', err);
       throw new Error('계좌 요약 정보를 불러오는 데 실패했습니다.');
     }
+  }
+
+  async getPreviousUnpaidBalance(
+    tx: Prisma.TransactionClient,
+    accountId: string,
+    settleStart: Date,
+  ): Promise<number> {
+    const transactions = await tx.transaction.findMany({
+      where: {
+        accountId,
+        type: 'expense',
+        paidAt: null,
+        date: { lt: settleStart },
+      },
+      select: { amount: true },
+    });
+
+    return transactions.reduce((sum, t) => sum + t.amount, 0);
   }
 
   // async getAccountSummary(

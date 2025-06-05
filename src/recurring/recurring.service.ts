@@ -1,15 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateRecurringTransactionDto } from './dto/create-recurring-transaction.dto';
-import { isBefore, startOfDay } from 'date-fns';
+import { isBefore } from 'date-fns';
 import { RecurringTransaction } from '@prisma/client';
+import { recalculateAccountBalanceInTx } from '@/transactions/utils/recalculateAccountBalanceInTx.util';
 
 @Injectable()
 export class RecurringService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(userId: string, dto: CreateRecurringTransactionDto) {
-
     return this.prisma.recurringTransaction.create({
       data: {
         userId: userId,
@@ -40,7 +40,9 @@ export class RecurringService {
     });
 
     for (const recurring of recurringList) {
-      const match = this.shouldGenerateForToday(recurring, today, {allowDuplicates});
+      const match = this.shouldGenerateForToday(recurring, today, {
+        allowDuplicates,
+      });
       if (!match) continue;
 
       // 중복 방지: 이미 생성된 트랜잭션이 있는지 확인

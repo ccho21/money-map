@@ -7,7 +7,13 @@ import {
 } from 'class-validator';
 import { Transform } from 'class-transformer';
 
-export type Timeframe = 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom';
+export type Timeframe =
+  | 'daily'
+  | 'weekly'
+  | 'monthly'
+  | 'yearly'
+  | 'custom'
+  | 'all';
 export type GroupBy =
   | 'date'
   | 'category'
@@ -18,7 +24,7 @@ export type GroupBy =
 export type TransactionType = 'income' | 'expense' | 'transfer';
 
 export class TransactionGroupQueryDTO {
-  @IsEnum(['daily', 'weekly', 'monthly', 'yearly', 'custom'])
+  @IsEnum(['daily', 'weekly', 'monthly', 'yearly', 'custom', 'all'])
   timeframe: Timeframe;
 
   @IsEnum(['date', 'category', 'account', 'tag', 'budget', 'note'])
@@ -52,4 +58,7 @@ export class TransactionGroupQueryDTO {
 
   @IsOptional()
   note?: string;
+
+  @IsOptional()
+  includeBalance?: boolean;
 }

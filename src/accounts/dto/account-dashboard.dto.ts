@@ -7,6 +7,7 @@ import {
   IsString,
   IsBoolean,
   IsEnum,
+  isString,
 } from 'class-validator';
 
 export class AccountDashboardItemDTO {
@@ -54,6 +55,11 @@ export class AccountDashboardItemDTO {
   @IsOptional()
   @IsBoolean()
   autoPayment?: boolean | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  description?: string | null;
 }
 
 export class AccountDashboardDTO {

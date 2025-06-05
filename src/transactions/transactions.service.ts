@@ -57,6 +57,32 @@ export class TransactionsService {
     // private readonly chartFlowInsightService: ChartFlowInsightService,
   ) {}
 
+  private async resolveDateRange(
+    userId: string,
+    query: TransactionGroupQueryDTO,
+    timezone: string,
+  ): Promise<{ start: Date; end: Date }> {
+    if (query.timeframe === 'all') {
+      const range = await this.prisma.transaction.aggregate({
+        where: { userId },
+        _min: { date: true },
+        _max: { date: true },
+      });
+
+      const start =
+        range._min.date ?? getUTCStartDate(query.startDate, timezone);
+      const end =
+        range._max.date ??
+        getUTCEndDate(query.endDate ?? query.startDate, timezone);
+
+      return { start, end };
+    }
+
+    const start = getUTCStartDate(query.startDate, timezone);
+    const end = getUTCEndDate(query.endDate ?? query.startDate, timezone);
+    return { start, end };
+  }
+
   async create(userId: string, dto: CreateTransactionDTO) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new Error('User not found');
@@ -338,265 +364,26 @@ export class TransactionsService {
     return transactionDetailDTO;
   }
 
-  // async getTransactionSummary(
-  //   userId: string,
-  //   query: DateRangeWithGroupQueryDTO,
-  // ): Promise<TransactionGroupSummaryDTO> {
-  //   const { groupBy, startDate, endDate } = query;
-
-  //   // 1️⃣ 유저 인증 및 타임존 확보
-  //   const user = await this.prisma.user.findUnique({ where: { id: userId } });
-  //   if (!user) throw new ForbiddenException('사용자를 찾을 수 없습니다.');
-
-  //   const timezone = getUserTimezone(user);
-  //   const start = getUTCStartDate(startDate, timezone);
-  //   const end = getUTCEndDate(endDate, timezone);
-
-  //   // 2️⃣ 해당 기간의 모든 트랜잭션 조회 (income/expense/transfer만)
-  //   const allTx = await this.prisma.transaction.findMany({
-  //     where: {
-  //       userId,
-  //       date: { gte: start, lte: end },
-  //       OR: [{ type: 'income' }, { type: 'expense' }, { type: 'transfer' }],
-  //     },
-  //     orderBy: { date: 'asc' },
-  //     include: {
-  //       category: true,
-  //       account: true,
-  //       toAccount: true,
-  //     },
-  //   });
-
-  //   // 3️⃣ 트랜스퍼 중 입금 트랜잭션(toAccountId === null)은 제외
-  //   const transactions = allTx.filter((tx) =>
-  //     tx.type === 'transfer' ? tx.toAccountId !== null : true,
-  //   );
-
-  //   // 4️⃣ 그룹화 및 요약 데이터 생성
-  //   const grouped = new Map<
-  //     string,
-  //     {
-  //       rangeStart: string;
-  //       rangeEnd: string;
-  //       transactions: TransactionDetailDTO[];
-  //     }
-  //   >();
-
-  //   for (const tx of transactions) {
-  //     const { label, rangeStart, rangeEnd } = getDateRangeAndLabelByGroup(
-  //       tx.date,
-  //       groupBy,
-  //       timezone,
-  //     );
-
-  //     if (!grouped.has(label)) {
-  //       grouped.set(label, {
-  //         rangeStart: format(rangeStart, 'yyyy-MM-dd'),
-  //         rangeEnd: format(rangeEnd, 'yyyy-MM-dd'),
-  //         transactions: [],
-  //       });
-  //     }
-
-  //     grouped
-  //       .get(label)!
-  //       .transactions.push(this.convertToTransactionDetailDTO(tx));
-  //   }
-
-  //   // 5️⃣ 요약 데이터 계산
-  //   const items: TransactionGroupItemDTO[] = [];
-  //   let totalIncome = 0;
-  //   let totalExpense = 0;
-
-  //   for (const [label, { rangeStart, rangeEnd, transactions }] of grouped) {
-  //     const income = transactions
-  //       .filter((t) => t.type === TransactionType.income)
-  //       .reduce((sum, t) => sum + t.amount, 0);
-  //     const expense = transactions
-  //       .filter((t) => t.type === TransactionType.expense)
-  //       .reduce((sum, t) => sum + t.amount, 0);
-
-  //     totalIncome += income;
-  //     totalExpense += expense;
-
-  //     items.push({
-  //       label,
-  //       rangeStart,
-  //       rangeEnd,
-  //       groupIncome: income,
-  //       groupExpense: expense,
-  //       transactions,
-  //     });
-  //   }
-
-  //   // 6️⃣ 결과 반환
-  //   return {
-  //     groupBy: groupBy,
-  //     startDate,
-  //     endDate,
-  //     totalIncome,
-  //     totalExpense,
-  //     items,
-  //   };
-  // }
-
-  // async getTransactionSummaryByCursor(
-  //   userId: string,
-  //   query: TransactionSummaryCursorQueryDTO,
-  // ): Promise<TransactionCursorSummaryResponseDTO> {
-  //   const { groupBy, cursorDate, cursorId, limit, startDate, endDate } = query;
-
-  //   console.log('📥 [API 호출] getTransactionSummaryByCursor');
-  //   console.log('▶ userId:', userId);
-  //   console.log('▶ query:', query);
-  //   if (!cursorDate || !cursorId) {
-  //     console.log('⛔️ 커서 없음 → 더 이상 불러올 항목 없음');
-  //     return { nextCursor: null, items: [] };
-  //   }
-
-  //   // 1️⃣ 유저 인증 및 타임존 확보
-  //   const user = await this.prisma.user.findUnique({ where: { id: userId } });
-  //   if (!user) throw new ForbiddenException('사용자를 찾을 수 없습니다.');
-  //   const timezone = getUserTimezone(user);
-  //   console.log('🌐 timezone:', timezone);
-
-  //   // 2️⃣ where 조건 구성
-  //   const where: Prisma.TransactionWhereInput = {
-  //     userId,
-  //     OR: [
-  //       { type: 'income' },
-  //       { type: 'expense' },
-  //       {
-  //         type: 'transfer',
-  //         toAccountId: { not: null }, // ✅ 여기서 transfer 필터링
-  //       },
-  //     ],
-  //   };
-
-  //   // 2-1️⃣ 날짜 범위 필터 (optional)
-  //   if (startDate || endDate) {
-  //     where.date = {};
-  //     if (startDate) where.date.gte = getUTCStartDate(startDate, timezone);
-  //     if (endDate) where.date.lte = getUTCEndDate(endDate, timezone);
-  //     console.log('🗓️ filter range:', where.date.gte, '~', where.date.lte);
-  //   }
-
-  //   // 2-2️⃣ 커서 조건
-  //   if (cursorDate && cursorId) {
-  //     console.log('🔖 cursorDate:', cursorDate);
-  //     console.log('🔖 cursorId:', cursorId);
-  //     where.OR = [
-  //       { date: { lt: cursorDate } },
-  //       {
-  //         date: cursorDate,
-  //         id: { lt: cursorId },
-  //       },
-  //     ];
-  //   }
-
-  //   // 3️⃣ 트랜잭션 조회
-  //   const safeLimit = parseInt(String(limit), 10) || 20;
-  //   const rawTx = await this.prisma.transaction.findMany({
-  //     where,
-  //     orderBy: [{ date: 'desc' }, { id: 'desc' }],
-  //     take: safeLimit * 3, // ✅ 넉넉하게 fetch → 유효한 limit 보장
-  //     include: {
-  //       category: true,
-  //       account: true,
-  //       toAccount: true,
-  //     },
-  //   });
-
-  //   console.log(`📦 rawTx count: ${rawTx.length}`);
-
-  //   // 4️⃣ 실제 사용할 유효 트랜잭션 (limit 개수만 슬라이스)
-  //   const transactions = rawTx.slice(0, safeLimit);
-  //   const lastTx = transactions.at(-1);
-
-  //   const nextCursor = lastTx
-  //     ? {
-  //         date: lastTx.date.toISOString(),
-  //         id: lastTx.id,
-  //       }
-  //     : null;
-
-  //   console.log('⏭️ nextCursor:', nextCursor);
-  //   console.log(`✅ 유효 트랜잭션 수: ${transactions.length}`);
-
-  //   // 5️⃣ 그룹핑
-  //   const grouped = new Map<
-  //     string,
-  //     {
-  //       rangeStart: string;
-  //       rangeEnd: string;
-  //       transactions: TransactionDetailDTO[];
-  //     }
-  //   >();
-
-  //   for (const tx of transactions) {
-  //     const { label, rangeStart, rangeEnd } = getDateRangeAndLabelByGroup(
-  //       tx.date,
-  //       groupBy,
-  //       timezone,
-  //     );
-
-  //     if (!grouped.has(label)) {
-  //       grouped.set(label, {
-  //         rangeStart: format(rangeStart, 'yyyy-MM-dd'),
-  //         rangeEnd: format(rangeEnd, 'yyyy-MM-dd'),
-  //         transactions: [],
-  //       });
-  //     }
-
-  //     grouped
-  //       .get(label)!
-  //       .transactions.push(this.convertToTransactionDetailDTO(tx));
-  //   }
-
-  //   console.log('📊 그룹핑 완료:', Array.from(grouped.keys()));
-
-  //   // 6️⃣ 요약 계산
-  //   const items: TransactionGroupItemDTO[] = [];
-
-  //   for (const [label, { rangeStart, rangeEnd, transactions }] of grouped) {
-  //     const income = transactions
-  //       .filter((t) => t.type === 'income')
-  //       .reduce((sum, t) => sum + t.amount, 0);
-
-  //     const expense = transactions
-  //       .filter((t) => t.type === 'expense')
-  //       .reduce((sum, t) => sum + t.amount, 0);
-
-  //     items.push({
-  //       label,
-  //       rangeStart,
-  //       rangeEnd,
-  //       groupIncome: income,
-  //       groupExpense: expense,
-  //       transactions,
-  //     });
-  //   }
-
-  //   console.log('📈 최종 items 수:', items.length);
-
-  //   return {
-  //     nextCursor,
-  //     items,
-  //   };
-  // }
-
   async getTransactionCalendarView(
     userId: string,
     query: TransactionGroupQueryDTO,
   ): Promise<TransactionCalendarDTO[]> {
-    const { startDate, endDate } = query;
+    const { startDate, endDate, timeframe } = query;
 
     // 1️⃣ 사용자 인증 및 타임존 확보
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new ForbiddenException('사용자를 찾을 수 없습니다.');
 
+    if (timeframe !== 'monthly') {
+      throw new BadRequestException('timeframe should be monthly or weekly');
+    }
+
     const timezone = getUserTimezone(user) ?? 'UTC';
-    const start = getUTCStartDate(startDate, timezone);
-    const end = getUTCEndDate(endDate, timezone);
+    const { start, end } = await this.resolveDateRange(
+      user.id,
+      query,
+      timezone,
+    );
 
     // 2️⃣ Prisma groupBy로 일자 + 타입 단위 집계
     const grouped = await this.prisma.transaction.groupBy({
@@ -1076,19 +863,20 @@ export class TransactionsService {
     if (!user) throw new ForbiddenException('사용자를 찾을 수 없습니다.');
 
     const timezone = getUserTimezone(user);
-    const start = getUTCStartDate(query.startDate, timezone);
-    const end = getUTCEndDate(query.endDate, timezone);
+    const { start, end } = await this.resolveDateRange(
+      user.id,
+      query,
+      timezone,
+    );
 
     const baseWhere: Prisma.TransactionWhereInput = {
       userId,
       date: { gte: start, lte: end },
-
       ...(query.transactionType && { type: query.transactionType }),
       ...(query.categoryId && { categoryId: query.categoryId }),
       ...(query.accountId && {
         OR: [{ accountId: query.accountId }, { toAccountId: query.accountId }],
       }),
-
       ...(query.note?.trim() && {
         note: {
           contains: query.note.trim(),
@@ -1096,6 +884,33 @@ export class TransactionsService {
         },
       }),
     };
+
+    // ✨ balanceAfter 누적 처리 준비
+    let balanceMap: Map<string, number> | undefined;
+    if (query.includeBalance && query.accountId) {
+      const initialBalance =
+        (
+          await this.prisma.account.findUnique({
+            where: { id: query.accountId },
+            select: { balance: true },
+          })
+        )?.balance ?? 0;
+
+      const txs = await this.prisma.transaction.findMany({
+        where: {
+          userId,
+          OR: [
+            { accountId: query.accountId },
+            { toAccountId: query.accountId },
+          ],
+          date: { lte: end },
+        },
+        orderBy: [{ date: 'asc' }, { id: 'asc' }],
+        include: { account: true },
+      });
+
+      balanceMap = this.accumulateBalanceAfter(txs, initialBalance); // 초기값 0으로 계산, 원하면 initialBalance로도 가능
+    }
 
     switch (query.groupBy ?? 'date') {
       case 'date':
@@ -1106,11 +921,26 @@ export class TransactionsService {
           query,
           timezone,
           baseWhere,
+          balanceMap,
         );
       case 'category':
-        return this.groupByCategory(user.id, start, end, query, baseWhere);
+        return this.groupByCategory(
+          user.id,
+          start,
+          end,
+          query,
+          baseWhere,
+          balanceMap,
+        );
       case 'account':
-        return this.groupByAccount(user.id, start, end, query, baseWhere);
+        return this.groupByAccount(
+          user.id,
+          start,
+          end,
+          query,
+          baseWhere,
+          balanceMap,
+        );
       default:
         throw new BadRequestException('지원하지 않는 groupBy 값입니다.');
     }
@@ -1124,8 +954,11 @@ export class TransactionsService {
     if (!user) throw new ForbiddenException('사용자를 찾을 수 없습니다.');
 
     const timezone = getUserTimezone(user);
-    const start = getUTCStartDate(query.startDate, timezone);
-    const end = getUTCEndDate(query.endDate, timezone);
+    const { start, end } = await this.resolveDateRange(
+      user.id,
+      query,
+      timezone,
+    );
 
     const whereClause: Prisma.TransactionWhereInput = {
       userId,
@@ -1211,7 +1044,7 @@ export class TransactionsService {
     let comparison: { difference: number; percent: string } | undefined =
       undefined;
 
-    if (query.timeframe !== 'custom') {
+    if (query.timeframe !== 'custom' && query.timeframe !== 'all') {
       const prevRange = getPreviousPeriod(query.timeframe, start, end);
 
       const prevTx = await this.prisma.transaction.findMany({
@@ -1274,8 +1107,11 @@ export class TransactionsService {
     if (!user) throw new ForbiddenException('사용자를 찾을 수 없습니다.');
 
     const timezone = getUserTimezone(user);
-    const start = getUTCStartDate(query.startDate, timezone);
-    const end = getUTCEndDate(query.endDate ?? query.startDate, timezone);
+    const { start, end } = await this.resolveDateRange(
+      user.id,
+      query,
+      timezone,
+    );
 
     const allTx = await this.prisma.transaction.findMany({
       where: {
@@ -1352,8 +1188,11 @@ export class TransactionsService {
     if (!user) throw new ForbiddenException('User not found');
 
     const timezone = getUserTimezone(user);
-    const start = getUTCStartDate(query.startDate, timezone);
-    const end = getUTCEndDate(query.endDate, timezone);
+    const { start, end } = await this.resolveDateRange(
+      user.id,
+      query,
+      timezone,
+    );
 
     // 현재 기간 트랜잭션
     const currentTx = await this.prisma.transaction.findMany({
@@ -1389,7 +1228,7 @@ export class TransactionsService {
     // 전월 비교
     let comparison: CategoryComparisonDTO | undefined = undefined;
 
-    if (query.timeframe !== 'custom') {
+    if (query.timeframe !== 'custom' && query.timeframe !== 'all') {
       const prevRange = getPreviousPeriod(query.timeframe, start, end);
       const prevTx = await this.prisma.transaction.findMany({
         where: {
@@ -1452,8 +1291,11 @@ export class TransactionsService {
     if (!user) throw new ForbiddenException('User not found');
 
     const timezone = getUserTimezone(user);
-    const start = getUTCStartDate(query.startDate, timezone);
-    const end = getUTCEndDate(query.endDate, timezone);
+    const { start, end } = await this.resolveDateRange(
+      user.id,
+      query,
+      timezone,
+    );
 
     const accounts = await this.prisma.account.findMany({
       where: { userId },
@@ -1537,8 +1379,11 @@ export class TransactionsService {
     if (!user) throw new ForbiddenException('User not found');
 
     const timezone = getUserTimezone(user);
-    const start = getUTCStartDate(query.startDate, timezone);
-    const end = getUTCEndDate(query.endDate ?? query.startDate, timezone);
+    const { start, end } = await this.resolveDateRange(
+      user.id,
+      query,
+      timezone,
+    );
 
     // 1. 예산 카테고리 조회 (기간 & 유저 기준)
     const budgetCategories = await this.prisma.budgetCategory.findMany({
@@ -1639,6 +1484,7 @@ export class TransactionsService {
     query: TransactionGroupQueryDTO,
     timezone: string,
     where: Prisma.TransactionWhereInput,
+    balanceMap?: Map<string, number>,
   ): Promise<TransactionGroupListResponseDTO> {
     const allTx = await this.prisma.transaction.findMany({
       where,
@@ -1656,7 +1502,11 @@ export class TransactionsService {
     for (const tx of allTx) {
       const label = formatInTimeZone(tx.date, timezone, 'yyyy-MM-dd');
       if (!grouped.has(label)) grouped.set(label, []);
-      grouped.get(label)!.push(this.convertToTransactionItemDTO(tx));
+
+      const balanceAfter = balanceMap?.get(tx.id);
+      grouped
+        .get(label)!
+        .push(this.convertToTransactionItemDTO(tx, balanceAfter));
     }
 
     const groups: TransactionGroupItemDTO[] = [];
@@ -1685,6 +1535,7 @@ export class TransactionsService {
     end: Date,
     query: TransactionGroupQueryDTO,
     where: Prisma.TransactionWhereInput,
+    balanceMap?: Map<string, number>,
   ): Promise<TransactionGroupListResponseDTO> {
     const allTx = await this.prisma.transaction.findMany({
       where,
@@ -1730,6 +1581,7 @@ export class TransactionsService {
     end: Date,
     query: TransactionGroupQueryDTO,
     where: Prisma.TransactionWhereInput,
+    balanceMap?: Map<string, number>,
   ): Promise<TransactionGroupListResponseDTO> {
     const allTx = await this.prisma.transaction.findMany({
       where,
@@ -1778,21 +1630,23 @@ export class TransactionsService {
       } | null;
       account: { name: string };
     },
+    balanceAfter?: number, // ✨ 추가
   ): TransactionItemDTO => {
     return {
       id: tx.id,
       note: tx.note,
-      description: tx.note,
+      description: tx.description,
       amount: tx.amount,
       type: tx.type,
       date: tx.date.toISOString(),
       payment: tx.account.name,
       recurringId: tx.recurringTransactionId,
+      balanceAfter, // ✨ 추가
       category: tx.category
         ? {
             name: tx.category.name,
             icon: tx.category.icon,
-            color: tx.category.color ?? '#d1d5db', // ← null fallback
+            color: tx.category.color ?? '#d1d5db',
           }
         : {
             name: 'Uncategorized',
@@ -1844,5 +1698,31 @@ export class TransactionsService {
         message: `You've exceeded your $${budgetItem.amount.toLocaleString()} budget for "${category?.name ?? 'Unknown'}". \n Total spent: $${totalSpent.toLocaleString()}.`,
       });
     }
+  }
+
+  private accumulateBalanceAfter(
+    transactions: (Transaction & { account: { name: string } })[],
+    initialBalance: number,
+  ): Map<string, number> {
+    const map = new Map<string, number>();
+    let balance = initialBalance;
+
+    for (const tx of transactions) {
+      if (tx.type === 'income') {
+        balance += tx.amount;
+      } else if (tx.type === 'expense') {
+        balance -= tx.amount;
+      } else if (tx.type === 'transfer') {
+        if (tx.accountId && tx.toAccountId) {
+          // 출금
+          balance -= tx.accountId ? tx.amount : 0;
+        }
+      }
+
+      map.set(tx.id, balance);
+    }
+
+    console.log('### BALANCE', map);
+    return map;
   }
 }

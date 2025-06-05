@@ -17,4 +17,9 @@ export class TransactionItemDTO {
   account: {
     name: string;
   };
+
+  /**
+   * Optional running balance for the related account after this transaction.
+   */
+  balanceAfter?: number;
 }

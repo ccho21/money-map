@@ -14,7 +14,6 @@ import { GetUser } from '../common/decorators/get-user.decorator';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { UserPayload } from 'src/auth/types/user-payload.type';
 
-import { DateRangeWithGroupQueryDTO } from '@/common/dto/filter/date-range-with-group-query.dto';
 import {
   BudgetCategoryCreateRequestDTO,
   BudgetCategoryUpdateRequestDTO,
@@ -41,15 +40,9 @@ export class BudgetsController {
   @Get('summary')
   getBudgetSummary(
     @GetUser() user: UserPayload,
-    @Query() query: DateRangeWithGroupQueryDTO,
+    @Query() query: BudgetQueryDTO,
   ) {
     return this.budgetsService.getSummary(user.id, query);
-  }
-
-  @Get('by-category')
-  @UseGuards(JwtAuthGuard)
-  getByCategory(@GetUser() user: UserPayload, @Query() query: BudgetQueryDTO) {
-    return this.budgetsService.getBudgetCategories(user.id, query);
   }
 
   @Post('by-category')
@@ -59,6 +52,12 @@ export class BudgetsController {
     @Body() dto: BudgetCategoryCreateRequestDTO,
   ) {
     return this.budgetsService.createBudgetCategory(user.id, dto);
+  }
+
+  @Get('by-category')
+  @UseGuards(JwtAuthGuard)
+  getByCategory(@GetUser() user: UserPayload, @Query() query: BudgetQueryDTO) {
+    return this.budgetsService.getBudgetCategories(user.id, query);
   }
 
   @UseGuards(JwtAuthGuard)
