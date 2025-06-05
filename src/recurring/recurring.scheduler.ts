@@ -9,6 +9,6 @@ export class RecurringScheduler {
   @Cron('0 0 * * *') // 매일 00:00 UTC
   handleDailyGeneration() {
     console.log('⏰ Running recurring transaction generation...');
-    return this.recurringService.generateUpcomingTransactions()
+    return this.recurringService.generateUpcomingTransactions();
   }
 }

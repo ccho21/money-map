@@ -58,19 +58,35 @@ export class RecurringService {
 
       if (!allowDuplicates && alreadyExists) continue;
 
-      await this.prisma.transaction.create({
-        data: {
-          userId: recurring.userId,
-          accountId: recurring.accountId,
-          toAccountId: recurring.toAccountId,
-          categoryId: recurring.categoryId,
-          type: recurring.type,
-          amount: recurring.amount,
-          date: today,
-          note: recurring.note,
-          description: recurring.description,
-          recurringTransactionId: recurring.id,
-        },
+      await this.prisma.$transaction(async (tx) => {
+        await tx.transaction.create({
+          data: {
+            userId: recurring.userId,
+            accountId: recurring.accountId,
+            toAccountId: recurring.toAccountId,
+            categoryId: recurring.categoryId,
+            type: recurring.type,
+            amount: recurring.amount,
+            date: today,
+            note: recurring.note,
+            description: recurring.description,
+            recurringTransactionId: recurring.id,
+          },
+        });
+
+        await recalculateAccountBalanceInTx(
+          tx,
+          recurring.accountId,
+          recurring.userId,
+        );
+
+        if (recurring.type === 'transfer' && recurring.toAccountId) {
+          await recalculateAccountBalanceInTx(
+            tx,
+            recurring.toAccountId,
+            recurring.userId,
+          );
+        }
       });
     }
   }

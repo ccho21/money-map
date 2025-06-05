@@ -100,8 +100,10 @@ async function main() {
 
   const [payCategory, foodCategory, rideCategory] = categories;
 
-  const makeDate = (month: number, day: number) =>
-    set(new Date(), { month: month - 1, date: day, hours: 12 });
+  const today = new Date();
+  const currentYear = today.getFullYear();
+  const mayMonth = 4; // 5월 (0-based)
+  const juneMonth = 5; // 6월
 
   const allTransactions: NewTransaction[] = [];
   const budgetCategoryData: NewBudgetCategory[] = [];
@@ -113,45 +115,48 @@ async function main() {
     },
   });
 
-  for (let month = 1; month <= 4; month++) {
+  for (let i = 0; i < 2; i++) {
+    const month = mayMonth + i;
+    const monthDate = new Date(currentYear, month, 1);
+
     allTransactions.push(
       {
         userId: user.id,
         accountId: cashAccount.id,
         type: TransactionType.income,
         categoryId: payCategory.id,
-        amount: 2500 + month * 100,
-        date: makeDate(month, 5),
-        description: `Salary for month ${month}`,
+        amount: 2500 + i * 100,
+        date: set(new Date(currentYear, month, 5), { hours: 12 }),
+        description: `Salary for ${monthDate.toLocaleString('default', { month: 'long' })}`,
       },
       {
         userId: user.id,
         accountId: cardAccount.id,
         type: TransactionType.expense,
         categoryId: foodCategory.id,
-        amount: 40 + month * 2,
-        date: makeDate(month, 10),
-        description: `Dinner in month ${month}`,
+        amount: 40 + i * 2,
+        date: set(new Date(currentYear, month, 10), { hours: 12 }),
+        description: `Dinner in ${monthDate.toLocaleString('default', { month: 'long' })}`,
       },
       {
         userId: user.id,
         accountId: cardAccount.id,
         type: TransactionType.expense,
         categoryId: rideCategory.id,
-        amount: 18 + month,
-        date: makeDate(month, 15),
-        description: `Ride in month ${month}`,
+        amount: 18 + i,
+        date: set(new Date(currentYear, month, 15), { hours: 12 }),
+        description: `Ride in ${monthDate.toLocaleString('default', { month: 'long' })}`,
       },
     );
 
-    const startDate = new Date(new Date().getFullYear(), month - 1, 1);
-    const endDate = new Date(new Date().getFullYear(), month, 0);
+    const startDate = new Date(currentYear, month, 1);
+    const endDate = new Date(currentYear, month + 1, 0);
 
     budgetCategoryData.push(
       {
         budgetId: budget.id,
         categoryId: foodCategory.id,
-        amount: 200 + month * 10,
+        amount: 200 + i * 10,
         startDate,
         endDate,
         type: CategoryType.expense,
@@ -159,7 +164,7 @@ async function main() {
       {
         budgetId: budget.id,
         categoryId: rideCategory.id,
-        amount: 100 + month * 5,
+        amount: 100 + i * 5,
         startDate,
         endDate,
         type: CategoryType.expense,
@@ -170,7 +175,9 @@ async function main() {
   await prisma.transaction.createMany({ data: allTransactions });
   await prisma.budgetCategory.createMany({ data: budgetCategoryData });
 
-  console.log('✅ Seed with monthly transactions & budget categories completed.');
+  console.log(
+    '✅ Seed with May and June transactions & budget categories completed.',
+  );
 
   await prisma.recurringTransaction.createMany({
     data: [
@@ -180,12 +187,12 @@ async function main() {
         categoryId: payCategory.id,
         type: TransactionType.income,
         amount: 2600,
-        startDate: new Date(new Date().getFullYear(), 0, 5),
+        startDate: new Date(currentYear, mayMonth, 5),
         frequency: RecurringFrequency.monthly,
         interval: 1,
         anchorDay: 5,
-        note: '월급',
-        description: '정기 급여 지급',
+        note: 'Salary',
+        description: 'Monthly salary payment',
       },
       {
         userId: user.id,
@@ -193,12 +200,12 @@ async function main() {
         categoryId: foodCategory.id,
         type: TransactionType.expense,
         amount: 15,
-        startDate: new Date(new Date().getFullYear(), 0, 10),
+        startDate: new Date(currentYear, mayMonth, 10),
         frequency: RecurringFrequency.monthly,
         interval: 1,
         anchorDay: 10,
-        note: '넷플릭스',
-        description: '정기 구독료',
+        note: 'Netflix',
+        description: 'Monthly subscription',
       },
     ],
   });

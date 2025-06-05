@@ -368,7 +368,7 @@ export class TransactionsService {
     userId: string,
     query: TransactionGroupQueryDTO,
   ): Promise<TransactionCalendarDTO[]> {
-    const { startDate, endDate, timeframe } = query;
+    const { timeframe } = query;
 
     // 1️⃣ 사용자 인증 및 타임존 확보
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
@@ -888,14 +888,29 @@ export class TransactionsService {
     // ✨ balanceAfter 누적 처리 준비
     let balanceMap: Map<string, number> | undefined;
     if (query.includeBalance && query.accountId) {
-      const initialBalance =
-        (
-          await this.prisma.account.findUnique({
-            where: { id: query.accountId },
-            select: { balance: true },
-          })
-        )?.balance ?? 0;
+      // 조회 시작일 이전의 트랜잭션으로 initialBalance 계산
+      const priorTxs = await this.prisma.transaction.findMany({
+        where: {
+          userId,
+          OR: [
+            { accountId: query.accountId },
+            { toAccountId: query.accountId },
+          ],
+          date: { lt: start },
+        },
+        orderBy: [{ date: 'asc' }, { id: 'asc' }],
+      });
 
+      const initialBalance = priorTxs.reduce((acc, tx) => {
+        if (tx.accountId === query.accountId) {
+          return acc - tx.amount; // 출금
+        } else if (tx.toAccountId === query.accountId) {
+          return acc + tx.amount; // 입금
+        }
+        return acc;
+      }, 0);
+
+      // 실제 조회 구간 내 트랜잭션 조회
       const txs = await this.prisma.transaction.findMany({
         where: {
           userId,
@@ -903,13 +918,13 @@ export class TransactionsService {
             { accountId: query.accountId },
             { toAccountId: query.accountId },
           ],
-          date: { lte: end },
+          date: { gte: start, lte: end },
         },
         orderBy: [{ date: 'asc' }, { id: 'asc' }],
         include: { account: true },
       });
 
-      balanceMap = this.accumulateBalanceAfter(txs, initialBalance); // 초기값 0으로 계산, 원하면 initialBalance로도 가능
+      balanceMap = this.accumulateBalanceAfter(txs, initialBalance);
     }
 
     switch (query.groupBy ?? 'date') {
@@ -945,7 +960,6 @@ export class TransactionsService {
         throw new BadRequestException('지원하지 않는 groupBy 값입니다.');
     }
   }
-
   async getTransactionSummary(
     userId: string,
     query: TransactionGroupQueryDTO,
@@ -1722,7 +1736,6 @@ export class TransactionsService {
       map.set(tx.id, balance);
     }
 
-    console.log('### BALANCE', map);
     return map;
   }
 }
