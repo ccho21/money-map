@@ -38,16 +38,16 @@ enum RecurringFrequency {
 }
 
 model User {
-  id                 String        @id @default(uuid())
-  email              String        @unique
-  password           String
-  timezone           String? // 사용자의 타임존 (예: America/Toronto)
-  createdAt          DateTime      @default(now())
-  transactions       Transaction[]
-  categories         Category[]
-  budgets            Budget[]
-  accounts           Account[]
-  hashedRefreshToken String?
+  id                    String                 @id @default(uuid())
+  email                 String                 @unique
+  password              String
+  timezone              String? // 사용자의 타임존 (예: America/Toronto)
+  createdAt             DateTime               @default(now())
+  transactions          Transaction[]
+  categories            Category[]
+  budgets               Budget[]
+  accounts              Account[]
+  hashedRefreshToken    String?
   //
   recurringTransactions RecurringTransaction[]
 }
@@ -73,7 +73,7 @@ model Account {
 
   // Recurring Transaction
   recurringFromTransactions RecurringTransaction[] @relation("FromRecurringAccount")
-  recurringToTransactions   RecurringTransaction[] @relation("ToRecurringAccount")   
+  recurringToTransactions   RecurringTransaction[] @relation("ToRecurringAccount")
 }
 
 model Transaction {
@@ -100,10 +100,11 @@ model Transaction {
   paidAt    DateTime? // 실제 결제 완료일
   isOpening Boolean   @default(false)
 
+  deletedAt DateTime?
+
   // Recurring Transaction
   recurringTransactionId String?
   recurringTransaction   RecurringTransaction? @relation(fields: [recurringTransactionId], references: [id]) // ✅ 추가
-
 }
 
 model Category {
@@ -149,27 +150,29 @@ model BudgetCategory {
 }
 
 model RecurringTransaction {
-  id           String          @id @default(uuid())
-  userId       String
-  accountId    String
-  toAccountId  String?
-  categoryId   String?
-  type         TransactionType
-  amount       Int
-  startDate    DateTime
-  frequency    RecurringFrequency
-  anchorDay    Int?
-  interval     Int             @default(1)
-  endDate      DateTime?
-  note         String?
-  description  String?
-  createdAt    DateTime        @default(now())
-  updatedAt    DateTime        @updatedAt
+  id          String             @id @default(uuid())
+  userId      String
+  accountId   String
+  toAccountId String?
+  categoryId  String?
+  type        TransactionType
+  amount      Int
+  startDate   DateTime
+  frequency   RecurringFrequency
+  anchorDay   Int?
+  interval    Int                @default(1)
+  endDate     DateTime?
+  note        String?
+  description String?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
 
-  user         User            @relation(fields: [userId], references: [id])
-  account      Account         @relation("FromRecurringAccount", fields: [accountId], references: [id])
-  toAccount    Account?        @relation("ToRecurringAccount", fields: [toAccountId], references: [id])
-  category     Category?       @relation(fields: [categoryId], references: [id])
+  user      User      @relation(fields: [userId], references: [id])
+  account   Account   @relation("FromRecurringAccount", fields: [accountId], references: [id])
+  toAccount Account?  @relation("ToRecurringAccount", fields: [toAccountId], references: [id])
+  category  Category? @relation(fields: [categoryId], references: [id])
+
+  deletedAt DateTime?
 
   transactions Transaction[]
 }

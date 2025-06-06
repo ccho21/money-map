@@ -1,4 +1,11 @@
-import { Controller, Post, Body, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  UseGuards,
+  Delete,
+  Param,
+} from '@nestjs/common';
 
 import { RecurringService } from './recurring.service';
 import { UserPayload } from '@/auth/types/user-payload.type';
@@ -17,5 +24,13 @@ export class RecurringController {
     @Body() dto: CreateRecurringTransactionDto,
   ) {
     return this.recurringService.create(user.id, dto);
+  }
+
+  @Delete(':id')
+  async softDeleteRecurring(
+    @GetUser() user: UserPayload,
+    @Param('id') id: string,
+  ) {
+    return this.recurringService.softDelete(user.id, id);
   }
 }

@@ -261,7 +261,7 @@ describe('TransactionsService', () => {
       expect(result).toEqual({ message: '삭제 완료' });
       // eslint-disable-next-line @typescript-eslint/unbound-method
       expect(prisma.transaction.findFirst).toHaveBeenCalledWith({
-        where: { id: 'tx1', userId: mockUser.id },
+        where: { id: 'tx1', userId: mockUser.id, deletedAt: null },
       });
     });
 
@@ -455,8 +455,8 @@ describe('TransactionsService', () => {
         .mockResolvedValueOnce(outgoing) // 1st: outgoing
         .mockResolvedValueOnce(incoming); // 2nd: incoming
 
-      // ✅ deleteMany는 void 반환이라 undefined 처리
-      (prisma.transaction.deleteMany as jest.Mock).mockResolvedValue(undefined);
+      // ✅ updateMany는 void 반환이라 undefined 처리
+      (prisma.transaction.updateMany as jest.Mock).mockResolvedValue(undefined);
 
       (prisma.account.findUnique as jest.Mock).mockResolvedValue(mockAccount);
       (prisma.transaction.findMany as jest.Mock).mockResolvedValue([]);
@@ -472,7 +472,7 @@ describe('TransactionsService', () => {
 
       expect(result).toEqual({ success: true });
       // eslint-disable-next-line @typescript-eslint/unbound-method
-      expect(prisma.transaction.deleteMany).toHaveBeenCalledTimes(1);
+      expect(prisma.transaction.updateMany).toHaveBeenCalledTimes(1);
     });
   });
 });

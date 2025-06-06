@@ -64,7 +64,7 @@ export class TransactionsService {
   ): Promise<{ start: Date; end: Date }> {
     if (query.timeframe === 'all') {
       const range = await this.prisma.transaction.aggregate({
-        where: { userId },
+        where: { userId, deletedAt: null },
         _min: { date: true },
         _max: { date: true },
       });
@@ -266,7 +266,7 @@ export class TransactionsService {
 
   async delete(userId: string, id: string): Promise<{ message: string }> {
     const existing = await this.prisma.transaction.findFirst({
-      where: { id, userId },
+      where: { id, userId, deletedAt: null },
     });
 
     if (!existing) {
@@ -279,8 +279,9 @@ export class TransactionsService {
 
     await this.prisma.$transaction(async (tx) => {
       // ✅ 트랜잭션 삭제
-      await tx.transaction.delete({
+      await tx.transaction.update({
         where: { id },
+        data: { deletedAt: new Date() },
       });
 
       // ✅ 잔액 재계산
@@ -306,7 +307,13 @@ export class TransactionsService {
     userId: string,
     transactionId: string,
   ): Promise<TransactionDetailDTO> {
-    const tx = await this.prisma.transaction.findUnique({
+    const tx: Prisma.TransactionGetPayload<{
+      include: {
+        category: true;
+        account: true;
+        toAccount: true;
+      };
+    }> | null = await this.prisma.transaction.findUnique({
       where: { id: transactionId },
       include: {
         category: true,
@@ -315,8 +322,9 @@ export class TransactionsService {
       },
     });
 
-    if (!tx || tx.userId !== userId)
+    if (!tx || tx.deletedAt || tx.userId !== userId) {
       throw new ForbiddenException('Access denied');
+    }
 
     const transactionDetailDTO: TransactionDetailDTO = {
       id: tx.id,
@@ -335,17 +343,17 @@ export class TransactionsService {
       category: tx.category
         ? {
             id: tx.category.id,
+            type: tx.category.type,
             name: tx.category.name,
             icon: tx.category.icon,
             color: tx.category.color,
-            type: tx.category.type,
           }
         : null,
 
       account: {
         id: tx.account.id,
-        name: tx.account.name,
         type: tx.account.type,
+        name: tx.account.name,
         color: tx.account.color ?? null,
         balance: tx.account.balance,
       },
@@ -355,7 +363,7 @@ export class TransactionsService {
             id: tx.toAccount.id,
             name: tx.toAccount.name,
             type: tx.toAccount.type,
-            balance: tx.account.balance,
+            balance: tx.toAccount.balance,
             color: tx.toAccount.color ?? null,
           }
         : null,
@@ -363,7 +371,6 @@ export class TransactionsService {
 
     return transactionDetailDTO;
   }
-
   async getTransactionCalendarView(
     userId: string,
     query: TransactionGroupQueryDTO,
@@ -394,6 +401,7 @@ export class TransactionsService {
           gte: start,
           lte: end,
         },
+        deletedAt: null,
       },
       _sum: { amount: true },
     });
@@ -690,6 +698,9 @@ export class TransactionsService {
       where: { id },
       include: { account: true },
     });
+    if (outgoing && outgoing.deletedAt) {
+      throw new NotFoundException('삭제할 트랜잭션을 찾을 수 없습니다.');
+    }
 
     if (
       !outgoing ||
@@ -704,16 +715,21 @@ export class TransactionsService {
       include: { account: true },
     });
 
+    if (incoming && incoming.deletedAt) {
+      throw new NotFoundException('연결된 입금 트랜잭션을 찾을 수 없습니다.');
+    }
+
     if (!incoming) {
       throw new NotFoundException('연결된 입금 트랜잭션을 찾을 수 없습니다.');
     }
 
     await this.prisma.$transaction(async (tx) => {
-      // ✅ 트랜잭션 삭제
-      await tx.transaction.deleteMany({
+      // ✅ 트랜잭션 Soft delete 처리
+      await tx.transaction.updateMany({
         where: {
           id: { in: [outgoing.id, incoming.id] },
         },
+        data: { deletedAt: new Date() },
       });
 
       // ✅ 잔액 재계산
@@ -745,6 +761,7 @@ export class TransactionsService {
           { accountId },
           { toAccountId: accountId }, // 카드 입금 고려
         ],
+        deletedAt: null,
       },
     });
 
@@ -831,7 +848,7 @@ export class TransactionsService {
     sampleSize = 100,
   ): Promise<string[]> {
     const recent = await this.prisma.transaction.findMany({
-      where: { userId, note: { not: null } },
+      where: { userId, note: { not: null }, deletedAt: null },
       select: { note: true },
       orderBy: { date: 'desc' },
       take: sampleSize,
@@ -872,6 +889,7 @@ export class TransactionsService {
     const baseWhere: Prisma.TransactionWhereInput = {
       userId,
       date: { gte: start, lte: end },
+      deletedAt: null,
       ...(query.transactionType && { type: query.transactionType }),
       ...(query.categoryId && { categoryId: query.categoryId }),
       ...(query.accountId && {
@@ -897,6 +915,7 @@ export class TransactionsService {
             { toAccountId: query.accountId },
           ],
           date: { lt: start },
+          deletedAt: null,
         },
         orderBy: [{ date: 'asc' }, { id: 'asc' }],
       });
@@ -919,6 +938,7 @@ export class TransactionsService {
             { toAccountId: query.accountId },
           ],
           date: { gte: start, lte: end },
+          deletedAt: null,
         },
         orderBy: [{ date: 'asc' }, { id: 'asc' }],
         include: { account: true },
@@ -929,33 +949,11 @@ export class TransactionsService {
 
     switch (query.groupBy ?? 'date') {
       case 'date':
-        return this.groupByDate(
-          user.id,
-          start,
-          end,
-          query,
-          timezone,
-          baseWhere,
-          balanceMap,
-        );
+        return this.groupByDate(query, timezone, baseWhere, balanceMap);
       case 'category':
-        return this.groupByCategory(
-          user.id,
-          start,
-          end,
-          query,
-          baseWhere,
-          balanceMap,
-        );
+        return this.groupByCategory(query, baseWhere, balanceMap);
       case 'account':
-        return this.groupByAccount(
-          user.id,
-          start,
-          end,
-          query,
-          baseWhere,
-          balanceMap,
-        );
+        return this.groupByAccount(query, baseWhere, balanceMap);
       default:
         throw new BadRequestException('지원하지 않는 groupBy 값입니다.');
     }
@@ -977,6 +975,7 @@ export class TransactionsService {
     const whereClause: Prisma.TransactionWhereInput = {
       userId,
       date: { gte: start, lte: end },
+      deletedAt: null,
       ...(query.transactionType && { type: query.transactionType }),
       ...(query.categoryId && { categoryId: query.categoryId }),
       ...(query.accountId && {
@@ -1079,6 +1078,7 @@ export class TransactionsService {
               mode: 'insensitive',
             },
           }),
+          deletedAt: null,
         },
       });
 
@@ -1132,6 +1132,7 @@ export class TransactionsService {
         userId,
         date: { gte: start, lte: end },
         OR: [{ type: 'income' }, { type: 'expense' }],
+        deletedAt: null,
       },
       orderBy: { date: 'asc' },
     });
@@ -1209,12 +1210,15 @@ export class TransactionsService {
     );
 
     // 현재 기간 트랜잭션
-    const currentTx = await this.prisma.transaction.findMany({
+    const currentTx: Prisma.TransactionGetPayload<{
+      include: { category: true };
+    }>[] = await this.prisma.transaction.findMany({
       where: {
         userId,
         date: { gte: start, lte: end },
         type: 'expense',
         categoryId: { not: null },
+        deletedAt: null,
       },
       include: { category: true },
     });
@@ -1243,13 +1247,15 @@ export class TransactionsService {
     let comparison: CategoryComparisonDTO | undefined = undefined;
 
     if (query.timeframe !== 'custom' && query.timeframe !== 'all') {
-      const prevRange = getPreviousPeriod(query.timeframe, start, end);
-      const prevTx = await this.prisma.transaction.findMany({
+      const prevTx: Prisma.TransactionGetPayload<{
+        include: { category: true };
+      }>[] = await this.prisma.transaction.findMany({
         where: {
           userId,
-          date: { gte: prevRange.start, lte: prevRange.end },
+          date: { gte: start, lte: end },
           type: 'expense',
           categoryId: { not: null },
+          deletedAt: null,
         },
         include: { category: true },
       });
@@ -1257,8 +1263,13 @@ export class TransactionsService {
       // 이전 기간 집계
       const prevMap = new Map<string, number>();
       for (const tx of prevTx) {
-        const id = tx.category!.id;
-        prevMap.set(id, (prevMap.get(id) ?? 0) + tx.amount);
+        const category = tx.category;
+
+        if (category) {
+          const id = category.id;
+          const prevAmount = prevMap.get(id) ?? 0;
+          prevMap.set(id, prevAmount + tx.amount);
+        }
       }
 
       // 가장 큰 증감률을 가진 카테고리 찾기
@@ -1320,6 +1331,7 @@ export class TransactionsService {
         userId,
         date: { gte: start, lte: end },
         OR: [{ type: 'income' }, { type: 'expense' }],
+        deletedAt: null,
       },
     });
 
@@ -1412,12 +1424,15 @@ export class TransactionsService {
     });
 
     // 2. 트랜잭션 조회 (해당 기간 expense만)
-    const transactions = await this.prisma.transaction.findMany({
+    const transactions: Prisma.TransactionGetPayload<{
+      include: { category: true };
+    }>[] = await this.prisma.transaction.findMany({
       where: {
         userId,
         date: { gte: start, lte: end },
         type: 'expense',
         categoryId: { not: null },
+        deletedAt: null,
       },
       include: { category: true },
     });
@@ -1457,16 +1472,18 @@ export class TransactionsService {
         const id = tx.categoryId!;
         const used = usedMap.get(id)!;
 
-        breakdown.push({
-          categoryId: id,
-          name: tx.category!.name,
-          icon: tx.category!.icon,
-          type: tx.category!.type,
-          budget: 0,
-          used,
-          over: used,
-          remaining: 0,
-        });
+        if (tx.category) {
+          breakdown.push({
+            categoryId: id,
+            name: tx.category.name,
+            icon: tx.category.icon,
+            type: tx.category.type,
+            budget: 0,
+            used,
+            over: used,
+            remaining: 0,
+          });
+        }
       }
     }
 
@@ -1492,9 +1509,6 @@ export class TransactionsService {
   }
 
   async groupByDate(
-    userId: string,
-    start: Date,
-    end: Date,
     query: TransactionGroupQueryDTO,
     timezone: string,
     where: Prisma.TransactionWhereInput,
@@ -1544,9 +1558,6 @@ export class TransactionsService {
   }
 
   async groupByCategory(
-    userId: string,
-    start: Date,
-    end: Date,
     query: TransactionGroupQueryDTO,
     where: Prisma.TransactionWhereInput,
     balanceMap?: Map<string, number>,
@@ -1566,7 +1577,11 @@ export class TransactionsService {
     for (const tx of allTx) {
       const category = tx.category?.name ?? 'Uncategorized';
       if (!grouped.has(category)) grouped.set(category, []);
-      grouped.get(category)!.push(this.convertToTransactionItemDTO(tx));
+
+      const balanceAfter = balanceMap?.get(tx.id);
+      grouped
+        .get(category)!
+        .push(this.convertToTransactionItemDTO(tx, balanceAfter));
     }
 
     const groups: TransactionGroupItemDTO[] = [];
@@ -1590,9 +1605,6 @@ export class TransactionsService {
   }
 
   async groupByAccount(
-    userId: string,
-    start: Date,
-    end: Date,
     query: TransactionGroupQueryDTO,
     where: Prisma.TransactionWhereInput,
     balanceMap?: Map<string, number>,
@@ -1612,7 +1624,11 @@ export class TransactionsService {
     for (const tx of allTx) {
       const account = tx.account?.name ?? 'Unknown Account';
       if (!grouped.has(account)) grouped.set(account, []);
-      grouped.get(account)!.push(this.convertToTransactionItemDTO(tx));
+
+      const balanceAfter = balanceMap?.get(tx.id);
+      grouped
+        .get(account)!
+        .push(this.convertToTransactionItemDTO(tx, balanceAfter));
     }
 
     const groups: TransactionGroupItemDTO[] = [];
@@ -1695,6 +1711,7 @@ export class TransactionsService {
         userId,
         type: 'expense',
         date: { gte: budgetItem.startDate, lte: budgetItem.endDate },
+        deletedAt: null,
       },
       _sum: { amount: true },
     });

@@ -29,7 +29,7 @@ export class RecurringDataService {
     const utcEnd = getUTCEndDate(endDate, timezone);
 
     return this.prisma.recurringTransaction.findMany({
-      where: { userId },
+      where: { userId, deletedAt: null },
       include: {
         transactions: {
           where: {
@@ -67,10 +67,9 @@ export class RecurringDataService {
           { endDate: null }, // 아직 유효함
           { endDate: { gte: utcEnd } }, // 최소한 일부가 기간 내 포함
         ],
+        deletedAt: null,
       },
-      include: {
-        
-      },
+      include: {},
     });
 
     const data: Record<string, number> = {};
@@ -79,7 +78,6 @@ export class RecurringDataService {
     let total = 0;
 
     for (const r of recurrings) {
-
       const name = r.note || 'Unnamed';
       const amountSum = r.amount;
       if (amountSum === 0) continue;

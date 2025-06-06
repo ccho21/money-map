@@ -19,6 +19,7 @@ export const recalculateAccountBalanceInTx = async (
       accountId,
       userId,
       isOpening: false,
+      deletedAt: null,
     },
   });
 

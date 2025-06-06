@@ -25,8 +25,17 @@ export class RecurringService {
         endDate: dto.endDate ? new Date(dto.endDate).toISOString() : null,
         note: dto.note,
         description: dto.description,
+        deletedAt: null,
       },
     });
+  }
+
+  async softDelete(userId: string, id: string): Promise<{ message: string }> {
+    await this.prisma.recurringTransaction.updateMany({
+      where: { id, userId, deletedAt: null },
+      data: { deletedAt: new Date() },
+    });
+    return { message: '삭제 완료' };
   }
 
   async generateUpcomingTransactions() {
@@ -36,6 +45,7 @@ export class RecurringService {
     const recurringList = await this.prisma.recurringTransaction.findMany({
       where: {
         OR: [{ endDate: null }, { endDate: { gte: today } }],
+        deletedAt: null,
       },
     });
 

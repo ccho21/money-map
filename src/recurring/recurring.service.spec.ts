@@ -103,4 +103,16 @@ describe('RecurringService', () => {
       expect(prisma.account.update).toHaveBeenCalledTimes(2);
     });
   });
+  describe('softDelete', () => {
+    it('should mark recurring transaction as deleted', async () => {
+      (
+        prisma.recurringTransaction.updateMany as jest.Mock
+      ).mockResolvedValueOnce({ count: 1 });
+
+      const result = await service.softDelete(mockUser.id, 'rec-1');
+
+      expect(prisma.recurringTransaction.updateMany).toHaveBeenCalled();
+      expect(result).toEqual({ message: '삭제 완료' });
+    });
+  });
 });
