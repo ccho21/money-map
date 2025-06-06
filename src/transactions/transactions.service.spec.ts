@@ -1,21 +1,26 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { TransactionsService } from './transactions.service';
-import {
-  mockPrismaFactory,
-  mockTransaction,
-  mockAccount,
-  mockUser,
-  mockCategory,
-  mockCreateTransactionDto,
-  mockUpdateTransactionDto,
-  mockTransferTransactionDto,
-} from '../tests/mocks/mockHelpers';
-
 import { PrismaService } from '@/prisma/prisma.service';
 import { EventsGateway } from '@/events/events.gateway';
-import { Prisma, TransactionType } from '@prisma/client';
-import { GroupBy } from '@/common/types/types';
-import { PrismaTransactionClient } from './utils/recalculateAccountBalanceInTx.util';
+import {
+  mockPrismaFactory,
+  mockAccount,
+  mockTransaction,
+  mockUser,
+} from '@/tests/mocks/mockHelpers';
+import { TransactionType } from '@prisma/client';
+import { CreateTransactionDTO } from './dto/transactions/transaction-create.dto';
+import { UpdateTransactionDTO } from './dto/transactions/transaction-update.dto';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { recalculateAccountBalanceInTx } from '@/transactions/utils/recalculateAccountBalanceInTx.util';
+jest.mock('@/transactions/utils/recalculateAccountBalanceInTx.util', () => ({
+  recalculateAccountBalanceInTx: jest.fn(),
+}));
+
+/**
+ * Fresh tests for TransactionsService.
+ * Focus on deterministic behaviour for individual methods.
+ */
 
 describe('TransactionsService', () => {
   let service: TransactionsService;
@@ -24,17 +29,9 @@ describe('TransactionsService', () => {
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
-        {
-          provide: PrismaService,
-          useValue: mockPrismaFactory(),
-        },
-        {
-          provide: EventsGateway,
-          useValue: {
-            broadcast: jest.fn(), // ✅ 또는 sendMessage 등 필요 메서드
-          },
-        },
         TransactionsService,
+        { provide: PrismaService, useValue: mockPrismaFactory() },
+        { provide: EventsGateway, useValue: { emitBudgetAlert: jest.fn() } },
       ],
     }).compile();
 
@@ -46,433 +43,818 @@ describe('TransactionsService', () => {
     expect(service).toBeDefined();
   });
 
-  describe('create', () => {
-    it('should create a transaction and update account balance', async () => {
-      (prisma.user.findUnique as jest.Mock).mockResolvedValueOnce(mockUser);
-      (prisma.category.findUnique as jest.Mock).mockResolvedValueOnce(
-        mockCategory,
-      ); // ✅ 여기가 핵심!
-      (prisma.account.findUnique as jest.Mock).mockResolvedValue(mockAccount); // 다시 mock 필요
+  ///////// CREATE /////////
+  describe('TransactionsService - create()', () => {
+    let service: TransactionsService;
+    let prisma: PrismaService;
 
-      (prisma.transaction.create as jest.Mock).mockResolvedValueOnce(
-        mockTransaction,
-      );
-      (prisma.transaction.findMany as jest.Mock).mockResolvedValueOnce([]);
-      (prisma.account.update as jest.Mock).mockResolvedValueOnce(mockAccount);
-      (prisma.$transaction as jest.Mock).mockImplementation(
-        async (cb: (tx: typeof prisma) => Promise<unknown>) => {
-          return await cb(prisma); // ✅ 이제 any 추론 사라짐
+    let userId: string;
+    let accountId: string;
+    let categoryId: string;
+
+    beforeAll(async () => {
+      const moduleRef = await Test.createTestingModule({
+        providers: [TransactionsService, PrismaService, EventsGateway],
+      }).compile();
+
+      service = moduleRef.get(TransactionsService);
+      prisma = moduleRef.get(PrismaService);
+
+      // Test data
+      const user = await prisma.user.create({
+        data: {
+          email: 'test@test.com',
+          password: 'hashed-password', // ✅ 필수 필드 추가
         },
-      );
+      });
+      userId = user.id;
 
-      const result = await service.create(
-        mockUser.id,
-        mockCreateTransactionDto,
+      const category = await prisma.category.create({
+        data: {
+          name: '식비',
+          type: 'expense',
+          userId,
+          icon: '🍔',
+          color: '#ff0000',
+        },
+      });
+      categoryId = category.id;
+
+      const account = await prisma.account.create({
+        data: {
+          name: '현금',
+          type: 'CASH',
+          userId,
+          balance: 0,
+          color: '#000000',
+        },
+      });
+      accountId = account.id;
+    });
+
+    afterAll(async () => {
+      await prisma.transaction.deleteMany();
+      await prisma.recurringTransaction.deleteMany();
+      await prisma.account.deleteMany();
+      await prisma.category.deleteMany();
+      await prisma.user.deleteMany();
+    });
+
+    it('should create a transaction and return it', async () => {
+      const dto: CreateTransactionDTO = {
+        type: 'expense',
+        amount: 5000,
+        accountId,
+        categoryId,
+        note: '점심',
+        description: '김밥천국',
+        date: new Date().toISOString(),
+      };
+
+      const tx = await service.create(userId, dto);
+
+      expect(tx).toBeDefined();
+      expect(tx.id).toBeDefined();
+      expect(tx.amount).toBe(dto.amount);
+      expect(tx.accountId).toBe(dto.accountId);
+      expect(tx.categoryId).toBe(dto.categoryId);
+
+      const found = await prisma.transaction.findUnique({
+        where: { id: tx.id },
+      });
+      expect(found).not.toBeNull();
+    });
+
+    it('should throw if user is not found', async () => {
+      const invalidUserId = 'non-existent-user';
+
+      const dto: CreateTransactionDTO = {
+        type: 'expense',
+        amount: 1000,
+        accountId,
+        categoryId,
+        date: new Date().toISOString(),
+      };
+
+      await expect(service.create(invalidUserId, dto)).rejects.toThrow(
+        'User not found',
       );
-      expect(result).toEqual(mockTransaction);
+    });
+
+    it('should throw NotFoundException if category is not found', async () => {
+      const dto: CreateTransactionDTO = {
+        type: 'expense',
+        amount: 1000,
+        accountId,
+        categoryId: 'invalid-category-id',
+        date: new Date().toISOString(),
+      };
+
+      await expect(service.create(userId, dto)).rejects.toThrow(
+        '카테고리를 찾을 수 없습니다.',
+      );
+    });
+
+    it('should throw NotFoundException if account is not found', async () => {
+      const dto: CreateTransactionDTO = {
+        type: 'expense',
+        amount: 1000,
+        accountId: 'invalid-account-id',
+        categoryId,
+        date: new Date().toISOString(),
+      };
+
+      await expect(service.create(userId, dto)).rejects.toThrow(
+        '계좌를 찾을 수 없습니다.',
+      );
+    });
+
+    it('should create a recurringTransaction when dto.recurring is provided', async () => {
+      const dto: CreateTransactionDTO = {
+        type: 'expense',
+        amount: 2000,
+        accountId,
+        categoryId,
+        date: new Date().toISOString(),
+        recurring: {
+          frequency: 'monthly',
+          interval: 1, // ✅ 추가
+          startDate: new Date().toISOString(),
+        },
+      };
+
+      const tx = await service.create(userId, dto);
+
+      expect(tx.recurringTransactionId).toBeDefined();
+
+      const recurring = await prisma.recurringTransaction.findUnique({
+        where: { id: tx.recurringTransactionId! },
+      });
+
+      expect(recurring).not.toBeNull();
+      expect(recurring!.frequency).toBe('monthly');
+    });
+
+    it('should emit budget alert if category budget is exceeded', async () => {
+      const budget = await prisma.budget.create({
+        data: {
+          userId,
+          total: 10000,
+        },
+      });
+
+      await prisma.budgetCategory.create({
+        data: {
+          budgetId: budget.id,
+          categoryId,
+          amount: 1000,
+          type: 'expense',
+          startDate: new Date(new Date().getFullYear(), 0, 1),
+          endDate: new Date(new Date().getFullYear(), 11, 31),
+        },
+      });
+
+      // 💬 spy 설정
+      const emitSpy = jest.spyOn(service['eventsGateway'], 'emitBudgetAlert');
+
+      const dto: CreateTransactionDTO = {
+        type: 'expense',
+        amount: 2000,
+        accountId,
+        categoryId,
+        date: new Date().toISOString(),
+      };
+
+      await service.create(userId, dto);
+
+      expect(emitSpy).toHaveBeenCalled();
     });
   });
 
-  describe('update', () => {
-    it('should update a transaction and account balances', async () => {
-      const updatedTransaction = {
-        ...mockTransaction,
-        ...mockUpdateTransactionDto,
-      };
+  ///////// UPDATE /////////
+  describe('TransactionsService - update()', () => {
+    let service: TransactionsService;
+    let prisma: PrismaService;
 
-      (prisma.transaction.findFirst as jest.Mock).mockResolvedValueOnce(
-        mockTransaction,
-      ); // 🔍 기존 트랜잭션 조회
-      (prisma.user.findUnique as jest.Mock).mockResolvedValueOnce(mockUser); // 🔍 유저 확인
-      (prisma.account.findUnique as jest.Mock).mockResolvedValue(mockAccount); // 🔍 계좌 확인
-      (prisma.transaction.update as jest.Mock).mockResolvedValueOnce(
-        updatedTransaction,
-      ); // 🔄 트랜잭션 업데이트
-      (prisma.transaction.findMany as jest.Mock).mockResolvedValue([]); // 🧮 잔액 재계산용
-      (prisma.account.update as jest.Mock).mockResolvedValue(mockAccount); // 🏦 계좌 잔액 업데이트
+    let userId: string;
+    let accountId: string;
+    let categoryId: string;
 
-      (prisma.$transaction as jest.Mock).mockImplementation(
-        async (cb: (tx: typeof prisma) => Promise<unknown>) => {
-          return await cb(prisma); // ✅ 이제 any 추론 사라짐
+    beforeAll(async () => {
+      const moduleRef = await Test.createTestingModule({
+        providers: [TransactionsService, PrismaService, EventsGateway],
+      }).compile();
+
+      service = moduleRef.get(TransactionsService);
+      prisma = moduleRef.get(PrismaService);
+
+      // test data
+      const user = await prisma.user.create({
+        data: {
+          email: 'test@test.com',
+          password: 'hashed-password', // ✅ 필수 필드 추가
         },
-      );
-      const result = await service.update(
-        mockUser.id,
-        mockTransaction.id,
-        mockUpdateTransactionDto,
-      );
+      });
+      userId = user.id;
 
-      expect(result).toBeDefined();
-      expect(result.amount).toBe(mockUpdateTransactionDto.amount); // 💰 업데이트 확인
-      // eslint-disable-next-line @typescript-eslint/unbound-method
-      expect(prisma.transaction.update).toHaveBeenCalled();
-      // eslint-disable-next-line @typescript-eslint/unbound-method
-      expect(prisma.account.update).toHaveBeenCalled();
-    });
-  });
+      const category = await prisma.category.create({
+        data: {
+          name: 'Food',
+          type: 'expense',
+          userId,
+          icon: '🍜',
+          color: '#ff0000',
+        },
+      });
+      categoryId = category.id;
 
-  describe('getTransactionById', () => {
-    it('should return a transaction if userId matches', async () => {
-      const txWithRelations = {
-        ...mockTransaction,
-        userId: mockUser.id,
-        account: mockAccount,
-        category: mockCategory,
-      };
-
-      (prisma.transaction.findUnique as jest.Mock).mockResolvedValueOnce(
-        txWithRelations,
-      );
-
-      const result = await service.getTransactionById(
-        mockUser.id,
-        mockTransaction.id,
-      );
-
-      expect(result).toBeDefined();
-      expect(result.id).toBe(mockTransaction.id);
-      expect(result.account).toEqual(mockAccount);
-      expect(result.category).toEqual(mockCategory);
+      const account = await prisma.account.create({
+        data: {
+          name: 'Cash',
+          type: 'CASH',
+          userId,
+          balance: 0,
+          color: '#00ff00',
+        },
+      });
+      accountId = account.id;
     });
 
-    it('should throw ForbiddenException if userId does not match', async () => {
-      const txWithWrongUser = {
-        ...mockTransaction,
-        userId: 'other-user-id',
-        account: mockAccount,
-        category: mockCategory,
+    afterAll(async () => {
+      await prisma.transaction.deleteMany();
+      await prisma.recurringTransaction.deleteMany();
+      await prisma.account.deleteMany();
+      await prisma.category.deleteMany();
+      await prisma.user.deleteMany();
+    });
+
+    //✅ 1. 트랜잭션 수정 성공 테스트 (amount & note 변경)
+    it('should update an existing transaction and return it', async () => {
+      // 1. 기존 트랜잭션 생성
+      const original = await prisma.transaction.create({
+        data: {
+          userId,
+          accountId,
+          categoryId,
+          type: 'expense',
+          amount: 1000,
+          date: new Date(),
+        },
+      });
+
+      // 2. 업데이트 DTO 준비
+      const dto: UpdateTransactionDTO = {
+        amount: 3000,
+        note: '수정된 점심 값',
       };
 
-      (prisma.transaction.findUnique as jest.Mock).mockResolvedValueOnce(
-        txWithWrongUser,
-      );
+      // 3. 서비스 호출
+      const updated = await service.update(userId, original.id, dto);
+
+      // 4. 결과 검증
+      expect(updated).toBeDefined();
+      expect(updated.id).toBe(original.id);
+      expect(updated.amount).toBe(dto.amount);
+      expect(updated.note).toBe(dto.note);
+
+      // 5. 실제 DB 반영 확인
+      const found = await prisma.transaction.findUnique({
+        where: { id: original.id },
+      });
+      expect(found!.amount).toBe(3000);
+      expect(found!.note).toBe('수정된 점심 값');
+    });
+
+    // ✅ 2. 트랜잭션 ID가 잘못된 경우 → NotFoundException
+    it('should throw NotFoundException if transaction does not exist', async () => {
+      const dto: UpdateTransactionDTO = {
+        amount: 9999,
+      };
 
       await expect(
-        service.getTransactionById(mockUser.id, mockTransaction.id),
-      ).rejects.toThrow('Access denied');
+        service.update(userId, 'non-existent-id', dto),
+      ).rejects.toThrow(NotFoundException);
     });
-  });
 
-  describe('getTransactionSummary', () => {
-    it('should return grouped transaction summary', async () => {
-      (prisma.user.findUnique as jest.Mock).mockResolvedValueOnce(mockUser);
-
-      (prisma.transaction.findMany as jest.Mock).mockResolvedValueOnce([
-        {
-          ...mockTransaction,
-          id: 'tx1',
-          type: TransactionType.income,
-          amount: 1000,
-          date: new Date('2024-01-05'),
-          userId: mockUser.id,
-          account: mockAccount,
-          category: mockCategory,
+    //  ✅ 3. 다른 사용자의 트랜잭션일 경우 → NotFoundException
+    it('should throw NotFoundException if transaction does not belong to user', async () => {
+      const otherUser = await prisma.user.create({
+        data: {
+          email: 'not-owner@test.com',
+          password: 'hashed',
         },
-        {
-          ...mockTransaction,
-          id: 'tx2',
-          type: TransactionType.expense,
+      });
+
+      const txOfOtherUser = await prisma.transaction.create({
+        data: {
+          userId: otherUser.id,
+          accountId,
+          categoryId,
+          type: 'expense',
           amount: 2000,
-          date: new Date('2024-01-10'),
-          userId: mockUser.id,
-          account: mockAccount,
-          category: mockCategory,
+          date: new Date(),
         },
-      ]);
-
-      const result = await service.getTransactionSummary(mockUser.id, {
-        startDate: '2024-01-01',
-        endDate: '2024-01-31',
-        groupBy: GroupBy.monthly,
       });
 
-      expect(result).toBeDefined();
-      expect(result.totalIncome).toBe(1000);
-      expect(result.totalExpense).toBe(2000);
-      expect(result.items.length).toBeGreaterThan(0);
-      expect(result.items[0]).toHaveProperty('label');
-      expect(result.items[0]).toHaveProperty('transactions');
-    });
-  });
-
-  describe('getTransactionCalendarView', () => {
-    it('should return daily calendar summary of transactions', async () => {
-      (prisma.user.findUnique as jest.Mock).mockResolvedValueOnce(mockUser);
-
-      (prisma.transaction.groupBy as jest.Mock).mockResolvedValueOnce([
-        {
-          date: new Date('2024-01-10'),
-          type: TransactionType.income,
-          _sum: { amount: 3000 },
-        },
-        {
-          date: new Date('2024-01-10'),
-          type: TransactionType.expense,
-          _sum: { amount: 1500 },
-        },
-      ]);
-
-      const result = await service.getTransactionCalendarView(mockUser.id, {
-        date: '2024-01-01',
-      });
-
-      expect(result).toBeDefined();
-      expect(Array.isArray(result)).toBe(true);
-      expect(result[0]).toHaveProperty('date');
-      expect(result[0]).toHaveProperty('income');
-      expect(result[0]).toHaveProperty('expense');
-      expect(result[0].income).toBe(3000);
-      expect(result[0].expense).toBe(1500);
-    });
-  });
-
-  describe('delete', () => {
-    it('should delete a transaction and recalculate balances', async () => {
-      const txToDelete = {
-        ...mockTransaction,
-        id: 'tx1',
-        userId: mockUser.id,
-        isOpening: false,
+      const dto: UpdateTransactionDTO = {
+        amount: 3000,
       };
 
-      // ✅ 기존 트랜잭션 조회
-      jest.spyOn(prisma.transaction, 'findFirst').mockResolvedValue(txToDelete);
+      await expect(
+        service.update(userId, txOfOtherUser.id, dto),
+      ).rejects.toThrow(NotFoundException);
+    });
 
-      // ✅ $transaction 내부 mock
-      (prisma.$transaction as jest.Mock).mockImplementation(
-        async (callback: (tx: any) => Promise<unknown>) => {
-          const tx = {
-            transaction: {
-              delete: jest.fn().mockResolvedValue(undefined),
-              findMany: jest.fn().mockResolvedValue([]),
-            },
-            account: {
-              update: jest.fn().mockResolvedValue(mockAccount),
-              findUnique: jest.fn().mockResolvedValue(mockAccount),
-            },
-          };
-
-          return await callback(tx);
+    // ✅ 4. isOpening일 경우 → BadRequestException
+    it('should throw BadRequestException if transaction is an opening balance', async () => {
+      const openingTx = await prisma.transaction.create({
+        data: {
+          userId,
+          accountId,
+          type: 'income',
+          amount: 10000,
+          date: new Date(),
+          isOpening: true,
         },
+      });
+
+      const dto: UpdateTransactionDTO = {
+        amount: 5000,
+      };
+
+      await expect(service.update(userId, openingTx.id, dto)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    // ✅ 5. 계좌 변경 시 잔액 재계산이 두 번 호출되는지 확인
+    it('should call recalculateAccountBalanceInTx twice if accountId is changed', async () => {
+      const newAccount = await prisma.account.create({
+        data: {
+          userId,
+          name: 'New Account',
+          type: 'BANK',
+          balance: 0,
+          color: '#0000ff',
+        },
+      });
+
+      // 1. 기존 트랜잭션 생성 (기존 accountId 기준)
+      const tx = await prisma.transaction.create({
+        data: {
+          userId,
+          accountId,
+          categoryId,
+          type: 'expense',
+          amount: 1000,
+          date: new Date(),
+        },
+      });
+
+      // 2. 업데이트 요청 (accountId 변경)
+      const dto: UpdateTransactionDTO = {
+        accountId: newAccount.id,
+      };
+
+      const spy = jest.spyOn(
+        require('@/transactions/utils/recalculateAccountBalanceInTx.util'),
+        'recalculateAccountBalanceInTx',
       );
 
-      const result = await service.delete(mockUser.id, 'tx1');
+      await service.update(userId, tx.id, dto);
+
+      expect(spy).toHaveBeenCalledTimes(2);
+      expect(spy).toHaveBeenCalledWith(expect.anything(), accountId, userId); // 기존 계좌
+      expect(spy).toHaveBeenCalledWith(
+        expect.anything(),
+        newAccount.id,
+        userId,
+      ); // 새 계좌
+    });
+
+    // ✅ 6. 기존에 recurring 연결이 있었는데 dto.recurring이 없는 경우 → 삭제 처리
+    it('should delete existing recurring if dto.recurring is undefined', async () => {
+      const recurring = await prisma.recurringTransaction.create({
+        data: {
+          userId,
+          accountId,
+          categoryId,
+          amount: 1000,
+          type: 'expense',
+          frequency: 'monthly',
+          interval: 1,
+          startDate: new Date(),
+        },
+      });
+
+      const tx = await prisma.transaction.create({
+        data: {
+          userId,
+          accountId,
+          categoryId,
+          type: 'expense',
+          amount: 1000,
+          date: new Date(),
+          recurringTransactionId: recurring.id,
+        },
+      });
+
+      const dto: UpdateTransactionDTO = {
+        amount: 2000,
+        // dto.recurring is undefined → should remove recurring link
+      };
+
+      const updated = await service.update(userId, tx.id, dto);
+
+      const found = await prisma.transaction.findUnique({
+        where: { id: tx.id },
+      });
+      expect(found!.recurringTransactionId).toBeNull();
+
+      const recurringAfter = await prisma.recurringTransaction.findUnique({
+        where: { id: recurring.id },
+      });
+      expect(recurringAfter).toBeNull();
+    });
+
+    it('should emit budget alert if transaction causes budget to exceed', async () => {
+      const spyEmit = jest
+        .spyOn(service['eventsGateway'], 'emitBudgetAlert')
+        .mockImplementation(() => {});
+
+      const today = new Date();
+
+      await prisma.budget.create({
+        data: {
+          userId,
+          total: 10000,
+          categories: {
+            create: {
+              categoryId,
+              amount: 1000,
+              startDate: new Date(today.getFullYear(), today.getMonth(), 1),
+              endDate: new Date(today.getFullYear(), today.getMonth() + 1, 0),
+              type: 'expense',
+            },
+          },
+        },
+      });
+
+      const tx = await prisma.transaction.create({
+        data: {
+          userId,
+          accountId,
+          categoryId,
+          type: 'expense',
+          amount: 900,
+          date: today,
+        },
+      });
+
+      const dto: UpdateTransactionDTO = {
+        amount: 1500, // 초과하게 만듦
+      };
+
+      await service.update(userId, tx.id, dto);
+
+      expect(spyEmit).toHaveBeenCalled();
+    });
+  });
+
+  ///////// DELETE /////////
+  describe('TransactionsService - delete()', () => {
+    let service: TransactionsService;
+    let prisma: PrismaService;
+
+    let userId: string;
+    let accountId: string;
+    let categoryId: string;
+    let transactionId: string;
+
+    beforeAll(async () => {
+      const moduleRef = await Test.createTestingModule({
+        providers: [TransactionsService, PrismaService, EventsGateway],
+      }).compile();
+
+      service = moduleRef.get(TransactionsService);
+      prisma = moduleRef.get(PrismaService);
+
+      const user = await prisma.user.create({
+        data: { email: 'delete-test@test.com', password: 'test' },
+      });
+      userId = user.id;
+
+      const category = await prisma.category.create({
+        data: {
+          name: '삭제 테스트',
+          type: 'expense',
+          icon: '🗑️',
+          userId,
+        },
+      });
+      categoryId = category.id;
+
+      const account = await prisma.account.create({
+        data: {
+          name: '삭제 테스트 계좌',
+          type: 'CASH',
+          balance: 10000,
+          userId,
+        },
+      });
+      accountId = account.id;
+
+      const tx = await prisma.transaction.create({
+        data: {
+          type: 'expense',
+          amount: 5000,
+          categoryId,
+          accountId,
+          userId,
+          date: new Date(),
+        },
+      });
+      transactionId = tx.id;
+    });
+
+    afterAll(async () => {
+      await prisma.transaction.deleteMany();
+      await prisma.account.deleteMany();
+      await prisma.category.deleteMany();
+      await prisma.user.deleteMany();
+    });
+
+    it('should soft delete the transaction and return success message', async () => {
+      const result = await service.delete(userId, transactionId);
 
       expect(result).toEqual({ message: '삭제 완료' });
-      // eslint-disable-next-line @typescript-eslint/unbound-method
-      expect(prisma.transaction.findFirst).toHaveBeenCalledWith({
-        where: { id: 'tx1', userId: mockUser.id, deletedAt: null },
-      });
-    });
 
-    it('should throw if transaction is opening balance', async () => {
-      const txToDelete = {
-        ...mockTransaction,
-        id: 'tx1',
-        userId: mockUser.id,
-        isOpening: true,
-        type: TransactionType.expense,
-        accountId: mockAccount.id,
-        toAccountId: null,
-        linkedTransferId: null,
-        createdAt: new Date(),
-      };
-
-      jest.spyOn(prisma.transaction, 'findFirst').mockResolvedValue(txToDelete);
-
-      await expect(service.delete(mockUser.id, 'tx1')).rejects.toThrow(
-        'Opening Balance는 삭제할 수 없습니다.',
-      );
-    });
-
-    it('should throw if transaction not found', async () => {
-      jest.spyOn(prisma.transaction, 'findFirst').mockResolvedValue(null);
-
-      await expect(service.delete(mockUser.id, 'tx1')).rejects.toThrow(
-        '거래를 찾을 수 없습니다.',
-      );
-    });
-  });
-
-  describe('createTransfer', () => {
-    it('should create a valid outgoing/incoming transfer and return both', async () => {
-      // ✅ 유저 존재 mock
-      jest.spyOn(prisma.user, 'findUnique').mockResolvedValueOnce(mockUser);
-
-      (prisma.$transaction as jest.Mock).mockImplementation(
-        async (callback: (tx: PrismaTransactionClient) => Promise<unknown>) => {
-          const tx = {
-            account: {
-              findUnique: jest.fn().mockResolvedValue(mockAccount),
-              update: jest.fn().mockResolvedValue(mockAccount),
-            },
-            transaction: {
-              create: jest
-                .fn()
-                .mockImplementationOnce(
-                  (args: Prisma.TransactionCreateArgs) => ({
-                    id: 'tx1',
-                    ...args.data,
-                    type: TransactionType.transfer,
-                  }),
-                )
-                .mockImplementationOnce(
-                  (args: Prisma.TransactionCreateArgs) => ({
-                    id: 'tx2',
-                    ...args.data,
-                    type: TransactionType.transfer,
-                  }),
-                ),
-              update: jest.fn().mockResolvedValue({
-                id: 'tx1',
-                linkedTransferId: 'tx2',
-              }),
-              findMany: jest.fn().mockResolvedValue([]),
-            },
-          };
-
-          return await callback(tx as unknown as PrismaTransactionClient); // ✅ 핵심
-        },
-      );
-
-      const result = await service.createTransfer(
-        mockUser.id,
-        mockTransferTransactionDto,
-      );
-
-      expect(result).toMatchObject({
-        outgoing: { id: 'tx1', type: 'transfer' },
-        incoming: { id: 'tx2', type: 'transfer' },
+      const deleted = await prisma.transaction.findUnique({
+        where: { id: transactionId },
       });
 
-      expect(result.outgoing.accountId).toBe(
-        mockTransferTransactionDto.fromAccountId,
-      );
-      expect(result.incoming.accountId).toBe(
-        mockTransferTransactionDto.toAccountId,
-      );
-      // eslint-disable-next-line @typescript-eslint/unbound-method
-      expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+      expect(deleted).not.toBeNull();
+      expect(deleted?.deletedAt).not.toBeNull();
     });
-  });
 
-  describe('updateTransfer', () => {
-    it('should update an existing transfer transaction', async () => {
-      const fromAccount = {
-        ...mockAccount,
-        id: mockTransferTransactionDto.fromAccountId,
-        userId: mockUser.id,
-      };
-      const toAccount = {
-        ...mockAccount,
-        id: mockTransferTransactionDto.toAccountId,
-        userId: mockUser.id,
-      };
+    it('should throw NotFoundException if transaction does not exist', async () => {
+      await expect(service.delete(userId, 'non-existent-id')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
 
-      jest.spyOn(prisma.user, 'findUnique').mockResolvedValue(mockUser);
+    it('should throw NotFoundException if transaction belongs to another user', async () => {
+      const anotherUser = await prisma.user.create({
+        data: { email: 'other@test.com', password: 'pw' },
+      });
 
-      const originalTx = {
-        ...mockTransaction,
-        id: 'tx1',
-        type: 'transfer' as TransactionType,
-        userId: mockUser.id,
-        linkedTransferId: 'tx2',
-        accountId: mockTransferTransactionDto.fromAccountId,
-        toAccountId: mockTransferTransactionDto.toAccountId,
-      };
-
-      jest
-        .spyOn(prisma.transaction, 'findUnique')
-        .mockResolvedValue(originalTx);
-
-      (prisma.$transaction as jest.Mock).mockImplementation(
-        async (callback: (tx: PrismaTransactionClient) => Promise<unknown>) => {
-          const tx = {
-            account: {
-              findUnique: jest
-                .fn()
-                .mockResolvedValueOnce(fromAccount)
-                .mockResolvedValueOnce(toAccount)
-                .mockResolvedValueOnce(fromAccount)
-                .mockResolvedValueOnce(toAccount)
-                .mockResolvedValueOnce(fromAccount),
-              update: jest.fn().mockResolvedValue(mockAccount),
-            },
-            transaction: {
-              delete: jest.fn().mockResolvedValue({ id: 'tx2' }),
-              create: jest.fn().mockResolvedValue({
-                id: 'tx3',
-                type: TransactionType.transfer,
-                accountId: mockTransferTransactionDto.toAccountId,
-              }),
-              update: jest.fn().mockResolvedValue({
-                id: 'tx1',
-                linkedTransferId: 'tx3',
-                accountId: mockTransferTransactionDto.fromAccountId,
-              }),
-              findMany: jest.fn().mockResolvedValue([]),
-            },
-          };
-          return await callback(tx as unknown as PrismaTransactionClient);
+      const tx = await prisma.transaction.create({
+        data: {
+          type: 'income',
+          amount: 3000,
+          categoryId,
+          accountId,
+          userId: anotherUser.id,
+          date: new Date(),
         },
-      );
+      });
 
-      const result = await service.updateTransfer(
-        mockUser.id,
-        'tx1',
-        mockTransferTransactionDto,
+      await expect(service.delete(userId, tx.id)).rejects.toThrow(
+        NotFoundException,
       );
+    });
 
-      expect(result.updatedIncoming.id).toBe('tx3');
-      expect(result.updatedOutgoing.id).toBe('tx1');
-      // eslint-disable-next-line @typescript-eslint/unbound-method
-      expect(prisma.$transaction).toHaveBeenCalled();
+    it('should throw BadRequestException if transaction is an opening balance', async () => {
+      const tx = await prisma.transaction.create({
+        data: {
+          type: 'income',
+          amount: 10000,
+          userId,
+          accountId,
+          categoryId,
+          isOpening: true,
+          date: new Date(),
+        },
+      });
+
+      await expect(service.delete(userId, tx.id)).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
 
-  describe('deleteTransfer', () => {
-    it('should delete both linked transactions', async () => {
-      const outgoing = {
-        id: 'tx1',
-        type: 'transfer' as TransactionType,
-        userId: mockUser.id,
-        linkedTransferId: 'tx2',
-        accountId: mockAccount.id,
-        account: mockAccount,
-      };
-
-      const incoming = {
-        id: 'tx2',
-        type: 'transfer' as TransactionType,
-        userId: mockUser.id,
-        linkedTransferId: 'tx1',
-        accountId: mockAccount.id,
-        account: mockAccount,
-      };
-
-      // ✅ findUnique 순서대로 두 번 호출
-      (prisma.transaction.findUnique as jest.Mock)
-        .mockResolvedValueOnce(outgoing) // 1st: outgoing
-        .mockResolvedValueOnce(incoming); // 2nd: incoming
-
-      // ✅ updateMany는 void 반환이라 undefined 처리
-      (prisma.transaction.updateMany as jest.Mock).mockResolvedValue(undefined);
-
+  describe('recalculateAccountBalance', () => {
+    it('computes balance using all transactions', async () => {
       (prisma.account.findUnique as jest.Mock).mockResolvedValue(mockAccount);
-      (prisma.transaction.findMany as jest.Mock).mockResolvedValue([]);
-      (prisma.account.update as jest.Mock).mockResolvedValue(mockAccount);
-
-      (prisma.$transaction as jest.Mock).mockImplementation(
-        async (cb: (tx: typeof prisma) => Promise<unknown>) => {
-          return await cb(prisma); // ✅ 이제 any 추론 사라짐
+      (prisma.transaction.findMany as jest.Mock).mockResolvedValue([
+        {
+          id: 't1',
+          type: 'income',
+          amount: 100,
+          accountId: mockAccount.id,
+          toAccountId: null,
         },
+        {
+          id: 't2',
+          type: 'expense',
+          amount: 40,
+          accountId: mockAccount.id,
+          toAccountId: null,
+        },
+        {
+          id: 't3',
+          type: 'transfer',
+          amount: 50,
+          accountId: mockAccount.id,
+          toAccountId: 'acc-002',
+        },
+        {
+          id: 't4',
+          type: 'transfer',
+          amount: 20,
+          accountId: 'acc-002',
+          toAccountId: mockAccount.id,
+        },
+      ]);
+      const updateSpy = jest
+        .spyOn(prisma.account, 'update')
+        .mockResolvedValue({ ...mockAccount, balance: 0 });
+
+      const result = await service.recalculateAccountBalance(mockAccount.id);
+
+      expect(result).toBe(30); // 100 - 40 - 50 + 20
+      expect(updateSpy).toHaveBeenCalledWith({
+        where: { id: mockAccount.id },
+        data: { balance: 30 },
+      });
+    });
+  });
+
+  describe('convertToTransactionDetailDTO', () => {
+    it('maps fields correctly', () => {
+      const dto = service.convertToTransactionDetailDTO({
+        ...mockTransaction,
+        note: 'n',
+        description: 'd',
+        category: {
+          id: 'cat',
+          name: 'Food',
+          icon: '🍔',
+          type: 'expense',
+          color: '#f00',
+        },
+        account: {
+          ...mockAccount,
+          balance: 100,
+        },
+        toAccount: {
+          ...mockAccount,
+          id: 'acc-2',
+        },
+      } as any);
+
+      expect(dto.id).toBe(mockTransaction.id);
+      expect(dto.account.id).toBe(mockAccount.id);
+      expect(dto.toAccount?.id).toBe('acc-2');
+      expect(dto.category?.name).toBe('Food');
+    });
+  });
+
+  describe('accumulateBalanceAfter', () => {
+    it('returns running balances', () => {
+      const transactions = [
+        {
+          id: 't1',
+          type: 'income',
+          amount: 10,
+          accountId: mockAccount.id,
+          toAccountId: null,
+          account: { name: 'A' },
+        },
+        {
+          id: 't2',
+          type: 'expense',
+          amount: 5,
+          accountId: mockAccount.id,
+          toAccountId: null,
+          account: { name: 'A' },
+        },
+        {
+          id: 't3',
+          type: 'transfer',
+          amount: 20,
+          accountId: mockAccount.id,
+          toAccountId: 'acc-2',
+          account: { name: 'A' },
+        },
+      ];
+      // @ts-ignore accessing private for test
+      const map: Map<string, number> = service.accumulateBalanceAfter(
+        transactions as any,
+        0,
+      );
+      expect(map.get('t1')).toBe(10);
+      expect(map.get('t2')).toBe(5);
+      expect(map.get('t3')).toBe(-15);
+    });
+  });
+
+  describe('getRecommendedKeywords', () => {
+    it('extracts frequently used words', async () => {
+      (prisma.transaction.findMany as jest.Mock).mockResolvedValue([
+        { note: 'Coffee and Snacks' },
+        { note: 'Coffee Beans' },
+        { note: 'Buy Snacks' },
+      ]);
+      const words = await service.getRecommendedKeywords(mockUser.id);
+      expect(words[0]).toBe('coffee');
+      expect(words).toContain('snacks');
+    });
+  });
+
+  describe('groupByDate', () => {
+    it('groups transactions by local date', async () => {
+      (prisma.transaction.findMany as jest.Mock).mockResolvedValue([
+        {
+          id: 't1',
+          type: 'income' as TransactionType,
+          amount: 20,
+          date: new Date('2024-01-01T00:00:00Z'),
+          note: null,
+          description: null,
+          account: { name: 'A' },
+          category: null,
+          toAccount: null,
+        },
+        {
+          id: 't2',
+          type: 'expense' as TransactionType,
+          amount: 5,
+          date: new Date('2024-01-01T12:00:00Z'),
+          note: null,
+          description: null,
+          account: { name: 'A' },
+          category: null,
+          toAccount: null,
+        },
+      ]);
+
+      const result = await service.groupByDate(
+        {
+          timeframe: 'daily',
+          startDate: '2024-01-01',
+          endDate: '2024-01-01',
+          groupBy: 'date',
+        },
+        'UTC',
+        {},
       );
 
-      const result = await service.deleteTransfer(mockUser.id, outgoing.id);
+      expect(result.groups).toHaveLength(1);
+      expect(result.groups[0].groupKey).toBe('2024-01-01');
+      expect(result.groups[0].totalAmount).toBe(25);
+    });
+  });
 
-      expect(result).toEqual({ success: true });
-      // eslint-disable-next-line @typescript-eslint/unbound-method
-      expect(prisma.transaction.updateMany).toHaveBeenCalledTimes(1);
+  describe('groupByAccount', () => {
+    it('groups transactions by account name', async () => {
+      (prisma.transaction.findMany as jest.Mock).mockResolvedValue([
+        {
+          id: 't1',
+          type: 'expense' as TransactionType,
+          amount: 5,
+          date: new Date(),
+          note: null,
+          description: null,
+          account: { name: 'Wallet' },
+          category: null,
+          toAccount: null,
+        },
+        {
+          id: 't2',
+          type: 'expense' as TransactionType,
+          amount: 15,
+          date: new Date(),
+          note: null,
+          description: null,
+          account: { name: 'Wallet' },
+          category: null,
+          toAccount: null,
+        },
+      ]);
+      const result = await service.groupByAccount(
+        {
+          timeframe: 'daily',
+          startDate: '2024-01-01',
+          endDate: '2024-01-01',
+          groupBy: 'account',
+        },
+        {},
+      );
+
+      expect(result.groups).toHaveLength(1);
+      expect(result.groups[0].groupKey).toBe('Wallet');
+      expect(result.groups[0].totalAmount).toBe(20);
     });
   });
 });
