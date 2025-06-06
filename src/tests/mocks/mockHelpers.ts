@@ -5,7 +5,7 @@ import { PrismaService } from '@/prisma/prisma.service';
 import { TransactionCalendarDTO } from '@/transactions/dto/transactions/transaction-calendar.dto';
 import { CreateTransactionDTO } from '@/transactions/dto/transactions/transaction-create.dto';
 import { UpdateTransactionDTO } from '@/transactions/dto/transactions/transaction-update.dto';
-import { CategoryType, TransactionType } from '@prisma/client';
+import { AccountType, CategoryType, TransactionType } from '@prisma/client';
 
 //
 // ========================= 🧑‍💼 COMMON =========================
@@ -40,12 +40,12 @@ export const mockAuthSession: {
 //
 export const mockAccount = {
   id: 'acc-001',
-  userId: mockUser.id,
-  name: 'My Card',
-  type: 'CARD',
-  color: '#2196F3',
-  description: 'Primary card',
-  balance: 100000,
+  userId: 'user-001',
+  name: 'My Account',
+  type: AccountType.CASH, // ✅ 이렇게!
+  color: '#ff0000',
+  description: 'Mock Account',
+  balance: 0,
   createdAt: new Date(),
   updatedAt: new Date(),
   settlementDate: null,
