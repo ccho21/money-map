@@ -11,7 +11,7 @@ export class CreateRecurringTransactionDto {
 
   @IsUUID()
   @IsOptional()
-  toAccountId?: string
+  toAccountId?: string | null
 
   @IsUUID()
   @IsOptional()

@@ -10,11 +10,9 @@ import {
   BudgetCategoryCreateRequestDTO,
   BudgetCategoryUpdateRequestDTO,
 } from './dto/budget-category-request.dto';
-import { BudgetGroupSummaryDTO } from './dto/budget-summary.dto';
 import { BudgetCategoryItemDTO } from './dto/budgetCategory/budget-category-item.dto';
 import { BudgetGroupItemDTO } from './dto/budget-group-item.dto';
 import { BudgetCategoryPeriodItemDTO } from './dto/budget-category-period-item.dto';
-import { DateRangeWithGroupQueryDTO } from '@/common/dto/filter/date-range-with-group-query.dto';
 import {
   getDateRangeList,
   getUTCEndDate,
@@ -24,7 +22,6 @@ import { getUserTimezone } from '@/libs/timezone';
 import { isSameDay, parseISO } from 'date-fns';
 import { BudgetCategoryListResponseDTO } from './dto/budget-category-list-response.dto';
 import { BudgetQueryDTO } from './dto/params/budget-query.dto';
-import { BudgetAlertDTO } from './dto/alert/budget-alert.dto';
 import { BudgetCategory } from '@prisma/client';
 
 @Injectable()
@@ -48,86 +45,6 @@ export class BudgetsService {
       createdAt: b.createdAt.toISOString(),
       updatedAt: b.updatedAt.toISOString(),
     }));
-  }
-
-  async getSummary(
-    userId: string,
-    { startDate, endDate, timeframe }: BudgetQueryDTO,
-  ): Promise<BudgetGroupSummaryDTO> {
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user) throw new NotFoundException('User not found');
-
-    const timezone = user.timezone || 'America/Toronto';
-    const from = getUTCStartDate(startDate, timezone);
-    const to = getUTCEndDate(endDate, timezone);
-
-    const budgetCategories = await this.prisma.budgetCategory.findMany({
-      where: { budget: { userId } },
-      select: { amount: true },
-    });
-
-    const totalBudget = budgetCategories.reduce(
-      (sum, bc) => sum + bc.amount,
-      0,
-    );
-
-    const expenses = await this.prisma.transaction.findMany({
-      where: {
-        userId,
-        type: 'expense',
-        date: { gte: from, lte: to },
-      },
-      select: { amount: true },
-    });
-
-    const totalSpent = expenses.reduce((sum, tx) => sum + tx.amount, 0);
-    const rate =
-      totalBudget === 0 ? 0 : Math.round((totalSpent / totalBudget) * 100);
-
-    return {
-      label: timeframe,
-      rangeStart: startDate,
-      rangeEnd: endDate,
-      totalBudget,
-      totalSpent: totalSpent,
-      rate,
-    };
-  }
-
-  async getBudgetAlerts(userId: string): Promise<BudgetAlertDTO[]> {
-    const now = new Date();
-    const budgetCategories = await this.prisma.budgetCategory.findMany({
-      where: {
-        budget: { userId },
-        startDate: { lte: now },
-        endDate: { gte: now },
-      },
-      include: { category: true },
-    });
-
-    const alerts: BudgetAlertDTO[] = [];
-
-    for (const bc of budgetCategories) {
-      const agg = await this.prisma.transaction.aggregate({
-        where: {
-          userId,
-          categoryId: bc.categoryId,
-          type: 'expense',
-          date: { gte: bc.startDate, lte: bc.endDate },
-        },
-        _sum: { amount: true },
-      });
-
-      const spent = agg._sum.amount || 0;
-      if (spent > bc.amount) {
-        alerts.push({
-          category: bc.category.name,
-          message: `예산 초과! ₩${spent - bc.amount}`,
-        });
-      }
-    }
-
-    return alerts;
   }
 
   async getBudgetCategories(

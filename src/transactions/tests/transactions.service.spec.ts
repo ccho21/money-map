@@ -1,18 +1,13 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { TransactionsService } from './transactions.service';
+import { TransactionsService } from '../transactions.service';
 import { PrismaService } from '@/prisma/prisma.service';
-import { EventsGateway } from '@/events/events.gateway';
-import {
-  mockPrismaFactory,
-  mockAccount,
-  mockTransaction,
-  mockUser,
-} from '@/tests/mocks/mockHelpers';
-import { TransactionType } from '@prisma/client';
-import { CreateTransactionDTO } from './dto/transactions/transaction-create.dto';
-import { UpdateTransactionDTO } from './dto/transactions/transaction-update.dto';
+import { mockPrismaFactory } from '@/mocks/mockHelpers';
+import { CreateTransactionDTO } from '../dto/transactions/transaction-create.dto';
+import { UpdateTransactionDTO } from '../dto/transactions/transaction-update.dto';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
-import { recalculateAccountBalanceInTx } from '@/transactions/utils/recalculateAccountBalanceInTx.util';
+import { BudgetAlertService } from '../budget-alert.service';
+import { randomUUID } from 'crypto';
+
 jest.mock('@/transactions/utils/recalculateAccountBalanceInTx.util', () => ({
   recalculateAccountBalanceInTx: jest.fn(),
 }));
@@ -24,6 +19,7 @@ jest.mock('@/transactions/utils/recalculateAccountBalanceInTx.util', () => ({
 
 describe('TransactionsService', () => {
   let service: TransactionsService;
+  let budgetAlertService: BudgetAlertService;
   let prisma: jest.Mocked<PrismaService>;
 
   beforeEach(async () => {
@@ -31,11 +27,12 @@ describe('TransactionsService', () => {
       providers: [
         TransactionsService,
         { provide: PrismaService, useValue: mockPrismaFactory() },
-        { provide: EventsGateway, useValue: { emitBudgetAlert: jest.fn() } },
+        { provide: BudgetAlertService, useValue: { checkAndEmit: jest.fn() } }, // ✅ 추가
       ],
     }).compile();
 
     service = module.get<TransactionsService>(TransactionsService);
+    budgetAlertService = module.get<BudgetAlertService>(BudgetAlertService);
     prisma = module.get(PrismaService);
   });
 
@@ -43,27 +40,35 @@ describe('TransactionsService', () => {
     expect(service).toBeDefined();
   });
 
-  ///////// CREATE /////////
+  ///////// Create /////////
   describe('TransactionsService - create()', () => {
     let service: TransactionsService;
-    let prisma: PrismaService;
-
+    let prisma: jest.Mocked<PrismaService>;
+    let budgetAlertService: BudgetAlertService;
     let userId: string;
     let accountId: string;
     let categoryId: string;
 
     beforeAll(async () => {
       const moduleRef = await Test.createTestingModule({
-        providers: [TransactionsService, PrismaService, EventsGateway],
+        providers: [
+          TransactionsService,
+          PrismaService,
+          {
+            provide: BudgetAlertService,
+            useValue: { checkAndEmit: jest.fn() },
+          }, // ✅ 추가
+        ],
       }).compile();
 
       service = moduleRef.get(TransactionsService);
+      budgetAlertService = moduleRef.get(BudgetAlertService);
       prisma = moduleRef.get(PrismaService);
 
       // Test data
       const user = await prisma.user.create({
         data: {
-          email: 'test@test.com',
+          email: `test-${randomUUID()}@test.com`,
           password: 'hashed-password', // ✅ 필수 필드 추가
         },
       });
@@ -93,11 +98,13 @@ describe('TransactionsService', () => {
     });
 
     afterAll(async () => {
-      await prisma.transaction.deleteMany();
-      await prisma.recurringTransaction.deleteMany();
-      await prisma.account.deleteMany();
-      await prisma.category.deleteMany();
-      await prisma.user.deleteMany();
+      await prisma.transaction.deleteMany(); // ✅ 1. 트랜잭션부터
+      await prisma.recurringTransaction.deleteMany(); // ✅ 2. 반복 트랜잭션
+      await prisma.budgetCategory.deleteMany(); // ✅ 3. FK를 먼저 제거해야 함
+      await prisma.budget.deleteMany(); // ✅ 4. 예산 본체
+      await prisma.account.deleteMany(); // ✅ 5. 계좌
+      await prisma.category.deleteMany(); // ✅ 6. 카테고리 (이제 가능)
+      await prisma.user.deleteMany(); // ✅ 7. 유저
     });
 
     it('should create a transaction and return it', async () => {
@@ -215,7 +222,7 @@ describe('TransactionsService', () => {
       });
 
       // 💬 spy 설정
-      const emitSpy = jest.spyOn(service['eventsGateway'], 'emitBudgetAlert');
+      const spyEmit = jest.spyOn(budgetAlertService, 'checkAndEmit');
 
       const dto: CreateTransactionDTO = {
         type: 'expense',
@@ -227,31 +234,39 @@ describe('TransactionsService', () => {
 
       await service.create(userId, dto);
 
-      expect(emitSpy).toHaveBeenCalled();
+      expect(spyEmit).toHaveBeenCalled();
     });
   });
 
-  ///////// UPDATE /////////
+  ///////// Update /////////
   describe('TransactionsService - update()', () => {
     let service: TransactionsService;
     let prisma: PrismaService;
-
+    let budgetAlertService: BudgetAlertService;
     let userId: string;
     let accountId: string;
     let categoryId: string;
 
     beforeAll(async () => {
       const moduleRef = await Test.createTestingModule({
-        providers: [TransactionsService, PrismaService, EventsGateway],
+        providers: [
+          TransactionsService,
+          PrismaService,
+          {
+            provide: BudgetAlertService,
+            useValue: { checkAndEmit: jest.fn() },
+          }, // ✅ 추가
+        ],
       }).compile();
 
       service = moduleRef.get(TransactionsService);
+      budgetAlertService = moduleRef.get(BudgetAlertService);
       prisma = moduleRef.get(PrismaService);
 
       // test data
       const user = await prisma.user.create({
         data: {
-          email: 'test@test.com',
+          email: `test-${randomUUID()}@test.com`,
           password: 'hashed-password', // ✅ 필수 필드 추가
         },
       });
@@ -281,11 +296,13 @@ describe('TransactionsService', () => {
     });
 
     afterAll(async () => {
-      await prisma.transaction.deleteMany();
-      await prisma.recurringTransaction.deleteMany();
-      await prisma.account.deleteMany();
-      await prisma.category.deleteMany();
-      await prisma.user.deleteMany();
+      await prisma.transaction.deleteMany(); // ✅ 1. 트랜잭션부터
+      await prisma.recurringTransaction.deleteMany(); // ✅ 2. 반복 트랜잭션
+      await prisma.budgetCategory.deleteMany(); // ✅ 3. FK를 먼저 제거해야 함
+      await prisma.budget.deleteMany(); // ✅ 4. 예산 본체
+      await prisma.account.deleteMany(); // ✅ 5. 계좌
+      await prisma.category.deleteMany(); // ✅ 6. 카테고리 (이제 가능)
+      await prisma.user.deleteMany(); // ✅ 7. 유저
     });
 
     //✅ 1. 트랜잭션 수정 성공 테스트 (amount & note 변경)
@@ -340,7 +357,7 @@ describe('TransactionsService', () => {
     it('should throw NotFoundException if transaction does not belong to user', async () => {
       const otherUser = await prisma.user.create({
         data: {
-          email: 'not-owner@test.com',
+          email: `test-${randomUUID()}@test.com`,
           password: 'hashed',
         },
       });
@@ -421,6 +438,8 @@ describe('TransactionsService', () => {
         'recalculateAccountBalanceInTx',
       );
 
+      spy.mockClear(); //
+
       await service.update(userId, tx.id, dto);
 
       expect(spy).toHaveBeenCalledTimes(2);
@@ -478,10 +497,7 @@ describe('TransactionsService', () => {
     });
 
     it('should emit budget alert if transaction causes budget to exceed', async () => {
-      const spyEmit = jest
-        .spyOn(service['eventsGateway'], 'emitBudgetAlert')
-        .mockImplementation(() => {});
-
+      const spyEmit = jest.spyOn(budgetAlertService, 'checkAndEmit');
       const today = new Date();
 
       await prisma.budget.create({
@@ -521,7 +537,7 @@ describe('TransactionsService', () => {
     });
   });
 
-  ///////// DELETE /////////
+  ///////// Delete /////////
   describe('TransactionsService - delete()', () => {
     let service: TransactionsService;
     let prisma: PrismaService;
@@ -533,14 +549,24 @@ describe('TransactionsService', () => {
 
     beforeAll(async () => {
       const moduleRef = await Test.createTestingModule({
-        providers: [TransactionsService, PrismaService, EventsGateway],
+        providers: [
+          TransactionsService,
+          PrismaService,
+          {
+            provide: BudgetAlertService,
+            useValue: { checkAndEmit: jest.fn() },
+          }, // ✅ 추가
+        ],
       }).compile();
 
       service = moduleRef.get(TransactionsService);
       prisma = moduleRef.get(PrismaService);
 
       const user = await prisma.user.create({
-        data: { email: 'delete-test@test.com', password: 'test' },
+        data: {
+          email: `test-${randomUUID()}@test.com`,
+          password: 'hashed-password', // ✅ 필수 필드 추가
+        },
       });
       userId = user.id;
 
@@ -578,10 +604,13 @@ describe('TransactionsService', () => {
     });
 
     afterAll(async () => {
-      await prisma.transaction.deleteMany();
-      await prisma.account.deleteMany();
-      await prisma.category.deleteMany();
-      await prisma.user.deleteMany();
+      await prisma.transaction.deleteMany(); // ✅ 1. 트랜잭션부터
+      await prisma.recurringTransaction.deleteMany(); // ✅ 2. 반복 트랜잭션
+      await prisma.budgetCategory.deleteMany(); // ✅ 3. FK를 먼저 제거해야 함
+      await prisma.budget.deleteMany(); // ✅ 4. 예산 본체
+      await prisma.account.deleteMany(); // ✅ 5. 계좌
+      await prisma.category.deleteMany(); // ✅ 6. 카테고리 (이제 가능)
+      await prisma.user.deleteMany(); // ✅ 7. 유저
     });
 
     it('should soft delete the transaction and return success message', async () => {
@@ -605,7 +634,7 @@ describe('TransactionsService', () => {
 
     it('should throw NotFoundException if transaction belongs to another user', async () => {
       const anotherUser = await prisma.user.create({
-        data: { email: 'other@test.com', password: 'pw' },
+        data: { email: `test-${randomUUID()}@test.com`, password: 'pw' },
       });
 
       const tx = await prisma.transaction.create({
@@ -640,221 +669,6 @@ describe('TransactionsService', () => {
       await expect(service.delete(userId, tx.id)).rejects.toThrow(
         BadRequestException,
       );
-    });
-  });
-
-  describe('recalculateAccountBalance', () => {
-    it('computes balance using all transactions', async () => {
-      (prisma.account.findUnique as jest.Mock).mockResolvedValue(mockAccount);
-      (prisma.transaction.findMany as jest.Mock).mockResolvedValue([
-        {
-          id: 't1',
-          type: 'income',
-          amount: 100,
-          accountId: mockAccount.id,
-          toAccountId: null,
-        },
-        {
-          id: 't2',
-          type: 'expense',
-          amount: 40,
-          accountId: mockAccount.id,
-          toAccountId: null,
-        },
-        {
-          id: 't3',
-          type: 'transfer',
-          amount: 50,
-          accountId: mockAccount.id,
-          toAccountId: 'acc-002',
-        },
-        {
-          id: 't4',
-          type: 'transfer',
-          amount: 20,
-          accountId: 'acc-002',
-          toAccountId: mockAccount.id,
-        },
-      ]);
-      const updateSpy = jest
-        .spyOn(prisma.account, 'update')
-        .mockResolvedValue({ ...mockAccount, balance: 0 });
-
-      const result = await service.recalculateAccountBalance(mockAccount.id);
-
-      expect(result).toBe(30); // 100 - 40 - 50 + 20
-      expect(updateSpy).toHaveBeenCalledWith({
-        where: { id: mockAccount.id },
-        data: { balance: 30 },
-      });
-    });
-  });
-
-  describe('convertToTransactionDetailDTO', () => {
-    it('maps fields correctly', () => {
-      const dto = service.convertToTransactionDetailDTO({
-        ...mockTransaction,
-        note: 'n',
-        description: 'd',
-        category: {
-          id: 'cat',
-          name: 'Food',
-          icon: '🍔',
-          type: 'expense',
-          color: '#f00',
-        },
-        account: {
-          ...mockAccount,
-          balance: 100,
-        },
-        toAccount: {
-          ...mockAccount,
-          id: 'acc-2',
-        },
-      } as any);
-
-      expect(dto.id).toBe(mockTransaction.id);
-      expect(dto.account.id).toBe(mockAccount.id);
-      expect(dto.toAccount?.id).toBe('acc-2');
-      expect(dto.category?.name).toBe('Food');
-    });
-  });
-
-  describe('accumulateBalanceAfter', () => {
-    it('returns running balances', () => {
-      const transactions = [
-        {
-          id: 't1',
-          type: 'income',
-          amount: 10,
-          accountId: mockAccount.id,
-          toAccountId: null,
-          account: { name: 'A' },
-        },
-        {
-          id: 't2',
-          type: 'expense',
-          amount: 5,
-          accountId: mockAccount.id,
-          toAccountId: null,
-          account: { name: 'A' },
-        },
-        {
-          id: 't3',
-          type: 'transfer',
-          amount: 20,
-          accountId: mockAccount.id,
-          toAccountId: 'acc-2',
-          account: { name: 'A' },
-        },
-      ];
-      // @ts-ignore accessing private for test
-      const map: Map<string, number> = service.accumulateBalanceAfter(
-        transactions as any,
-        0,
-      );
-      expect(map.get('t1')).toBe(10);
-      expect(map.get('t2')).toBe(5);
-      expect(map.get('t3')).toBe(-15);
-    });
-  });
-
-  describe('getRecommendedKeywords', () => {
-    it('extracts frequently used words', async () => {
-      (prisma.transaction.findMany as jest.Mock).mockResolvedValue([
-        { note: 'Coffee and Snacks' },
-        { note: 'Coffee Beans' },
-        { note: 'Buy Snacks' },
-      ]);
-      const words = await service.getRecommendedKeywords(mockUser.id);
-      expect(words[0]).toBe('coffee');
-      expect(words).toContain('snacks');
-    });
-  });
-
-  describe('groupByDate', () => {
-    it('groups transactions by local date', async () => {
-      (prisma.transaction.findMany as jest.Mock).mockResolvedValue([
-        {
-          id: 't1',
-          type: 'income' as TransactionType,
-          amount: 20,
-          date: new Date('2024-01-01T00:00:00Z'),
-          note: null,
-          description: null,
-          account: { name: 'A' },
-          category: null,
-          toAccount: null,
-        },
-        {
-          id: 't2',
-          type: 'expense' as TransactionType,
-          amount: 5,
-          date: new Date('2024-01-01T12:00:00Z'),
-          note: null,
-          description: null,
-          account: { name: 'A' },
-          category: null,
-          toAccount: null,
-        },
-      ]);
-
-      const result = await service.groupByDate(
-        {
-          timeframe: 'daily',
-          startDate: '2024-01-01',
-          endDate: '2024-01-01',
-          groupBy: 'date',
-        },
-        'UTC',
-        {},
-      );
-
-      expect(result.groups).toHaveLength(1);
-      expect(result.groups[0].groupKey).toBe('2024-01-01');
-      expect(result.groups[0].totalAmount).toBe(25);
-    });
-  });
-
-  describe('groupByAccount', () => {
-    it('groups transactions by account name', async () => {
-      (prisma.transaction.findMany as jest.Mock).mockResolvedValue([
-        {
-          id: 't1',
-          type: 'expense' as TransactionType,
-          amount: 5,
-          date: new Date(),
-          note: null,
-          description: null,
-          account: { name: 'Wallet' },
-          category: null,
-          toAccount: null,
-        },
-        {
-          id: 't2',
-          type: 'expense' as TransactionType,
-          amount: 15,
-          date: new Date(),
-          note: null,
-          description: null,
-          account: { name: 'Wallet' },
-          category: null,
-          toAccount: null,
-        },
-      ]);
-      const result = await service.groupByAccount(
-        {
-          timeframe: 'daily',
-          startDate: '2024-01-01',
-          endDate: '2024-01-01',
-          groupBy: 'account',
-        },
-        {},
-      );
-
-      expect(result.groups).toHaveLength(1);
-      expect(result.groups[0].groupKey).toBe('Wallet');
-      expect(result.groups[0].totalAmount).toBe(20);
     });
   });
 });

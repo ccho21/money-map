@@ -5,7 +5,7 @@ import {
   mockPrismaFactory,
   mockUser,
   mockCategory,
-} from '@/tests/mocks/mockHelpers';
+} from '@/mocks/mockHelpers';
 import { CategoryCreateRequestDTO } from './dto/category-request.dto';
 import { CategoryType } from '@prisma/client';
 

@@ -1,22 +1,25 @@
 import { AccountCreateRequestDTO } from '@/accounts/dto/account-request.dto';
-import { BaseListSummaryResponseDTO } from '@/common/dto/base-list-summary-response.dto';
-import { GroupBy } from '@/common/types/types';
-import { PrismaService } from '@/prisma/prisma.service';
 import { TransactionCalendarDTO } from '@/transactions/dto/transactions/transaction-calendar.dto';
 import { CreateTransactionDTO } from '@/transactions/dto/transactions/transaction-create.dto';
 import { UpdateTransactionDTO } from '@/transactions/dto/transactions/transaction-update.dto';
-import { AccountType, CategoryType, TransactionType } from '@prisma/client';
+import {
+  AccountType,
+  CategoryType,
+  TransactionType,
+  User,
+} from '@prisma/client';
 
 //
 // ========================= 🧑‍💼 COMMON =========================
 
 //
-export const mockUser = {
-  id: 'user-123',
+
+export const mockUser: User = {
+  id: 'user-id-123',
   email: 'test@example.com',
   password: 'hashed-password',
-  timezone: 'UTC',
-  createdAt: new Date('2023-01-01T00:00:00Z'),
+  timezone: 'Asia/Seoul',
+  createdAt: new Date(),
   hashedRefreshToken: null,
 };
 
@@ -176,50 +179,42 @@ export const mockAccountCreateRequest: AccountCreateRequestDTO = {
 //
 // ========================= 🧪 Prisma Mock Factory =========================
 //
-export const mockPrismaFactory = (): jest.Mocked<PrismaService> =>
-  ({
-    user: { findUnique: jest.fn(), update: jest.fn() },
-    account: {
-      create: jest.fn(),
-      findMany: jest.fn(),
-      findUnique: jest.fn(),
-      update: jest.fn(),
-      delete: jest.fn(),
-    },
+export function mockPrismaFactory() {
+  return {
     transaction: {
+      findUnique: jest.fn(),
+      findMany: jest.fn(),
+      create: jest.fn(),
+      createMany: jest.fn(), // ✅ 이거 추가!
+      update: jest.fn(),
+      updateMany: jest.fn(), // ✅ required for deleteTransfer
+      delete: jest.fn(),
+      deleteMany: jest.fn(), // ✅ 이거 추가
+    },
+    recurringTransaction: {
       create: jest.fn(),
       findMany: jest.fn(),
+      updateMany: jest.fn(),
+    },
+    account: {
       findUnique: jest.fn(),
       update: jest.fn(),
-      delete: jest.fn(),
-      groupBy: jest.fn(),
-      findFirst: jest.fn(),
+    },
+    user: {
+      findUnique: jest.fn(),
+      create: jest.fn(),
       deleteMany: jest.fn(),
-    },
-    budget: {
-      create: jest.fn(),
-      update: jest.fn(),
-      delete: jest.fn(),
-      findMany: jest.fn(),
-      findUnique: jest.fn(),
-    },
-    budgetCategory: {
-      create: jest.fn(),
-      update: jest.fn(),
-      delete: jest.fn(),
-      findMany: jest.fn(),
-      findUnique: jest.fn(),
-      findFirst: jest.fn(),
     },
     category: {
       create: jest.fn(),
-      findMany: jest.fn(),
-      findUnique: jest.fn(),
-      findFirst: jest.fn(),
-      update: jest.fn(),
-      delete: jest.fn(),
+      deleteMany: jest.fn(),
+    },
+    budgetCategory: {
+      deleteMany: jest.fn(),
+    },
+    budget: {
+      deleteMany: jest.fn(),
     },
     $transaction: jest.fn(),
-    $connect: jest.fn(),
-    $disconnect: jest.fn(),
-  }) as unknown as jest.Mocked<PrismaService>;
+  };
+}

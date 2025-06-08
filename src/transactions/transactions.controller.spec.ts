@@ -8,7 +8,7 @@ import {
   mockCreateTransactionDto,
   mockTransaction,
   mockUser,
-} from '../tests/mocks/mockHelpers';
+} from '../mocks/mockHelpers';
 
 describe('TransactionsController (http)', () => {
   let app: INestApplication;

@@ -32,18 +32,6 @@ export class BudgetsController {
   findAll(@GetUser() user: UserPayload) {
     return this.budgetsService.findAll(user.id);
   }
-  @Get('alerts')
-  alerts(@GetUser() user: UserPayload): Promise<BudgetAlertDTO[]> {
-    return this.budgetsService.getBudgetAlerts(user.id);
-  }
-
-  @Get('summary')
-  getBudgetSummary(
-    @GetUser() user: UserPayload,
-    @Query() query: BudgetQueryDTO,
-  ) {
-    return this.budgetsService.getSummary(user.id, query);
-  }
 
   @Post('by-category')
   @UseGuards(JwtAuthGuard)

@@ -1,6 +1,6 @@
 import { recalculateAccountBalanceInTx } from './recalculateAccountBalanceInTx.util';
 import { PrismaService } from '@/prisma/prisma.service';
-import { mockPrismaFactory, mockAccount } from '@/tests/mocks/mockHelpers';
+import { mockPrismaFactory, mockAccount } from '@/mocks/mockHelpers';
 import { TransactionType } from '@prisma/client';
 
 describe('recalculateAccountBalanceInTx', () => {
