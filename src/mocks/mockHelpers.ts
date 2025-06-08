@@ -2,12 +2,8 @@ import { AccountCreateRequestDTO } from '@/accounts/dto/account-request.dto';
 import { TransactionCalendarDTO } from '@/transactions/dto/transactions/transaction-calendar.dto';
 import { CreateTransactionDTO } from '@/transactions/dto/transactions/transaction-create.dto';
 import { UpdateTransactionDTO } from '@/transactions/dto/transactions/transaction-update.dto';
-import {
-  AccountType,
-  CategoryType,
-  TransactionType,
-  User,
-} from '@prisma/client';
+import { UserPayload } from '@/auth/types/user-payload.type';
+import { AccountType, TransactionType, User } from '@prisma/client';
 
 //
 // ========================= 🧑‍💼 COMMON =========================
@@ -21,6 +17,12 @@ export const mockUser: User = {
   timezone: 'Asia/Seoul',
   createdAt: new Date(),
   hashedRefreshToken: null,
+};
+
+export const mockUserPayload: UserPayload = {
+  id: mockUser.id,
+  email: mockUser.email,
+  timezone: mockUser.timezone,
 };
 
 //
@@ -185,11 +187,11 @@ export function mockPrismaFactory() {
       findUnique: jest.fn(),
       findMany: jest.fn(),
       create: jest.fn(),
-      createMany: jest.fn(), // ✅ 이거 추가!
+      createMany: jest.fn(),
       update: jest.fn(),
-      updateMany: jest.fn(), // ✅ required for deleteTransfer
+      updateMany: jest.fn(),
       delete: jest.fn(),
-      deleteMany: jest.fn(), // ✅ 이거 추가
+      deleteMany: jest.fn(),
     },
     recurringTransaction: {
       create: jest.fn(),
@@ -199,6 +201,7 @@ export function mockPrismaFactory() {
     account: {
       findUnique: jest.fn(),
       update: jest.fn(),
+      findMany: jest.fn(), // ✅ 추가
     },
     user: {
       findUnique: jest.fn(),
@@ -211,6 +214,7 @@ export function mockPrismaFactory() {
     },
     budgetCategory: {
       deleteMany: jest.fn(),
+      findMany: jest.fn(), // ✅ 추가
     },
     budget: {
       deleteMany: jest.fn(),

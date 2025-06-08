@@ -17,7 +17,7 @@ import { mockPrismaFactory, mockUser } from '@/mocks/mockHelpers';
 import { setAuthCookies, clearCookie } from './helpers/cookie.helper';
 
 jest.mock('./helpers/token.helper', () => {
-  const { mockTokens } = require('@/tests/mocks/auth.mockHelpers');
+  const { mockTokens } = require('@/mocks/auth.mockHelpers');
   return { generateTokens: jest.fn().mockResolvedValue(mockTokens) };
 });
 
@@ -28,7 +28,7 @@ jest.mock('./helpers/cookie.helper', () => ({
 
 describe('AuthService (unit)', () => {
   let service: AuthService;
-  let prisma: jest.Mocked<PrismaService>;
+  let prisma: ReturnType<typeof mockPrismaFactory>;
   let res: Response;
 
   beforeEach(async () => {
@@ -53,7 +53,7 @@ describe('AuthService (unit)', () => {
 
   describe('signup', () => {
     it('throws when email exists', async () => {
-      (prisma.user.findUnique as jest.Mock).mockResolvedValue(mockUser);
+      prisma.user.findUnique.mockResolvedValue(mockUser);
 
       await expect(service.signup(mockSignupDto, res)).rejects.toBeInstanceOf(
         ConflictException,
@@ -61,13 +61,13 @@ describe('AuthService (unit)', () => {
     });
 
     it('creates a user and sets cookies', async () => {
-      (prisma.user.findUnique as jest.Mock).mockResolvedValue(null);
-      (prisma.user.create as jest.Mock).mockResolvedValue(mockUser);
-      (prisma.user.update as jest.Mock).mockResolvedValue({
+      prisma.user.findUnique.mockResolvedValue(null);
+      prisma.user.create.mockResolvedValue(mockUser);
+      prisma.user.update.mockResolvedValue({
         ...mockUser,
         hashedRefreshToken: 'hashed',
       });
-      jest.spyOn(bcrypt as any, 'hash').mockResolvedValue('hashed-pass');
+      jest.spyOn(bcrypt, 'hash').mockResolvedValue('hashed-pass');
 
       const result = await service.signup(mockSignupDto, res);
 
@@ -90,7 +90,7 @@ describe('AuthService (unit)', () => {
 
   describe('signin', () => {
     it('throws when user not found', async () => {
-      (prisma.user.findUnique as jest.Mock).mockResolvedValue(null);
+      prisma.user.findUnique.mockResolvedValue(null);
 
       await expect(service.signin(mockSigninDto, res)).rejects.toBeInstanceOf(
         ForbiddenException,
@@ -98,8 +98,8 @@ describe('AuthService (unit)', () => {
     });
 
     it('throws on password mismatch', async () => {
-      (prisma.user.findUnique as jest.Mock).mockResolvedValue(mockUser);
-      jest.spyOn(bcrypt as any, 'compare').mockResolvedValue(false);
+      prisma.user.findUnique.mockResolvedValue(mockUser);
+      jest.spyOn(bcrypt, 'compare').mockResolvedValue(false);
 
       await expect(service.signin(mockSigninDto, res)).rejects.toBeInstanceOf(
         ForbiddenException,
@@ -107,10 +107,10 @@ describe('AuthService (unit)', () => {
     });
 
     it('signs in user and sets cookies', async () => {
-      (prisma.user.findUnique as jest.Mock).mockResolvedValue(mockUser);
-      jest.spyOn(bcrypt as any, 'compare').mockResolvedValue(false);
-      (bcrypt.hash as jest.Mock).mockResolvedValue('hashed');
-      (prisma.user.update as jest.Mock).mockResolvedValue({ ...mockUser });
+      prisma.user.findUnique.mockResolvedValue(mockUser);
+      jest.spyOn(bcrypt, 'compare').mockResolvedValue(true);
+      jest.spyOn(bcrypt, 'hash').mockResolvedValue('hashed');
+      prisma.user.update.mockResolvedValue({ ...mockUser });
 
       const result = await service.signin(mockSigninDto, res);
 
@@ -122,13 +122,13 @@ describe('AuthService (unit)', () => {
 
   describe('googleSignin', () => {
     it('creates new user when not found', async () => {
-      (prisma.user.findUnique as jest.Mock).mockResolvedValue(null);
-      (prisma.user.create as jest.Mock).mockResolvedValue(mockUser);
-      (prisma.user.update as jest.Mock).mockResolvedValue({
+      prisma.user.findUnique.mockResolvedValue(null);
+      prisma.user.create.mockResolvedValue(mockUser);
+      prisma.user.update.mockResolvedValue({
         ...mockUser,
         hashedRefreshToken: 'hashed',
       });
-      (bcrypt.hash as jest.Mock).mockResolvedValue('hashed');
+      jest.spyOn(bcrypt, 'hash').mockResolvedValue('hashed');
 
       const result = await service.googleSignin(mockUser, res);
 
@@ -138,9 +138,9 @@ describe('AuthService (unit)', () => {
     });
 
     it('uses existing user when found', async () => {
-      (prisma.user.findUnique as jest.Mock).mockResolvedValue(mockUser);
-      (prisma.user.update as jest.Mock).mockResolvedValue({ ...mockUser });
-      (bcrypt.hash as jest.Mock).mockResolvedValue('hashed');
+      prisma.user.findUnique.mockResolvedValue(mockUser);
+      prisma.user.update.mockResolvedValue({ ...mockUser });
+      jest.spyOn(bcrypt, 'hash').mockResolvedValue('hashed');
 
       const result = await service.googleSignin(mockUser, res);
 
@@ -152,7 +152,7 @@ describe('AuthService (unit)', () => {
 
   describe('refreshAccessToken', () => {
     it('throws when user not found', async () => {
-      (prisma.user.findUnique as jest.Mock).mockResolvedValue(null);
+      prisma.user.findUnique.mockResolvedValue(null);
 
       await expect(
         service.refreshAccessToken(mockUser.id, res),
@@ -160,9 +160,9 @@ describe('AuthService (unit)', () => {
     });
 
     it('issues new tokens and sets cookies', async () => {
-      (prisma.user.findUnique as jest.Mock).mockResolvedValue(mockUser);
-      (bcrypt.hash as jest.Mock).mockResolvedValue('hashed');
-      (prisma.user.update as jest.Mock).mockResolvedValue({ ...mockUser });
+      prisma.user.findUnique.mockResolvedValue(mockUser);
+      jest.spyOn(bcrypt, 'hash').mockResolvedValue('hashed');
+      prisma.user.update.mockResolvedValue({ ...mockUser });
 
       const result = await service.refreshAccessToken(mockUser.id, res);
 
@@ -174,7 +174,7 @@ describe('AuthService (unit)', () => {
 
   describe('signout', () => {
     it('throws when user not found', async () => {
-      (prisma.user.findUnique as jest.Mock).mockResolvedValue(null);
+      prisma.user.findUnique.mockResolvedValue(null);
 
       await expect(service.signout(mockUser.id, res)).rejects.toBeInstanceOf(
         ForbiddenException,
@@ -182,8 +182,8 @@ describe('AuthService (unit)', () => {
     });
 
     it('clears refresh token and cookies', async () => {
-      (prisma.user.findUnique as jest.Mock).mockResolvedValue(mockUser);
-      (prisma.user.update as jest.Mock).mockResolvedValue({ ...mockUser });
+      prisma.user.findUnique.mockResolvedValue(mockUser);
+      prisma.user.update.mockResolvedValue({ ...mockUser });
 
       const result = await service.signout(mockUser.id, res);
 

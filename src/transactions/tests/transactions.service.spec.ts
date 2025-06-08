@@ -7,6 +7,7 @@ import { UpdateTransactionDTO } from '../dto/transactions/transaction-update.dto
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { BudgetAlertService } from '../budget-alert.service';
 import { randomUUID } from 'crypto';
+import * as balanceUtils from '@/transactions/utils/recalculateAccountBalanceInTx.util';
 
 jest.mock('@/transactions/utils/recalculateAccountBalanceInTx.util', () => ({
   recalculateAccountBalanceInTx: jest.fn(),
@@ -19,8 +20,6 @@ jest.mock('@/transactions/utils/recalculateAccountBalanceInTx.util', () => ({
 
 describe('TransactionsService', () => {
   let service: TransactionsService;
-  let budgetAlertService: BudgetAlertService;
-  let prisma: jest.Mocked<PrismaService>;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -32,8 +31,6 @@ describe('TransactionsService', () => {
     }).compile();
 
     service = module.get<TransactionsService>(TransactionsService);
-    budgetAlertService = module.get<BudgetAlertService>(BudgetAlertService);
-    prisma = module.get(PrismaService);
   });
 
   it('should be defined', () => {
@@ -433,10 +430,7 @@ describe('TransactionsService', () => {
         accountId: newAccount.id,
       };
 
-      const spy = jest.spyOn(
-        require('@/transactions/utils/recalculateAccountBalanceInTx.util'),
-        'recalculateAccountBalanceInTx',
-      );
+      const spy = jest.spyOn(balanceUtils, 'recalculateAccountBalanceInTx');
 
       spy.mockClear(); //
 

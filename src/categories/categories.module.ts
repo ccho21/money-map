@@ -8,6 +8,6 @@ import { CategoryDataService } from './data/CategoryDataService';
   imports: [PrismaModule],
   controllers: [CategoriesController],
   providers: [CategoriesService, CategoryDataService],
-  exports: [CategoryDataService],
+  exports: [CategoryDataService, CategoriesService],
 })
 export class CategoriesModule {}

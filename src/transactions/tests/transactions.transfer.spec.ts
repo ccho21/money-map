@@ -22,7 +22,9 @@ describe('TransactionsTransferService - transfer logic', () => {
       ],
     }).compile();
 
-    service = module.get<TransactionsTransferService>(TransactionsTransferService);
+    service = module.get<TransactionsTransferService>(
+      TransactionsTransferService,
+    );
     prisma = module.get(PrismaService);
   });
 
@@ -50,7 +52,9 @@ describe('TransactionsTransferService - transfer logic', () => {
         balance: 0,
       };
 
-      (prisma.$transaction as jest.Mock).mockImplementation(async (cb) => cb(prisma));
+      (prisma.$transaction as jest.Mock).mockImplementation(async (cb) =>
+        cb(prisma),
+      );
 
       (prisma.account.findUnique as jest.Mock)
         .mockResolvedValueOnce(fromAccount)
@@ -97,7 +101,9 @@ describe('TransactionsTransferService - transfer logic', () => {
       };
 
       (prisma.transaction.findUnique as jest.Mock).mockResolvedValue(original);
-      (prisma.$transaction as jest.Mock).mockImplementation(async (cb) => cb(prisma));
+      (prisma.$transaction as jest.Mock).mockImplementation(async (cb) =>
+        cb(prisma),
+      );
 
       const fromAccount = {
         ...mockAccount,
@@ -138,7 +144,10 @@ describe('TransactionsTransferService - transfer logic', () => {
       expect(prisma.transaction.create).toHaveBeenCalled();
       expect(prisma.transaction.update).toHaveBeenCalledWith({
         where: { id: original.id },
-        data: expect.objectContaining({ linkedTransferId: 'new-in', amount: 200 }),
+        data: expect.objectContaining({
+          linkedTransferId: 'new-in',
+          amount: 200,
+        }),
       });
     });
   });
@@ -166,9 +175,13 @@ describe('TransactionsTransferService - transfer logic', () => {
         .mockResolvedValueOnce(outgoing)
         .mockResolvedValueOnce(incoming);
 
-      (prisma.$transaction as jest.Mock).mockImplementation(async (cb) => cb(prisma));
+      (prisma.$transaction as jest.Mock).mockImplementation(async (cb) =>
+        cb(prisma),
+      );
 
-      (prisma.transaction.updateMany as jest.Mock).mockResolvedValue({ count: 2 });
+      (prisma.transaction.updateMany as jest.Mock).mockResolvedValue({
+        count: 2,
+      });
       (prisma.account.findUnique as jest.Mock).mockResolvedValue(mockAccount);
       (prisma.transaction.findMany as jest.Mock).mockResolvedValue([]);
       (prisma.account.update as jest.Mock).mockResolvedValue(mockAccount);

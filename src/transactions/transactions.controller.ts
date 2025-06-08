@@ -44,17 +44,26 @@ export class TransactionsController {
   }
 
   @Get('summary')
-  getSummary(@GetUser() user: UserPayload, @Query() query: TransactionGroupQueryDTO) {
+  getSummary(
+    @GetUser() user: UserPayload,
+    @Query() query: TransactionGroupQueryDTO,
+  ) {
     return this.analysisService.getTransactionSummary(user.id, query);
   }
 
   @Get('groups')
-  getGroupedTransactions(@GetUser() user: UserPayload, @Query() query: TransactionGroupQueryDTO) {
+  getGroupedTransactions(
+    @GetUser() user: UserPayload,
+    @Query() query: TransactionGroupQueryDTO,
+  ) {
     return this.analysisService.getGroupedTransactions(user.id, query);
   }
 
   @Get('calendar')
-  getCalendarView(@GetUser() user: UserPayload, @Query() query: TransactionGroupQueryDTO) {
+  getCalendarView(
+    @GetUser() user: UserPayload,
+    @Query() query: TransactionGroupQueryDTO,
+  ) {
     return this.analysisService.getTransactionCalendarView(user.id, query);
   }
 
@@ -64,34 +73,53 @@ export class TransactionsController {
   }
 
   @Get('charts/flow')
-  getChartFlow(@GetUser() user: UserPayload, @Query() query: TransactionGroupQueryDTO): Promise<TransactionChartFlowDTO> {
+  getChartFlow(
+    @GetUser() user: UserPayload,
+    @Query() query: TransactionGroupQueryDTO,
+  ): Promise<TransactionChartFlowDTO> {
     return this.analysisService.getChartFlow(user.id, query);
   }
 
   @Get('charts/category')
-  getChartCategory(@GetUser() user: UserPayload, @Query() query: TransactionGroupQueryDTO): Promise<TransactionChartCategoryDTO> {
+  getChartCategory(
+    @GetUser() user: UserPayload,
+    @Query() query: TransactionGroupQueryDTO,
+  ): Promise<TransactionChartCategoryDTO> {
     return this.analysisService.getChartCategory(user.id, query);
   }
 
   @Get('charts/account')
-  getChartAccount(@GetUser() user: UserPayload, @Query() query: TransactionGroupQueryDTO): Promise<TransactionChartAccountDTO> {
+  getChartAccount(
+    @GetUser() user: UserPayload,
+    @Query() query: TransactionGroupQueryDTO,
+  ): Promise<TransactionChartAccountDTO> {
     return this.analysisService.getChartAccount(user.id, query);
   }
 
   @Get('charts/budget')
-  getChartBudget(@GetUser() user: UserPayload, @Query() query: TransactionGroupQueryDTO): Promise<TransactionChartBudgetDTO> {
+  getChartBudget(
+    @GetUser() user: UserPayload,
+    @Query() query: TransactionGroupQueryDTO,
+  ): Promise<TransactionChartBudgetDTO> {
     return this.analysisService.getChartBudget(user.id, query);
   }
 
   @Post('transfer')
   @ApiOperation({ summary: '계좌 간 이체 생성' })
-  createTransfer(@Body() dto: CreateTransactionDTO, @GetUser() user: UserPayload) {
+  createTransfer(
+    @Body() dto: CreateTransactionDTO,
+    @GetUser() user: UserPayload,
+  ) {
     return this.transferService.createTransfer(user.id, dto);
   }
 
   @Patch('transfer/:id')
   @ApiOperation({ summary: '이체 트랜잭션 수정' })
-  updateTransfer(@Param('id') id: string, @Body() dto: UpdateTransactionDTO, @GetUser() user: UserPayload) {
+  updateTransfer(
+    @Param('id') id: string,
+    @Body() dto: UpdateTransactionDTO,
+    @GetUser() user: UserPayload,
+  ) {
     return this.transferService.updateTransfer(user.id, id, dto);
   }
 
@@ -102,12 +130,19 @@ export class TransactionsController {
   }
 
   @Get(':id')
-  findOne(@GetUser() user: UserPayload, @Param('id') id: string): Promise<TransactionDetailDTO> {
+  findOne(
+    @GetUser() user: UserPayload,
+    @Param('id') id: string,
+  ): Promise<TransactionDetailDTO> {
     return this.transactionService.getTransactionById(user.id, id);
   }
 
   @Patch(':id')
-  update(@GetUser() user: UserPayload, @Param('id') id: string, @Body() dto: UpdateTransactionDTO) {
+  update(
+    @GetUser() user: UserPayload,
+    @Param('id') id: string,
+    @Body() dto: UpdateTransactionDTO,
+  ) {
     return this.transactionService.update(user.id, id, dto);
   }
 

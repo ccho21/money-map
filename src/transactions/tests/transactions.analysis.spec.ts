@@ -1,11 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { PrismaService } from '@/prisma/prisma.service';
 import { Transaction, TransactionType } from '@prisma/client';
-import {
-  mockAccount,
-  mockPrismaFactory,
-  mockUser,
-} from '@/mocks/mockHelpers';
+import { mockAccount, mockPrismaFactory, mockUser } from '@/mocks/mockHelpers';
 import { randomUUID } from 'crypto';
 import { TransactionsAnalysisService } from '../analysis.service';
 import { BadRequestException } from '@nestjs/common';
@@ -13,7 +9,6 @@ import { DateRangeService } from '../date-range.service';
 
 describe('TransactionsAnalysisService', () => {
   let service: TransactionsAnalysisService;
-  let dateRangeService: DateRangeService;
   let prisma: jest.Mocked<PrismaService>;
 
   beforeEach(async () => {
@@ -34,9 +29,6 @@ describe('TransactionsAnalysisService', () => {
     }).compile();
 
     service = module.get<TransactionsAnalysisService>(
-      TransactionsAnalysisService,
-    );
-    dateRangeService = module.get<DateRangeService>(
       TransactionsAnalysisService,
     );
     prisma = module.get(PrismaService);
@@ -107,7 +99,6 @@ describe('TransactionsAnalysisService', () => {
   describe('TransactionsAnalysisService - getGroupedTransactions()', () => {
     let service: TransactionsAnalysisService;
     let prisma: PrismaService;
-    let dateRangeService: DateRangeService;
 
     let userId: string;
     let accountId: string;
@@ -357,11 +348,7 @@ describe('TransactionsAnalysisService', () => {
           account: { name: 'A' },
         },
       ];
-      // @ts-ignore access private
-      const map: Map<string, number> = service.accumulateBalanceAfter(
-        txs as (Transaction & { account: { name: string } })[],
-        0,
-      );
+      const map: Map<string, number> = service.accumulateBalanceAfter(txs, 0);
       expect(map.get('a')).toBe(10);
       expect(map.get('b')).toBe(5);
       expect(map.get('c')).toBe(-15);

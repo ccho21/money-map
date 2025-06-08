@@ -160,7 +160,7 @@ export class TransactionsAnalysisService {
     );
   }
 
-  private accumulateBalanceAfter(
+  accumulateBalanceAfter(
     transactions: (Transaction & { account: { name: string } })[],
     initialBalance: number,
   ): Map<string, number> {
@@ -377,7 +377,7 @@ export class TransactionsAnalysisService {
       query,
       timezone,
     );
-    
+
     const baseWhere = this.buildTransactionWhereClause(
       userId,
       query,

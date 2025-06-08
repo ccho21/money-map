@@ -15,7 +15,12 @@ describe('DashboardService (unit)', () => {
       providers: [
         DashboardService,
         { provide: PrismaService, useValue: mockPrismaFactory() },
-        { provide: InsightService, useValue: { generateInsights: jest.fn() } },
+        {
+          provide: InsightService,
+          useValue: {
+            generateInsights: jest.fn().mockResolvedValue([]), // already arrow-safe
+          },
+        },
       ],
     }).compile();
 
@@ -35,7 +40,7 @@ describe('DashboardService (unit)', () => {
       startDate: '2024-01-01',
       endDate: '2024-01-31',
       groupBy: 'date',
-    } as any;
+    };
 
     it('throws when user not found', async () => {
       (prisma.user.findUnique as jest.Mock).mockResolvedValue(null);
@@ -89,19 +94,29 @@ describe('DashboardService (unit)', () => {
         color: '#f00',
         percent: 100,
       });
-      expect(insight.generateInsights).toHaveBeenCalledWith(mockUser.id, ['dashboard'], {
-        startDate: baseQuery.startDate,
-        endDate: baseQuery.endDate,
-        timeframe: baseQuery.timeframe,
-      });
-      expect(prisma.transaction.findMany).toHaveBeenCalledTimes(4);
+      expect(insight.generateInsights.bind(insight)).toHaveBeenCalledWith(
+        mockUser.id,
+        ['dashboard'],
+        expect.objectContaining({
+          startDate: baseQuery.startDate,
+          endDate: baseQuery.endDate,
+          timeframe: baseQuery.timeframe,
+        }),
+      );
+
+      const spy = jest.spyOn(prisma.transaction, 'findMany');
+      expect(spy).toHaveBeenCalledTimes(4);
     });
 
     it('omits comparisons for custom timeframe', async () => {
       const query = { ...baseQuery, timeframe: 'custom' as const };
       (prisma.user.findUnique as jest.Mock).mockResolvedValue(mockUser);
-      (prisma.account.findMany as jest.Mock).mockResolvedValue([{ balance: 100 }]);
-      (prisma.budgetCategory.findMany as jest.Mock).mockResolvedValue([{ amount: 100 }]);
+      (prisma.account.findMany as jest.Mock).mockResolvedValue([
+        { balance: 100 },
+      ]);
+      (prisma.budgetCategory.findMany as jest.Mock).mockResolvedValue([
+        { amount: 100 },
+      ]);
       (prisma.transaction.findMany as jest.Mock)
         .mockResolvedValueOnce([{ amount: 10 }])
         .mockResolvedValueOnce([
@@ -118,7 +133,7 @@ describe('DashboardService (unit)', () => {
 
       expect(result.budget.comparison).toBeUndefined();
       expect(result.monthlySpending.comparison).toBeUndefined();
-      expect(prisma.transaction.findMany).toHaveBeenCalledTimes(3);
+      expect(void prisma.transaction.findMany).toHaveBeenCalledTimes(3);
     });
   });
 });
