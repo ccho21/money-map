@@ -23,15 +23,13 @@ describe('TransactionsController (e2e)', () => {
   let transferService: jest.Mocked<TransactionsTransferService>;
 
   beforeAll(async () => {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     txService = {
       create: jest.fn().mockResolvedValue(mockTransaction),
       getTransactionById: jest.fn().mockResolvedValue(mockTransaction),
       update: jest.fn().mockResolvedValue(mockTransaction),
       delete: jest.fn().mockResolvedValue({ message: 'ok' }),
-    } as any;
+    } as unknown as jest.Mocked<TransactionsService>;
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     analysisService = {
       getTransactionSummary: jest.fn().mockResolvedValue({ totalIncome: 1000 }),
       getGroupedTransactions: jest.fn().mockResolvedValue({ groups: [] }),
@@ -43,14 +41,13 @@ describe('TransactionsController (e2e)', () => {
       getChartCategory: jest.fn().mockResolvedValue({ topCategories: [] }),
       getChartAccount: jest.fn().mockResolvedValue({ accounts: [] }),
       getChartBudget: jest.fn().mockResolvedValue({ totalBudget: 0 }),
-    } as any;
+    } as unknown as jest.Mocked<TransactionsAnalysisService>;
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     transferService = {
       createTransfer: jest.fn().mockResolvedValue(mockTransaction),
       updateTransfer: jest.fn().mockResolvedValue(mockTransaction),
       deleteTransfer: jest.fn().mockResolvedValue({ message: 'ok' }),
-    } as any;
+    } as unknown as jest.Mocked<TransactionsTransferService>;
 
     const moduleRef: TestingModule = await Test.createTestingModule({
       controllers: [TransactionsController],
@@ -92,6 +89,7 @@ describe('TransactionsController (e2e)', () => {
       },
     };
 
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
     await request(app.getHttpServer())
       .post('/transactions')
       .send(mockCreateTransactionDto)
@@ -100,6 +98,7 @@ describe('TransactionsController (e2e)', () => {
   });
 
   it('GET /transactions/summary', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
     await request(app.getHttpServer())
       .get('/transactions/summary')
       .query({ timeframe: 'monthly' })
@@ -118,6 +117,7 @@ describe('TransactionsController (e2e)', () => {
         updatedAt: mockTransaction.account.updatedAt.toISOString(),
       },
     };
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
     await request(app.getHttpServer())
       .post('/transactions/transfer')
       .send(mockTransferTransactionDto)
@@ -136,6 +136,7 @@ describe('TransactionsController (e2e)', () => {
         updatedAt: mockTransaction.account.updatedAt.toISOString(),
       },
     };
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
     await request(app.getHttpServer())
       .patch(`/transactions/${mockTransaction.id}`)
       .send(mockUpdateTransactionDto)
@@ -144,6 +145,7 @@ describe('TransactionsController (e2e)', () => {
   });
 
   it('DELETE /transactions/:id', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
     await request(app.getHttpServer())
       .delete(`/transactions/${mockTransaction.id}`)
       .expect(200)
