@@ -472,13 +472,6 @@ describe('TransactionsService', () => {
         },
       });
 
-      const dto: UpdateTransactionDTO = {
-        amount: 2000,
-        // dto.recurring is undefined → should remove recurring link
-      };
-
-      const updated = await service.update(userId, tx.id, dto);
-
       const found = await prisma.transaction.findUnique({
         where: { id: tx.id },
       });

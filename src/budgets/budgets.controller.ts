@@ -19,7 +19,6 @@ import {
   BudgetCategoryUpdateRequestDTO,
 } from './dto/budget-category-request.dto';
 import { BudgetQueryDTO } from './dto/params/budget-query.dto';
-import { BudgetAlertDTO } from './dto/alert/budget-alert.dto';
 
 @ApiTags('Budgets')
 @ApiBearerAuth('access-token')

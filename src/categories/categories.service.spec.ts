@@ -1,11 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { CategoriesService } from './categories.service';
 import { PrismaService } from '@/prisma/prisma.service';
-import {
-  mockPrismaFactory,
-  mockUser,
-  mockCategory,
-} from '@/mocks/mockHelpers';
+import { mockPrismaFactory, mockUser, mockCategory } from '@/mocks/mockHelpers';
 import { CategoryCreateRequestDTO } from './dto/category-request.dto';
 import { CategoryType } from '@prisma/client';
 

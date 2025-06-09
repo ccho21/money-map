@@ -6,6 +6,7 @@ import { randomUUID } from 'crypto';
 import { TransactionsAnalysisService } from '../analysis.service';
 import { BadRequestException } from '@nestjs/common';
 import { DateRangeService } from '../date-range.service';
+import { GroupBy } from '../dto/params/transaction-group-query.dto';
 
 describe('TransactionsAnalysisService', () => {
   let service: TransactionsAnalysisService;
@@ -213,7 +214,6 @@ describe('TransactionsAnalysisService', () => {
         (group) => group.transactions,
       ).length;
       expect(result).toBeDefined();
-      const group = result;
       expect(result.groupBy).toBe('date');
       expect(totalTransactions).toBe(4);
       expect(
@@ -296,7 +296,7 @@ describe('TransactionsAnalysisService', () => {
       await expect(
         service.getGroupedTransactions(userId, {
           ...baseQuery,
-          groupBy: 'invalid' as any,
+          groupBy: 'invalid' as GroupBy,
         }),
       ).rejects.toThrow(BadRequestException);
     });
