@@ -1,12 +1,12 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { AuthService } from './auth.service';
-import { PrismaService } from '@/prisma/prisma.service';
-import { JwtService } from '@nestjs/jwt';
-import { ConfigService } from '@nestjs/config';
 import { ConflictException, ForbiddenException } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { Response } from 'express';
+import { Test, TestingModule } from '@nestjs/testing';
+import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
 
+import { AuthService } from './auth.service';
+import { PrismaService } from '@/prisma/prisma.service';
 import {
   mockSignupDto,
   mockSigninDto,
@@ -16,10 +16,12 @@ import {
 import { mockPrismaFactory, mockUser } from '@/mocks/mockHelpers';
 import { setAuthCookies, clearCookie } from './helpers/cookie.helper';
 
-jest.mock('./helpers/token.helper', () => {
-  const { mockTokens } = require('@/mocks/auth.mockHelpers');
-  return { generateTokens: jest.fn().mockResolvedValue(mockTokens) };
-});
+jest.mock('./helpers/token.helper', () => ({
+  generateTokens: jest.fn().mockResolvedValue({
+    accessToken: 'mock-access-token',
+    refreshToken: 'mock-refresh-token',
+  }),
+}));
 
 jest.mock('./helpers/cookie.helper', () => ({
   setAuthCookies: jest.fn(),
@@ -28,7 +30,7 @@ jest.mock('./helpers/cookie.helper', () => ({
 
 describe('AuthService (unit)', () => {
   let service: AuthService;
-  let prisma: ReturnType<typeof mockPrismaFactory>;
+  let prisma: jest.Mocked<PrismaService>;
   let res: Response;
 
   beforeEach(async () => {
@@ -44,41 +46,46 @@ describe('AuthService (unit)', () => {
     service = module.get(AuthService);
     prisma = module.get(PrismaService);
     res = mockResponse() as unknown as Response;
+
     jest.clearAllMocks();
   });
 
-  it('service should be defined', () => {
+  it('service defined', () => {
     expect(service).toBeDefined();
   });
 
   describe('signup', () => {
-    it('throws when email exists', async () => {
-      prisma.user.findUnique.mockResolvedValue(mockUser);
+    it('throws ConflictException if email exists', async () => {
+      jest.spyOn(prisma.user, 'findUnique').mockResolvedValue(mockUser);
 
       await expect(service.signup(mockSignupDto, res)).rejects.toBeInstanceOf(
         ConflictException,
       );
     });
 
-    it('creates a user and sets cookies', async () => {
-      prisma.user.findUnique.mockResolvedValue(null);
-      prisma.user.create.mockResolvedValue(mockUser);
-      prisma.user.update.mockResolvedValue({
-        ...mockUser,
-        hashedRefreshToken: 'hashed',
-      });
-      jest.spyOn(bcrypt, 'hash').mockResolvedValue('hashed-pass');
+    it('creates user and stores hashed refresh token', async () => {
+      jest.spyOn(prisma.user, 'findUnique').mockResolvedValue(null);
+      jest.spyOn(prisma.user, 'create').mockResolvedValue(mockUser);
+      jest.spyOn(prisma.user, 'update').mockResolvedValue(mockUser);
+      jest
+        .spyOn(bcrypt, 'hash')
+        .mockImplementation(() => Promise.resolve('hashed'));
 
+      const createSpy = jest.spyOn(prisma.user, 'create');
+      const updateSpy = jest.spyOn(prisma.user, 'update');
       const result = await service.signup(mockSignupDto, res);
 
-      expect(prisma.user.create).toHaveBeenCalledWith({
+      expect(createSpy).toHaveBeenCalledWith({
         data: {
           email: mockSignupDto.email,
-          password: 'hashed-pass',
+          password: 'hashed',
           timezone: mockSignupDto.timezone,
         },
       });
-      expect(prisma.user.update).toHaveBeenCalled();
+      expect(updateSpy).toHaveBeenCalledWith({
+        where: { id: mockUser.id },
+        data: { hashedRefreshToken: 'hashed' },
+      });
       expect(setAuthCookies).toHaveBeenCalledWith(
         res,
         mockTokens.accessToken,
@@ -89,32 +96,40 @@ describe('AuthService (unit)', () => {
   });
 
   describe('signin', () => {
-    it('throws when user not found', async () => {
-      prisma.user.findUnique.mockResolvedValue(null);
+    it('throws ForbiddenException when user missing', async () => {
+      jest.spyOn(prisma.user, 'findUnique').mockResolvedValue(null);
 
       await expect(service.signin(mockSigninDto, res)).rejects.toBeInstanceOf(
         ForbiddenException,
       );
     });
 
-    it('throws on password mismatch', async () => {
-      prisma.user.findUnique.mockResolvedValue(mockUser);
-      jest.spyOn(bcrypt, 'compare').mockResolvedValue(false);
+    it('throws ForbiddenException on password mismatch', async () => {
+      jest.spyOn(prisma.user, 'findUnique').mockResolvedValue(mockUser);
+      jest.spyOn(bcrypt, 'compare');
+      jest
+        .spyOn(bcrypt, 'compare')
+        .mockImplementation(() => Promise.resolve(false));
 
       await expect(service.signin(mockSigninDto, res)).rejects.toBeInstanceOf(
         ForbiddenException,
       );
     });
 
-    it('signs in user and sets cookies', async () => {
-      prisma.user.findUnique.mockResolvedValue(mockUser);
-      jest.spyOn(bcrypt, 'compare').mockResolvedValue(true);
-      jest.spyOn(bcrypt, 'hash').mockResolvedValue('hashed');
-      prisma.user.update.mockResolvedValue({ ...mockUser });
+    it('updates refresh token and sets cookies', async () => {
+      jest.spyOn(prisma.user, 'findUnique').mockResolvedValue(mockUser);
+      jest
+        .spyOn(bcrypt, 'compare')
+        .mockImplementation(() => Promise.resolve(true));
+      jest.spyOn(prisma.user, 'update').mockResolvedValue(mockUser);
+      jest
+        .spyOn(bcrypt, 'hash')
+        .mockImplementation(() => Promise.resolve('hashed'));
 
+      const udpateSpy = jest.spyOn(prisma.user, 'update');
       const result = await service.signin(mockSigninDto, res);
 
-      expect(prisma.user.update).toHaveBeenCalled();
+      expect(udpateSpy).toHaveBeenCalled();
       expect(setAuthCookies).toHaveBeenCalled();
       expect(result).toEqual({ message: 'Signin successful' });
     });
@@ -122,37 +137,44 @@ describe('AuthService (unit)', () => {
 
   describe('googleSignin', () => {
     it('creates new user when not found', async () => {
-      prisma.user.findUnique.mockResolvedValue(null);
-      prisma.user.create.mockResolvedValue(mockUser);
-      prisma.user.update.mockResolvedValue({
-        ...mockUser,
-        hashedRefreshToken: 'hashed',
-      });
-      jest.spyOn(bcrypt, 'hash').mockResolvedValue('hashed');
+      jest.spyOn(prisma.user, 'findUnique').mockResolvedValue(null);
+      jest.spyOn(prisma.user, 'create').mockResolvedValue(mockUser);
+      jest.spyOn(prisma.user, 'update').mockResolvedValue(mockUser);
+      jest
+        .spyOn(bcrypt, 'hash')
+        .mockImplementation(() => Promise.resolve('hashed'));
 
+      const createSpy = jest.spyOn(prisma.user, 'create');
+      const updateSpy = jest.spyOn(prisma.user, 'update');
       const result = await service.googleSignin(mockUser, res);
 
-      expect(prisma.user.create).toHaveBeenCalled();
+      expect(createSpy).toHaveBeenCalled();
+      expect(updateSpy).toHaveBeenCalled();
       expect(setAuthCookies).toHaveBeenCalled();
       expect(result).toEqual({ message: 'Google login successful' });
     });
 
     it('uses existing user when found', async () => {
-      prisma.user.findUnique.mockResolvedValue(mockUser);
-      prisma.user.update.mockResolvedValue({ ...mockUser });
-      jest.spyOn(bcrypt, 'hash').mockResolvedValue('hashed');
+      jest.spyOn(prisma.user, 'findUnique').mockResolvedValue(mockUser);
+      jest.spyOn(prisma.user, 'update').mockResolvedValue(mockUser);
+      jest
+        .spyOn(bcrypt, 'hash')
+        .mockImplementation(() => Promise.resolve('hashed'));
+
+      const createSpy = jest.spyOn(prisma.user, 'create');
+      const updateSpy = jest.spyOn(prisma.user, 'update');
 
       const result = await service.googleSignin(mockUser, res);
 
-      expect(prisma.user.create).not.toHaveBeenCalled();
-      expect(prisma.user.update).toHaveBeenCalled();
+      expect(createSpy).not.toHaveBeenCalled();
+      expect(updateSpy).toHaveBeenCalled();
       expect(result).toEqual({ message: 'Google login successful' });
     });
   });
 
   describe('refreshAccessToken', () => {
-    it('throws when user not found', async () => {
-      prisma.user.findUnique.mockResolvedValue(null);
+    it('throws ForbiddenException when user missing', async () => {
+      jest.spyOn(prisma.user, 'findUnique').mockResolvedValue(null);
 
       await expect(
         service.refreshAccessToken(mockUser.id, res),
@@ -160,21 +182,24 @@ describe('AuthService (unit)', () => {
     });
 
     it('issues new tokens and sets cookies', async () => {
-      prisma.user.findUnique.mockResolvedValue(mockUser);
-      jest.spyOn(bcrypt, 'hash').mockResolvedValue('hashed');
-      prisma.user.update.mockResolvedValue({ ...mockUser });
+      jest.spyOn(prisma.user, 'findUnique').mockResolvedValue(mockUser);
+      jest.spyOn(prisma.user, 'update').mockResolvedValue(mockUser);
+      jest
+        .spyOn(bcrypt, 'hash')
+        .mockImplementation(() => Promise.resolve('hashed'));
 
+      const updateSpy = jest.spyOn(prisma.user, 'update');
       const result = await service.refreshAccessToken(mockUser.id, res);
 
-      expect(prisma.user.update).toHaveBeenCalled();
+      expect(updateSpy).toHaveBeenCalled();
       expect(setAuthCookies).toHaveBeenCalled();
       expect(result).toEqual({ message: 'Access token refreshed' });
     });
   });
 
   describe('signout', () => {
-    it('throws when user not found', async () => {
-      prisma.user.findUnique.mockResolvedValue(null);
+    it('throws ForbiddenException when user missing', async () => {
+      jest.spyOn(prisma.user, 'findUnique').mockResolvedValue(null);
 
       await expect(service.signout(mockUser.id, res)).rejects.toBeInstanceOf(
         ForbiddenException,
@@ -182,12 +207,13 @@ describe('AuthService (unit)', () => {
     });
 
     it('clears refresh token and cookies', async () => {
-      prisma.user.findUnique.mockResolvedValue(mockUser);
-      prisma.user.update.mockResolvedValue({ ...mockUser });
+      jest.spyOn(prisma.user, 'findUnique').mockResolvedValue(mockUser);
+      jest.spyOn(prisma.user, 'update').mockResolvedValue(mockUser);
 
+      const updateSpy = jest.spyOn(prisma.user, 'update');
       const result = await service.signout(mockUser.id, res);
 
-      expect(prisma.user.update).toHaveBeenCalledWith({
+      expect(updateSpy).toHaveBeenCalledWith({
         where: { id: mockUser.id },
         data: { hashedRefreshToken: null },
       });

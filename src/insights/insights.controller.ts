@@ -1,5 +1,5 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
-import { InsightService } from './insights.service';
+import { InsightsService } from './insights.service';
 import { GetUser } from '@/common/decorators/get-user.decorator';
 import { UserPayload } from '@/auth/types/user-payload.type';
 import { PatternInsightResponseDTO } from './dto/pattern.dto';
@@ -15,7 +15,7 @@ import { RecurringInsightResponseDTO } from './dto/recurring.dto';
 @UseGuards(JwtAuthGuard) // ✅ 여기에 추가
 @Controller('insights')
 export class InsightsController {
-  constructor(private readonly insightsService: InsightService) {}
+  constructor(private readonly insightsService: InsightsService) {}
 
   @Get('pattern')
   getPatternInsights(
@@ -28,7 +28,7 @@ export class InsightsController {
   @Get('budget')
   getBudgetInsights(
     @GetUser() user: UserPayload,
-    @Query() query: InsightQueryDTO, 
+    @Query() query: InsightQueryDTO,
   ): Promise<BudgetInsightResponseDTO> {
     return this.insightsService.getBudgetInsights(user.id, query);
   }

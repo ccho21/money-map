@@ -3,7 +3,6 @@ import { forwardRef, Module } from '@nestjs/common';
 import { InsightRuleRegistryService } from './InsightRuleRegistryService';
 import { BudgetExceededRule } from './rules/BudgetExceededRule';
 import { PrismaService } from '@/prisma/prisma.service';
-import { InsightService } from './insights.service';
 import { WeekendSpendingRule } from './rules/WeekendSpendingRule';
 import { LateNightShoppingRule } from './rules/LateNightShoppingRule';
 import { CategoryOverspendRule } from './rules/CategoryOverspendRule';
@@ -18,6 +17,7 @@ import { BudgetsModule } from '@/budgets/budgets.module';
 import { CategoriesModule } from '@/categories/categories.module';
 import { TransactionsModule } from '@/transactions/transactions.module';
 import { RecurringModule } from '@/recurring/recurring.module';
+import { InsightsService } from './insights.service';
 
 @Module({
   imports: [
@@ -29,7 +29,7 @@ import { RecurringModule } from '@/recurring/recurring.module';
   ],
   controllers: [InsightsController],
   providers: [
-    InsightService,
+    InsightsService,
     InsightRuleRegistryService,
     PrismaService,
     // RULES
@@ -43,6 +43,6 @@ import { RecurringModule } from '@/recurring/recurring.module';
     CardOveruseRule,
     RecurringIncreaseRule,
   ],
-  exports: [InsightService],
+  exports: [InsightsService],
 })
 export class InsightsModule {}

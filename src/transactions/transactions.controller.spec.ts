@@ -237,7 +237,7 @@ describe('TransactionsController', () => {
       mockTransferTransactionDto,
       userPayload,
     );
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+
     expect(result.outgoing.id).toBe('out');
     expect(spy).toHaveBeenCalledWith(
       userPayload.id,

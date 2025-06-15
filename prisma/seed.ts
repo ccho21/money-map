@@ -5,7 +5,7 @@ import {
   TransactionType,
   RecurringFrequency,
 } from '@prisma/client';
-import bcrypt from 'bcrypt';
+import * as bcrypt from 'bcrypt';
 import { set } from 'date-fns';
 
 const prisma = new PrismaClient();
@@ -103,7 +103,7 @@ async function main() {
   const today = new Date();
   const currentYear = today.getFullYear();
   const mayMonth = 4; // 5월 (0-based)
-  const juneMonth = 5; // 6월
+  // const juneMonth = 5; // 6월
 
   const allTransactions: NewTransaction[] = [];
   const budgetCategoryData: NewBudgetCategory[] = [];

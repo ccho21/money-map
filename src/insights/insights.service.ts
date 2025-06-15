@@ -11,7 +11,7 @@ import { RecurringDataService } from '@/recurring/data/RecurringDataService';
 import { AlertInsightResponseDTO } from './dto/alert.dto';
 
 @Injectable()
-export class InsightService {
+export class InsightsService {
   constructor(
     private readonly registry: InsightRuleRegistryService,
     private transactionDataService: TransactionDataService,

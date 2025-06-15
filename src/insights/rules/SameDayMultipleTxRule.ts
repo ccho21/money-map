@@ -18,10 +18,16 @@ export class SameDayMultipleTxRule extends InsightRuleBase {
 
   async generate(userId: string): Promise<InsightDTO[]> {
     console.log('### SameDayMultipleTxRule ###');
-    const txs = await this.transactionDataService.getExpenseTransactionsByDate(userId, 7);
+    const txs = await this.transactionDataService.getExpenseTransactionsByDate(
+      userId,
+      7,
+    );
 
     // (categoryId + date) 조합별 개수 집계
-    const map = new Map<string, { categoryId: string; date: string; count: number }>();
+    const map = new Map<
+      string,
+      { categoryId: string; date: string; count: number }
+    >();
 
     for (const tx of txs) {
       if (!tx.categoryId) continue;

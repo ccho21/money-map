@@ -13,7 +13,7 @@ import { AccountsModule } from './accounts/accounts.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { InsightsModule } from './insights/insights.module';
 import { RecurringModule } from './recurring/recurring.module';
-import { ScheduleModule } from '@nestjs/schedule'
+import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
   imports: [

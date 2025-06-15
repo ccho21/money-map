@@ -6,9 +6,6 @@ import { InsightContextType } from '../types/type';
 import { InsightDTO } from '../dto/insight.dto';
 import { RecurringDataService } from '@/recurring/data/RecurringDataService';
 
-import { ChartDataItem } from '../dto/chart-item.dto';
-import { Timeframe } from '@/transactions/dto/params/transaction-group-query.dto';
-import { RecurringInsightResponseDTO } from '../dto/recurring.dto';
 import { InsightQueryDTO } from '../dto/query.dto';
 
 @Injectable()

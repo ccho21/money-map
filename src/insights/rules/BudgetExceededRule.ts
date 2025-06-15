@@ -30,7 +30,11 @@ export class BudgetExceededRule extends InsightRuleBase {
     const budgets = await this.budgetDataService.getCurrentBudgets(userId);
 
     const txSummary =
-      await this.transactionDataService.getCategorySpendingSummary(userId, startDate, endDate);
+      await this.transactionDataService.getCategorySpendingSummary(
+        userId,
+        startDate,
+        endDate,
+      );
 
     const insights: InsightDTO[] = [];
 

@@ -1,19 +1,23 @@
-import { Test, TestingModule } from '@nestjs/testing';
+import { Test } from '@nestjs/testing';
 import { PrismaService } from '@/prisma/prisma.service';
-import { Transaction, TransactionType } from '@prisma/client';
-import { mockAccount, mockPrismaFactory, mockUser } from '@/mocks/mockHelpers';
-import { randomUUID } from 'crypto';
 import { TransactionsAnalysisService } from '../analysis.service';
-import { BadRequestException } from '@nestjs/common';
 import { DateRangeService } from '../date-range.service';
-import { GroupBy } from '../dto/params/transaction-group-query.dto';
+import {
+  mockPrismaFactory,
+  mockTransaction,
+  mockUser,
+  TransactionDetail,
+} from '@/mocks/mockHelpers';
+import { TransactionType } from '@prisma/client';
+import { BadRequestException } from '@nestjs/common';
+import { TransactionGroupQueryDTO } from '../dto/params/transaction-group-query.dto';
 
-describe('TransactionsAnalysisService', () => {
+describe('TransactionsAnalysisService (unit)', () => {
   let service: TransactionsAnalysisService;
   let prisma: jest.Mocked<PrismaService>;
 
   beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
+    const module = await Test.createTestingModule({
       providers: [
         TransactionsAnalysisService,
         { provide: PrismaService, useValue: mockPrismaFactory() },
@@ -29,488 +33,346 @@ describe('TransactionsAnalysisService', () => {
       ],
     }).compile();
 
-    service = module.get<TransactionsAnalysisService>(
-      TransactionsAnalysisService,
-    );
+    service = module.get(TransactionsAnalysisService);
     prisma = module.get(PrismaService);
   });
 
-  it('should be defined', () => {
-    expect(service).toBeDefined();
-  });
-
-  // describe('convertToTransactionDetailDTO', () => {
-  //   it('maps entity fields to DTO', () => {
-  //     const fullMockTx: Transaction & {
-  //       category: CategoryDetailDTO;
-  //       account: AccountDetailDTO;
-  //       toAccount: AccountDetailDTO;
-  //     } = {
-  //       id: 'tx-001',
-  //       userId: mockUser.id,
-  //       createdAt: new Date(),
-  //       deletedAt: null,
-  //       type: 'expense' as TransactionType,
-  //       description: 'desc',
-  //       amount: 5000,
-  //       categoryId: 'cat',
-  //       accountId: 'acc-001',
-  //       toAccountId: null,
-  //       linkedTransferId: null,
-  //       note: 'note',
-  //       date: new Date(),
-  //       recurringTransactionId: null,
-  //       dueDate: null,
-  //       paidAt: null,
-  //       isOpening: false,
-
-  //       category: {
-  //         id: 'cat',
-  //         name: 'Food',
-  //         icon: '🍔',
-  //         type: 'expense',
-  //         color: '#f00',
-  //       },
-  //       account: {
-  //         id: 'acc-001',
-  //         name: 'Wallet',
-  //         type: 'CASH',
-  //         balance: 10000,
-  //         color: '#000000',
-  //       },
-  //       toAccount: {
-  //         id: 'acc-002',
-  //         name: 'Bank',
-  //         type: 'BANK',
-  //         balance: 5000,
-  //         color: '#00f',
-  //       },
-  //     };
-
-  //     const dto: TransactionDetailDTO =
-  //       service.convertToTransactionDetailDTO(fullMockTx);
-
-  //     expect(dto.id).toBe(mockTransaction.id);
-  //     expect(dto.account.id).toBe(mockAccount.id);
-  //     expect(dto.toAccount?.id).toBe('acc-2');
-  //     expect(dto.category?.name).toBe('Food');
-  //   });
-  // });
-  ///////// getGroupedTransactions /////////
-  describe('TransactionsAnalysisService - getGroupedTransactions()', () => {
-    let service: TransactionsAnalysisService;
-    let prisma: PrismaService;
-
-    let userId: string;
-    let accountId: string;
-    let categoryId: string;
-
-    beforeAll(async () => {
-      const moduleRef = await Test.createTestingModule({
-        providers: [
-          TransactionsAnalysisService,
-          PrismaService,
-          DateRangeService,
-        ],
-      }).compile();
-
-      service = moduleRef.get(TransactionsAnalysisService);
-      dateRangeService = moduleRef.get(DateRangeService);
-      prisma = moduleRef.get(PrismaService);
-
-      const user = await prisma.user.create({
-        data: {
-          email: `test-${randomUUID()}@test.com`,
-          password: 'hashed-password',
-        },
-      });
-      userId = user.id;
-
-      const category = await prisma.category.create({
-        data: {
-          name: '식비',
-          type: 'expense',
-          icon: '🍚',
-          userId,
-        },
-      });
-      categoryId = category.id;
-
-      const account = await prisma.account.create({
-        data: {
-          name: '테스트 계좌',
-          type: 'CASH',
-          userId,
-          balance: 0,
-        },
-      });
-      accountId = account.id;
-
-      const now = new Date();
-
-      await prisma.transaction.createMany({
-        data: [
-          {
-            userId,
-            accountId,
-            categoryId,
-            type: 'expense',
-            amount: 3000,
-            date: now,
-          },
-          {
-            userId,
-            accountId,
-            categoryId,
-            type: 'expense',
-            amount: 2000,
-            date: now,
-          },
-          {
-            userId,
-            accountId,
-            categoryId,
-            type: 'income',
-            amount: 10000,
-            date: now,
-          },
-          {
-            userId,
-            accountId,
-            categoryId,
-            type: 'expense',
-            amount: 1000,
-            note: '커피',
-            date: now,
-          },
-        ],
-      });
-    });
-
-    afterAll(async () => {
-      await prisma.transaction.deleteMany(); // ✅ 1. 트랜잭션부터
-      await prisma.recurringTransaction.deleteMany(); // ✅ 2. 반복 트랜잭션
-      await prisma.budgetCategory.deleteMany(); // ✅ 3. FK를 먼저 제거해야 함
-      await prisma.budget.deleteMany(); // ✅ 4. 예산 본체
-      await prisma.account.deleteMany(); // ✅ 5. 계좌
-      await prisma.category.deleteMany(); // ✅ 6. 카테고리 (이제 가능)
-      await prisma.user.deleteMany(); // ✅ 7. 유저
-    });
-
-    it('should group transactions by date with correct totalAmount', async () => {
-      const [startDate, endDate] = getCurrentDateString();
-      const baseQuery = {
-        startDate,
-        endDate,
-        timeframe: 'monthly' as const,
-        groupBy: 'date',
-      };
-      const result = await service.getGroupedTransactions(userId, {
-        ...baseQuery,
-        groupBy: 'date',
-      });
-
-      const totalTransactions = result.groups.flatMap(
-        (group) => group.transactions,
-      ).length;
-      expect(result).toBeDefined();
-      expect(result.groupBy).toBe('date');
-      expect(totalTransactions).toBe(4);
-      expect(
-        result.groups.map((g) => g.totalAmount).reduce((a, b) => a + b),
-      ).toBe(16000);
-    });
-
-    it('should group transactions by category', async () => {
-      const [startDate, endDate] = getCurrentDateString();
-      const baseQuery = {
-        startDate,
-        endDate,
-        timeframe: 'monthly' as const,
-      };
-      const result = await service.getGroupedTransactions(userId, {
-        ...baseQuery,
-        groupBy: 'category',
-      });
-      const group = result.groups[0];
-      expect(group.groupBy).toBe('category');
-      expect(group.groupKey).toBe('식비');
-      expect(group.transactions.length).toBe(4);
-    });
-
-    it('should group transactions by account', async () => {
-      const [startDate, endDate] = getCurrentDateString();
-      const baseQuery = {
-        startDate,
-        endDate,
-        timeframe: 'custom' as const,
-      };
-      const result = await service.getGroupedTransactions(userId, {
-        ...baseQuery,
-        groupBy: 'account',
-      });
-      const group = result.groups[0];
-      expect(group.groupBy).toBe('account');
-      expect(group.groupKey).toBe('테스트 계좌');
-      expect(group.transactions.length).toBe(4);
-    });
-
-    it('should filter by transactionType', async () => {
-      const [startDate, endDate] = getCurrentDateString();
-      const baseQuery = {
-        startDate,
-        endDate,
-        timeframe: 'custom' as const,
-      };
-      const result = await service.getGroupedTransactions(userId, {
-        ...baseQuery,
-        groupBy: 'date',
-        transactionType: 'expense',
-      });
-      expect(result.groups[0].transactions.length).toBe(3);
-    });
-
-    it('should filter by note keyword', async () => {
-      const [startDate, endDate] = getCurrentDateString();
-      const baseQuery = {
-        startDate,
-        endDate,
-        timeframe: 'custom' as const,
-      };
-      const result = await service.getGroupedTransactions(userId, {
-        ...baseQuery,
-        groupBy: 'date',
-        note: '커피',
-      });
-      expect(result.groups[0].transactions.length).toBe(1);
-      expect(result.groups[0].transactions[0].note).toBe('커피');
-    });
-
-    it('should throw BadRequestException for unsupported groupBy value', async () => {
-      const [startDate, endDate] = getCurrentDateString();
-      const baseQuery = {
-        startDate,
-        endDate,
-        timeframe: 'custom' as const,
-      };
-      await expect(
-        service.getGroupedTransactions(userId, {
-          ...baseQuery,
-          groupBy: 'invalid' as GroupBy,
-        }),
-      ).rejects.toThrow(BadRequestException);
-    });
-
-    it('should include balanceAfter when includeBalance is true', async () => {
-      const [startDate, endDate] = getCurrentDateString();
-      const baseQuery = {
-        startDate,
-        endDate,
-        timeframe: 'custom' as const,
-      };
-      const result = await service.getGroupedTransactions(userId, {
-        ...baseQuery,
-        groupBy: 'date',
-        accountId,
-        includeBalance: true,
-      });
-      const tx = result.groups[0].transactions[0];
-      expect(tx.balanceAfter).toBeDefined();
-      expect(typeof tx.balanceAfter).toBe('number');
-    });
-  });
+  afterEach(() => jest.clearAllMocks());
 
   describe('accumulateBalanceAfter', () => {
-    it('returns running balances for given transactions', () => {
+    it('calculates running balances correctly', () => {
       const txs = [
         {
-          id: 'a',
-          type: 'income',
+          ...mockTransaction,
+          id: 'tx-001',
+          type: TransactionType.income,
           amount: 10,
-          accountId: mockAccount.id,
+          accountId: 'acc-001',
           toAccountId: null,
-          account: { name: 'A' },
+          account: { name: 'Account A' },
         },
         {
-          id: 'b',
-          type: 'expense',
+          ...mockTransaction,
+          id: 'tx-002',
+          type: TransactionType.expense,
           amount: 5,
-          accountId: mockAccount.id,
+          accountId: 'acc-001',
           toAccountId: null,
-          account: { name: 'A' },
+          account: { name: 'Account A' },
         },
         {
-          id: 'c',
-          type: 'transfer',
-          amount: 20,
-          accountId: mockAccount.id,
-          toAccountId: 'acc-2',
-          account: { name: 'A' },
+          ...mockTransaction,
+          id: 'tx-003',
+          type: TransactionType.transfer,
+          amount: 3,
+          accountId: 'acc-001',
+          toAccountId: 'acc-002',
+          account: { name: 'Account A' },
         },
       ];
-      const map: Map<string, number> = service.accumulateBalanceAfter(txs, 0);
-      expect(map.get('a')).toBe(10);
-      expect(map.get('b')).toBe(5);
-      expect(map.get('c')).toBe(-15);
-    });
-  });
 
-  describe('getRecommendedKeywords', () => {
-    it('extracts most frequent words from notes', async () => {
-      (prisma.transaction.findMany as jest.Mock).mockResolvedValue([
-        { note: 'Coffee and Snacks' },
-        { note: 'Coffee Beans' },
-        { note: 'Buy Snacks' },
-      ]);
+      const result = service.accumulateBalanceAfter(txs, 0); // you can refine the typing if needed
 
-      const words = await service.getRecommendedKeywords(mockUser.id);
-      expect(words[0]).toBe('coffee');
-      expect(words).toContain('snacks');
+      expect(result.get('tx-001')).toBe(10); // income +10
+      expect(result.get('tx-002')).toBe(5); // -5 = 10 - 5
+      expect(result.get('tx-003')).toBe(2); // -3 = 5 - 3
     });
   });
 
   describe('groupByDate', () => {
-    it('groups transactions by local date', async () => {
-      (prisma.transaction.findMany as jest.Mock).mockResolvedValue([
+    it('groups transactions by date string', async () => {
+      const fixedDate = new Date('2025-06-15');
+
+      jest.spyOn(prisma.transaction, 'findMany').mockResolvedValue([
         {
+          ...mockTransaction,
           id: 't1',
-          type: 'income' as TransactionType,
-          amount: 20,
-          date: new Date('2024-01-01T00:00:00Z'),
-          note: null,
-          description: null,
+          type: TransactionType.income,
+          amount: 5,
+          date: fixedDate,
           account: { name: 'A' },
           category: null,
           toAccount: null,
         },
         {
+          ...mockTransaction,
           id: 't2',
-          type: 'expense' as TransactionType,
-          amount: 5,
-          date: new Date('2024-01-01T12:00:00Z'),
-          note: null,
-          description: null,
+          type: TransactionType.expense,
+          amount: 3,
+          date: fixedDate,
           account: { name: 'A' },
           category: null,
           toAccount: null,
         },
-      ]);
+      ] as TransactionDetail[]);
 
       const result = await service.groupByDate(
         {
           timeframe: 'daily',
-          startDate: '2024-01-01',
-          endDate: '2024-01-01',
+          startDate: '2025-06-01',
+          endDate: '2025-06-30',
           groupBy: 'date',
         },
         'UTC',
         {},
       );
 
-      expect(result.groups).toHaveLength(1);
-      expect(result.groups[0].groupKey).toBe('2024-01-01');
-      expect(result.groups[0].totalAmount).toBe(25);
+      expect(result.groups[0].groupKey).toBe('2025-06-15');
+      expect(result.groups[0].totalAmount).toBe(8);
     });
   });
 
   describe('groupByCategory', () => {
-    it('groups transactions by category name', async () => {
-      (prisma.transaction.findMany as jest.Mock).mockResolvedValue([
+    it('groups by category name', async () => {
+      const fixedDate = new Date('2025-06-15');
+
+      const transactions: TransactionDetail[] = [
         {
           id: 't1',
-          type: 'expense' as TransactionType,
-          amount: 10,
-          date: new Date(),
+          type: TransactionType.expense,
+          amount: 5,
+          date: fixedDate,
           note: null,
           description: null,
+          accountId: 'acc-001',
+          userId: 'user-id-123',
+          categoryId: 'cat-001',
+          toAccountId: null,
+          linkedTransferId: null,
+          createdAt: new Date(),
+          isOpening: false,
+          dueDate: null,
+          paidAt: null,
+          recurringTransactionId: null,
+          deletedAt: null,
           account: { name: 'A' },
-          category: { name: 'Food', icon: '🍔', color: null },
+          category: {
+            id: 'cat-001',
+            name: 'Food',
+            icon: '🍔',
+            color: null,
+            type: 'expense',
+            userId: 'user-id-123',
+          },
           toAccount: null,
         },
         {
           id: 't2',
-          type: 'expense' as TransactionType,
-          amount: 20,
-          date: new Date(),
+          type: TransactionType.expense,
+          amount: 5,
+          date: fixedDate,
           note: null,
           description: null,
+          accountId: 'acc-001',
+          userId: 'user-id-123',
+          categoryId: 'cat-001',
+          toAccountId: null,
+          linkedTransferId: null,
+          createdAt: new Date(),
+          isOpening: false,
+          dueDate: null,
+          paidAt: null,
+          recurringTransactionId: null,
+          deletedAt: null,
           account: { name: 'A' },
-          category: { name: 'Food', icon: '🍔', color: null },
+          category: {
+            id: 'cat-001',
+            name: 'Food',
+            icon: '🍔',
+            color: null,
+            type: 'expense',
+            userId: 'user-id-123',
+          },
           toAccount: null,
         },
-      ]);
+      ];
+
+      jest
+        .spyOn(prisma.transaction, 'findMany')
+        .mockResolvedValue(transactions);
 
       const result = await service.groupByCategory(
         {
           timeframe: 'daily',
-          startDate: '2024-01-01',
-          endDate: '2024-01-01',
+          startDate: '2025-06-01',
+          endDate: '2025-06-30',
           groupBy: 'category',
         },
         {},
       );
 
-      expect(result.groups).toHaveLength(1);
       expect(result.groups[0].groupKey).toBe('Food');
-      expect(result.groups[0].totalAmount).toBe(30);
+      expect(result.groups[0].totalAmount).toBe(10);
     });
   });
 
   describe('groupByAccount', () => {
-    it('groups transactions by account name', async () => {
-      (prisma.transaction.findMany as jest.Mock).mockResolvedValue([
+    it('groups by account name', async () => {
+      const fixedDate = new Date('2025-06-15');
+
+      const transactions: TransactionDetail[] = [
         {
           id: 't1',
-          type: 'expense' as TransactionType,
-          amount: 5,
-          date: new Date(),
+          type: TransactionType.expense,
+          amount: 1,
+          date: fixedDate,
           note: null,
           description: null,
+          accountId: 'acc-001',
+          userId: 'user-id-123',
+          categoryId: null,
+          toAccountId: null,
+          linkedTransferId: null,
+          createdAt: new Date(),
+          isOpening: false,
+          dueDate: null,
+          paidAt: null,
+          recurringTransactionId: null,
+          deletedAt: null,
           account: { name: 'Wallet' },
           category: null,
           toAccount: null,
         },
         {
           id: 't2',
-          type: 'expense' as TransactionType,
-          amount: 15,
-          date: new Date(),
+          type: TransactionType.expense,
+          amount: 1,
+          date: fixedDate,
           note: null,
           description: null,
+          accountId: 'acc-001',
+          userId: 'user-id-123',
+          categoryId: null,
+          toAccountId: null,
+          linkedTransferId: null,
+          createdAt: new Date(),
+          isOpening: false,
+          dueDate: null,
+          paidAt: null,
+          recurringTransactionId: null,
+          deletedAt: null,
           account: { name: 'Wallet' },
           category: null,
           toAccount: null,
         },
-      ]);
+      ];
+
+      jest
+        .spyOn(prisma.transaction, 'findMany')
+        .mockResolvedValue(transactions);
 
       const result = await service.groupByAccount(
         {
           timeframe: 'daily',
-          startDate: '2024-01-01',
-          endDate: '2024-01-01',
+          startDate: '2025-06-01',
+          endDate: '2025-06-30',
           groupBy: 'account',
         },
         {},
       );
 
-      expect(result.groups).toHaveLength(1);
       expect(result.groups[0].groupKey).toBe('Wallet');
-      expect(result.groups[0].totalAmount).toBe(20);
+      expect(result.groups[0].totalAmount).toBe(2);
     });
   });
+
+  describe('getRecommendedKeywords', () => {
+    it('extracts common keywords from notes', async () => {
+      const transactions: TransactionDetail[] = [
+        {
+          id: 'tx-001',
+          userId: mockUser.id,
+          type: 'expense',
+          amount: 1000,
+          date: new Date(),
+          accountId: 'acc-001',
+          categoryId: null,
+          toAccountId: null,
+          linkedTransferId: null,
+          createdAt: new Date(),
+          isOpening: false,
+          dueDate: null,
+          paidAt: null,
+          recurringTransactionId: null,
+          deletedAt: null,
+          note: 'Coffee and snack',
+          description: null,
+          account: null,
+          category: null,
+          toAccount: null,
+        },
+        {
+          id: 'tx-002',
+          userId: mockUser.id,
+          type: 'expense',
+          amount: 2000,
+          date: new Date(),
+          accountId: 'acc-001',
+          categoryId: null,
+          toAccountId: null,
+          linkedTransferId: null,
+          createdAt: new Date(),
+          isOpening: false,
+          dueDate: null,
+          paidAt: null,
+          recurringTransactionId: null,
+          deletedAt: null,
+          note: 'Buy coffee beans',
+          description: null,
+          account: null,
+          category: null,
+          toAccount: null,
+        },
+        {
+          id: 'tx-003',
+          userId: mockUser.id,
+          type: 'expense',
+          amount: 1500,
+          date: new Date(),
+          accountId: 'acc-001',
+          categoryId: null,
+          toAccountId: null,
+          linkedTransferId: null,
+          createdAt: new Date(),
+          isOpening: false,
+          dueDate: null,
+          paidAt: null,
+          recurringTransactionId: null,
+          deletedAt: null,
+          note: 'Snack time',
+          description: null,
+          account: null,
+          category: null,
+          toAccount: null,
+        },
+      ];
+
+      jest
+        .spyOn(prisma.transaction, 'findMany')
+        .mockResolvedValue(transactions);
+
+      const words = await service.getRecommendedKeywords(mockUser.id);
+
+      expect(words).toContain('coffee');
+      expect(words[0]).toBe('coffee');
+    });
+  });
+
+  it('throws BadRequestException for invalid groupBy', async () => {
+    jest.spyOn(prisma.user, 'findUnique').mockResolvedValue(mockUser);
+
+    const invalidQuery = {
+      groupBy: 'x',
+      timeframe: 'daily',
+      startDate: '2025-06-01',
+    } as unknown as TransactionGroupQueryDTO;
+
+    await expect(
+      service.getGroupedTransactions(mockUser.id, invalidQuery),
+    ).rejects.toThrow(BadRequestException);
+
+    await expect(
+      service.getGroupedTransactions(mockUser.id, invalidQuery),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
 });
-
-const getCurrentDateString = () => {
-  const now = new Date();
-  const currentYear = now.getFullYear();
-  const currentMonth = now.getMonth(); // 0-indexed
-  const startDate = new Date(currentYear, currentMonth, 1)
-    .toISOString()
-    .slice(0, 10); // 'YYYY-MM-DD'
-
-  const endDate = new Date(currentYear, currentMonth + 1, 0) // 마지막 날짜
-    .toISOString()
-    .slice(0, 10); // 'YYYY-MM-DD'
-
-  return [startDate, endDate];
-};

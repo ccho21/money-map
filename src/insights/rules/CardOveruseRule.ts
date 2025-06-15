@@ -13,12 +13,21 @@ export class CardOveruseRule extends InsightRuleBase {
   }
 
   getSupportedContexts(): InsightContextType[] {
-    return ['dashboard', 'insightPattern', 'chartAccount', 'insightBudget', 'insightAlert'];
+    return [
+      'dashboard',
+      'insightPattern',
+      'chartAccount',
+      'insightBudget',
+      'insightAlert',
+    ];
   }
 
   async generate(userId: string): Promise<InsightDTO[]> {
     console.log('### CardOveruseRule ###');
-    const { total, card } = await this.transactionDataService.getExpenseBreakdownByAccountType(userId);
+    const { total, card } =
+      await this.transactionDataService.getExpenseBreakdownByAccountType(
+        userId,
+      );
 
     if (total === 0) return [];
 

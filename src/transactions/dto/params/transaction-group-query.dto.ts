@@ -28,13 +28,13 @@ export class TransactionGroupQueryDTO {
   timeframe: Timeframe;
 
   @IsEnum(['date', 'category', 'account', 'tag', 'budget', 'note'])
-  @Transform(({ value }) => value ?? 'date') // ✅ 기본값 처리
+  @Transform(({ value }) => (value ?? 'date') as GroupBy)
   groupBy: GroupBy;
 
   @IsISO8601()
   startDate: string;
 
-  @ValidateIf((o) => o.timeframe === 'custom')
+  @ValidateIf((o: TransactionGroupQueryDTO) => o.timeframe === 'custom')
   @IsISO8601()
   endDate: string;
 
@@ -52,7 +52,7 @@ export class TransactionGroupQueryDTO {
   cursor?: string;
 
   @IsOptional()
-  @Transform(({ value }) => parseInt(value, 10))
+  @Transform(({ value }) => parseInt(value as string, 10))
   @IsInt()
   limit?: number;
 

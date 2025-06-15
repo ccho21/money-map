@@ -12,7 +12,6 @@ import {
   mockBudgetCategory,
   mockCategory,
 } from '@/mocks/mockHelpers';
-import { CategoryType } from '@prisma/client';
 
 const userPayload = mockUserPayload;
 
@@ -39,7 +38,7 @@ describe('BudgetsController (unit)', () => {
       getGroupedBudgetCategories: jest.fn().mockResolvedValue({
         categoryId: mockCategory.id,
         categoryName: mockCategory.name,
-        type: mockCategory.type as CategoryType,
+        type: mockCategory.type,
         icon: mockCategory.icon,
         color: mockCategory.color,
         totalBudget: 0,

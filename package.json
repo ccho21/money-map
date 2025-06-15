@@ -18,7 +18,7 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "reset": "npx tsx prisma/reset.ts",
-    "seed": "npx tsx prisma/seed.ts",
+    "seed": "ts-node --require tsconfig-paths/register prisma/seed.ts",
     "refresh": "npm run reset && npm run seed",
     "dev:init": "npx prisma migrate reset && npx prisma generate && npm run refresh",
     "start:debug": "node --inspect -r ts-node/register -r tsconfig-paths/register src/main.ts"
@@ -105,5 +105,9 @@
       "node_modules",
       "src"
     ]
+  },
+  "overrides": {
+    "@mapbox/node-pre-gyp": "1.0.10",
+    "brace-expansion": "1.1.12"
   }
 }

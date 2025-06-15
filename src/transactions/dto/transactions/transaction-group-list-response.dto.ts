@@ -2,7 +2,6 @@ import { ApiProperty } from '@nestjs/swagger';
 import { TransactionGroupItemDTO } from './transaction-group-item.dto';
 import { GroupBy, Timeframe } from '../params/transaction-group-query.dto';
 
-
 export class TransactionGroupListResponseDTO {
   @ApiProperty({
     example: 'weekly',

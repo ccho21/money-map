@@ -45,7 +45,10 @@ export class CategoryComparisonDTO {
 }
 
 export class TransactionChartCategoryDTO {
-  @ApiProperty({ example: 'monthly', enum: ['daily', 'weekly', 'monthly', 'yearly', 'custom'] })
+  @ApiProperty({
+    example: 'monthly',
+    enum: ['daily', 'weekly', 'monthly', 'yearly', 'custom'],
+  })
   timeframe: string;
 
   @ApiProperty({ example: '2025-05-01' })

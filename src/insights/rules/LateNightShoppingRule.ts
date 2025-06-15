@@ -19,7 +19,13 @@ export class LateNightShoppingRule extends InsightRuleBase {
   }
 
   getSupportedContexts(): InsightContextType[] {
-    return ['dashboard', 'insightPattern', 'chartFlow', 'insightRecurring', 'insightAlert'];
+    return [
+      'dashboard',
+      'insightPattern',
+      'chartFlow',
+      'insightRecurring',
+      'insightAlert',
+    ];
   }
 
   async generate(userId: string): Promise<InsightDTO[]> {
@@ -29,12 +35,15 @@ export class LateNightShoppingRule extends InsightRuleBase {
     if (!user) throw new ForbiddenException('사용자를 찾을 수 없습니다.');
     const timezone = getUserTimezone(user) ?? 'UTC';
 
-    const txList = await this.transactionDataService.getRecentTransactions(userId, 7);
+    const txList = await this.transactionDataService.getRecentTransactions(
+      userId,
+      7,
+    );
 
     const total = txList.length;
     if (total === 0) return [];
 
-    const lateNightTxs = txList.filter(tx => {
+    const lateNightTxs = txList.filter((tx) => {
       const localDate = toZonedTime(tx.date, timezone);
       const hour = localDate.getHours();
       return hour >= 21; // 21:00–23:59

@@ -60,7 +60,12 @@ export class CategoriesService {
 
     const category = await this.prisma.category.findUnique({ where: { id } });
 
-    if (!category || category.userId !== userId) {
+    if (!category) {
+      this.logger.warn(`❌ Category not found`);
+      throw new NotFoundException('카테고리를 찾을 수 없습니다.');
+    }
+
+    if (category.userId !== userId) {
       this.logger.warn(`❌ Unauthorized update attempt`);
       throw new ForbiddenException('카테고리를 수정할 권한이 없습니다.');
     }
@@ -87,7 +92,12 @@ export class CategoriesService {
       where: { id: categoryId },
     });
 
-    if (!category || category.userId !== userId) {
+    if (!category) {
+      this.logger.warn(`❌ Category not found`);
+      throw new NotFoundException('카테고리를 찾을 수 없습니다.');
+    }
+
+    if (category.userId !== userId) {
       this.logger.warn(`❌ Unauthorized delete attempt`);
       throw new ForbiddenException('카테고리를 삭제할 권한이 없습니다.');
     }

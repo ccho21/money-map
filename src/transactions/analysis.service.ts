@@ -160,28 +160,6 @@ export class TransactionsAnalysisService {
     );
   }
 
-  accumulateBalanceAfter(
-    transactions: (Transaction & { account: { name: string } })[],
-    initialBalance: number,
-  ): Map<string, number> {
-    const map = new Map<string, number>();
-    let balance = initialBalance;
-
-    for (const tx of transactions) {
-      if (tx.type === 'income') {
-        balance += tx.amount;
-      } else if (tx.type === 'expense') {
-        balance -= tx.amount;
-      } else if (tx.type === 'transfer') {
-        if (tx.accountId && tx.toAccountId) {
-          balance -= tx.amount;
-        }
-      }
-      map.set(tx.id, balance);
-    }
-    return map;
-  }
-
   async getRecommendedKeywords(
     userId: string,
     limit = 5,
@@ -893,5 +871,27 @@ export class TransactionsAnalysisService {
       overCategoryCount,
       breakdown: filteredBreakdown,
     };
+  }
+
+  accumulateBalanceAfter(
+    transactions: (Transaction & { account: { name: string } })[],
+    initialBalance: number,
+  ): Map<string, number> {
+    const map = new Map<string, number>();
+    let balance = initialBalance;
+
+    for (const tx of transactions) {
+      if (tx.type === 'income') {
+        balance += tx.amount;
+      } else if (tx.type === 'expense') {
+        balance -= tx.amount;
+      } else if (tx.type === 'transfer') {
+        if (tx.accountId && tx.toAccountId) {
+          balance -= tx.amount;
+        }
+      }
+      map.set(tx.id, balance);
+    }
+    return map;
   }
 }

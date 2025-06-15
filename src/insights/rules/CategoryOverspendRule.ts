@@ -10,7 +10,7 @@ import { InsightDTO } from '../dto/insight.dto';
 export class CategoryOverspendRule extends InsightRuleBase {
   constructor(
     private readonly transactionDataService: TransactionDataService,
-    private readonly categoryDataService: CategoryDataService
+    private readonly categoryDataService: CategoryDataService,
   ) {
     super();
   }
@@ -22,15 +22,18 @@ export class CategoryOverspendRule extends InsightRuleBase {
   async generate(userId: string): Promise<InsightDTO[]> {
     console.log('### CategoryOverspendRule ###');
 
-    const summary = await this.transactionDataService.getCategoryMonthlyComparison(userId);
+    const summary =
+      await this.transactionDataService.getCategoryMonthlyComparison(userId);
     const overspent = Object.entries(summary)
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       .filter(([_, val]) => val.previous > 0 && val.current / val.previous >= 2)
       .sort((a, b) => b[1].current - a[1].current);
 
     const insights: InsightDTO[] = [];
 
     for (const [categoryId, { current, previous }] of overspent.slice(0, 2)) {
-      const category = await this.categoryDataService.getCategoryById(categoryId);
+      const category =
+        await this.categoryDataService.getCategoryById(categoryId);
       if (!category) continue;
 
       const percentIncrease = Math.round((current / previous - 1) * 100);

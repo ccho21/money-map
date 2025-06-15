@@ -25,11 +25,11 @@ export class TransactionDataService {
   ): Promise<Record<string, number>> {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new Error('User not found');
-  
+
     const timezone = getUserTimezone(user);
     const utcStart = getUTCStartDate(startDate, timezone);
     const utcEnd = getUTCEndDate(endDate, timezone);
-  
+
     const transactions = await this.prisma.transaction.findMany({
       where: {
         userId,
@@ -43,16 +43,15 @@ export class TransactionDataService {
         category: true, // include를 써야 category.name 사용 가능
       },
     });
-  
+
     const summary: Record<string, number> = {};
     for (const tx of transactions) {
       const key = tx.category?.name ?? '(Uncategorized)';
       summary[key] = (summary[key] ?? 0) + tx.amount;
     }
-  
+
     return summary;
   }
-  
 
   async getRecentTransactions(
     userId: string,
@@ -98,9 +97,9 @@ export class TransactionDataService {
     const startOfPreviousMonthLocal = startOfMonth(
       subMonths(startOfCurrentMonthLocal, 1),
     );
-    const endOfPreviousMonthLocal = endOfMonth(
-      subMonths(startOfCurrentMonthLocal, 1),
-    );
+    // const endOfPreviousMonthLocal = endOfMonth(
+    //   subMonths(startOfCurrentMonthLocal, 1),
+    // );
 
     const startUTC = getUTCStartDate(
       this.formatDate(startOfPreviousMonthLocal),

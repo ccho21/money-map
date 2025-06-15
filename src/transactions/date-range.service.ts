@@ -13,8 +13,6 @@ export class DateRangeService {
     query: TransactionGroupQueryDTO,
     timezone: string,
   ): Promise<{ start: Date; end: Date }> {
-    console.log('### QUERY', userId, timezone, query);
-
     if (query.timeframe === 'all') {
       const range = await this.prisma.transaction.aggregate({
         where: { userId, deletedAt: null },

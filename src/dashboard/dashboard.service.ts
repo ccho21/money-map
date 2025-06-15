@@ -6,9 +6,8 @@ import {
   DashboardDTO,
   DashboardMonthlyComparisonDTO,
 } from './dto/dashboard.dto';
-import { startOfDay, subDays } from 'date-fns';
 import { PrismaService } from '@/prisma/prisma.service';
-import { InsightService } from '@/insights/insights.service';
+import { InsightsService } from '@/insights/insights.service';
 import { TransactionGroupQueryDTO } from '@/transactions/dto/params/transaction-group-query.dto';
 import { getUserTimezone } from '@/libs/timezone';
 import {
@@ -22,7 +21,7 @@ import { InsightQueryDTO } from '@/insights/dto/query.dto';
 export class DashboardService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly insightService: InsightService,
+    private readonly insightService: InsightsService,
   ) {}
 
   async getDashboard(
@@ -134,14 +133,14 @@ export class DashboardService {
       }),
     );
 
-    const chartTx = await this.prisma.transaction.findMany({
-      where: {
-        userId,
-        date: { gte: start, lte: end },
-        OR: [{ type: 'income' }, { type: 'expense' }],
-      },
-      orderBy: { date: 'asc' },
-    });
+    // const chartTx = await this.prisma.transaction.findMany({
+    //   where: {
+    //     userId,
+    //     date: { gte: start, lte: end },
+    //     OR: [{ type: 'income' }, { type: 'expense' }],
+    //   },
+    //   orderBy: { date: 'asc' },
+    // });
 
     const insightQuery: InsightQueryDTO = {
       startDate: query.startDate,

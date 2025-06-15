@@ -1,53 +1,61 @@
 // create-recurring-transaction.dto.ts
-import { IsEnum, IsInt, IsOptional, IsString, IsDateString, IsUUID, Min } from 'class-validator'
-import { RecurringFrequency, TransactionType } from '@prisma/client'
+import {
+  IsEnum,
+  IsInt,
+  IsOptional,
+  IsString,
+  IsDateString,
+  IsUUID,
+  Min,
+} from 'class-validator';
+import { RecurringFrequency, TransactionType } from '@prisma/client';
 
 export class CreateRecurringTransactionDto {
   @IsUUID()
-  userId: string
+  userId: string;
 
   @IsUUID()
-  accountId: string
-
-  @IsUUID()
-  @IsOptional()
-  toAccountId?: string | null
+  accountId: string;
 
   @IsUUID()
   @IsOptional()
-  categoryId?: string
+  toAccountId?: string | null;
+
+  @IsUUID()
+  @IsOptional()
+  categoryId?: string;
 
   @IsEnum(TransactionType)
-  type: TransactionType
+  type: TransactionType;
 
   @IsInt()
   @Min(1)
-  amount: number
+  amount: number;
 
   @IsDateString()
-  startDate: string
+  startDate: string;
 
   @IsEnum(RecurringFrequency)
-  frequency: RecurringFrequency
+  frequency: RecurringFrequency;
 
   @IsInt()
   @Min(1)
   @IsOptional()
-  interval?: number
+  interval?: number;
 
   @IsInt()
   @IsOptional()
-  anchorDay?: number
+  anchorDay?: number;
 
   @IsDateString()
   @IsOptional()
-  endDate?: string
+  endDate?: string;
 
   @IsString()
   @IsOptional()
-  note?: string
+  note?: string;
 
   @IsString()
   @IsOptional()
-  description?: string
+  description?: string;
 }

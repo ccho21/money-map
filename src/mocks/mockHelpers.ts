@@ -3,13 +3,35 @@ import { TransactionCalendarDTO } from '@/transactions/dto/transactions/transact
 import { CreateTransactionDTO } from '@/transactions/dto/transactions/transaction-create.dto';
 import { UpdateTransactionDTO } from '@/transactions/dto/transactions/transaction-update.dto';
 import { UserPayload } from '@/auth/types/user-payload.type';
-import { AccountType, TransactionType, User } from '@prisma/client';
+import {
+  AccountType,
+  TransactionType,
+  CategoryType,
+  User,
+  Account,
+  Budget,
+  BudgetCategory,
+  Category,
+  Transaction,
+} from '@prisma/client';
+import { PrismaService } from '@/prisma/prisma.service';
 
-//
-// ========================= 🧑‍💼 COMMON =========================
+export type BudgetDetail = Budget & {
+  categories: (BudgetCategory & {
+    category: Category;
+  })[];
+};
 
-//
+export type BudgetCategoryDetail = BudgetCategory & {
+  category: Category;
+  budget?: Pick<Budget, 'id' | 'total' | 'userId'>;
+};
 
+export type TransactionDetail = Transaction & {
+  account?: { name: string } | null;
+  toAccount?: { name: string } | null;
+  category?: Category | null;
+};
 export const mockUser: User = {
   id: 'user-id-123',
   email: 'test@example.com',
@@ -25,32 +47,21 @@ export const mockUserPayload: UserPayload = {
   timezone: mockUser.timezone,
 };
 
-//
-// ========================= 🔐 AUTH =========================
-//
-export const mockAuthSession: {
-  accessToken: string;
-  refreshToken: string;
-  userId: string;
-  expiresIn: number;
-} = {
+export const mockAuthSession = {
   accessToken: 'mock-access-token',
   refreshToken: 'mock-refresh-token',
   userId: 'user-123',
   expiresIn: 3600,
 };
 
-//
-// ========================= 📁 ACCOUNTS =========================
-//
-export const mockAccount = {
+export const mockAccount: Account = {
   id: 'acc-001',
-  userId: 'user-001',
+  userId: mockUser.id,
   name: 'My Account',
-  type: AccountType.CASH, // ✅ 이렇게!
+  type: AccountType.CASH,
   color: '#ff0000',
   description: 'Mock Account',
-  balance: 0,
+  balance: 100000,
   createdAt: new Date(),
   updatedAt: new Date(),
   settlementDate: null,
@@ -58,13 +69,22 @@ export const mockAccount = {
   autoPayment: false,
 };
 
-export const mockStatsAccountDetail: {
-  accountId: string;
-  accountName: string;
-  income: number;
-  expense: number;
-  balance: number;
-} = {
+export const mockAccount2: Account = {
+  id: 'acc-002',
+  userId: mockUser.id,
+  name: 'Second Account',
+  type: AccountType.CASH,
+  color: '#00ff00',
+  description: 'Mock Account 2',
+  balance: 50000,
+  createdAt: new Date(),
+  updatedAt: new Date(),
+  settlementDate: null,
+  paymentDate: null,
+  autoPayment: false,
+};
+
+export const mockStatsAccountDetail = {
   accountId: 'acc-001',
   accountName: 'My Card',
   income: 250000,
@@ -72,22 +92,24 @@ export const mockStatsAccountDetail: {
   balance: 100000,
 };
 
-//
-// ========================= 📁 CATEGORY =========================
-//
-export const mockCategory = {
+export const mockCategory: Category = {
   id: 'cat1',
   name: 'Food',
   icon: '🍔',
-  type: 'expense',
+  type: CategoryType.expense,
   userId: mockUser.id,
   color: '#ff0000',
 };
 
-//
-// ========================= 💸 BUDGETS =========================
-//
-export const mockBudget = {
+export const mockCategory2: Category = {
+  ...mockCategory,
+  id: 'cat-002',
+  name: 'Transport',
+  icon: '🚗',
+  color: '#0000ff',
+};
+
+export const mockBudget: Budget = {
   id: 'budget-001',
   userId: mockUser.id,
   total: 300000,
@@ -95,27 +117,29 @@ export const mockBudget = {
   updatedAt: new Date(),
 };
 
-export const mockBudgetCategory = {
+export const mockBudgetCategory: BudgetCategory = {
   id: 'budget-category-001',
   budgetId: mockBudget.id,
-  categoryId: 'cat1',
+  categoryId: mockCategory.id,
   amount: 150000,
   startDate: new Date('2024-01-01'),
   endDate: new Date('2024-01-31'),
-  type: 'expense',
+  type: CategoryType.expense,
 };
 
-//
-// ========================= 🧾 TRANSACTIONS =========================
-//
-export const mockTransaction = {
+export type TransactionWithCategory = Omit<Transaction, 'categoryId'> & {
+  categoryId: string;
+  category: { name: string; color: string };
+};
+
+export const mockTransaction: Transaction = {
   id: 'tx-001',
   userId: mockUser.id,
   type: TransactionType.expense,
   amount: 5000,
   date: new Date('2024-04-10'),
   accountId: mockAccount.id,
-  categoryId: 'cat-001',
+  categoryId: mockCategory.id,
   note: 'Team lunch',
   description: 'Lunch at cafe',
   createdAt: new Date(),
@@ -124,8 +148,17 @@ export const mockTransaction = {
   paidAt: null,
   toAccountId: null,
   linkedTransferId: null,
-  account: mockAccount,
-  category: null,
+  recurringTransactionId: null,
+  deletedAt: null,
+};
+
+export const mockTransaction2: Transaction = {
+  ...mockTransaction,
+  id: 'tx-002',
+  amount: 20000,
+  type: TransactionType.income,
+  note: 'Bonus',
+  description: 'Monthly bonus',
 };
 
 export const mockCreateTransactionDto: CreateTransactionDTO = {
@@ -157,18 +190,11 @@ export const mockTransferTransactionDto: CreateTransactionDTO = {
   accountId: 'acc-001',
 };
 
-//
-// ========================= 📆 CALENDAR =========================
-//
 export const mockTransactionCalendarItem: TransactionCalendarDTO = {
   date: '2024-04-15',
   income: 50000,
   expense: 20000,
 };
-
-//
-// ========================= 📝 STATS / NOTE =========================
-//
 
 export const mockAccountCreateRequest: AccountCreateRequestDTO = {
   name: 'Test Account',
@@ -177,14 +203,12 @@ export const mockAccountCreateRequest: AccountCreateRequestDTO = {
   color: '#000000',
   description: 'Initial',
 };
-/////////
-//
-// ========================= 🧪 Prisma Mock Factory =========================
-//
-export function mockPrismaFactory() {
+
+export function mockPrismaFactory(): jest.Mocked<PrismaService> {
   return {
     transaction: {
       findUnique: jest.fn(),
+      findFirst: jest.fn(),
       findMany: jest.fn(),
       create: jest.fn(),
       createMany: jest.fn(),
@@ -199,26 +223,37 @@ export function mockPrismaFactory() {
       updateMany: jest.fn(),
     },
     account: {
+      create: jest.fn(),
       findUnique: jest.fn(),
       update: jest.fn(),
-      findMany: jest.fn(), // ✅ 추가
+      findMany: jest.fn(),
+      delete: jest.fn(),
     },
     user: {
       findUnique: jest.fn(),
       create: jest.fn(),
+      update: jest.fn(),
       deleteMany: jest.fn(),
     },
     category: {
       create: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
+      findFirst: jest.fn(),
+      findMany: jest.fn(),
+      findUnique: jest.fn(),
       deleteMany: jest.fn(),
     },
     budgetCategory: {
-      deleteMany: jest.fn(),
-      findMany: jest.fn(), // ✅ 추가
+      findMany: jest.fn(),
+      findFirst: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
     },
     budget: {
+      findMany: jest.fn(),
       deleteMany: jest.fn(),
     },
     $transaction: jest.fn(),
-  };
+  } as unknown as jest.Mocked<PrismaService>;
 }

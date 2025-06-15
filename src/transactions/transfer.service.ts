@@ -11,6 +11,7 @@ import { PrismaService } from '@/prisma/prisma.service';
 import { CreateTransactionDTO } from './dto/transactions/transaction-create.dto';
 import { UpdateTransactionDTO } from './dto/transactions/transaction-update.dto';
 import { recalculateAccountBalanceInTx } from './utils/recalculateAccountBalanceInTx.util';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class TransactionsTransferService {
@@ -86,7 +87,7 @@ export class TransactionsTransferService {
   }
 
   private async createTransferTransactionPair(
-    tx,
+    tx: Prisma.TransactionClient,
     {
       userId,
       amount,
@@ -107,6 +108,8 @@ export class TransactionsTransferService {
       recurringTransactionId?: string | null;
     },
   ) {
+    const parsedDate = date ? new Date(date) : new Date();
+
     const outTx = await tx.transaction.create({
       data: {
         type: 'transfer',
@@ -114,9 +117,9 @@ export class TransactionsTransferService {
         userId,
         accountId: fromAccountId,
         toAccountId,
-        date,
-        note,
-        description,
+        date: parsedDate,
+        note: note ?? null,
+        description: description ?? null,
         recurringTransactionId: recurringTransactionId ?? null,
       },
     });
@@ -129,15 +132,17 @@ export class TransactionsTransferService {
         accountId: toAccountId,
         toAccountId: null,
         linkedTransferId: outTx.id,
-        date,
-        note,
-        description,
+        date: parsedDate,
+        note: note ?? null,
+        description: description ?? null,
       },
     });
 
     await tx.transaction.update({
       where: { id: outTx.id },
-      data: { linkedTransferId: inTx.id },
+      data: {
+        linkedTransferId: inTx.id,
+      },
     });
 
     return { outgoing: outTx, incoming: inTx };
@@ -152,10 +157,10 @@ export class TransactionsTransferService {
       throw new BadRequestException('계좌 정보를 모두 입력하세요.');
     }
 
-    const [fromAccount, toAccount] = await this.validateTransferAccounts(
+    const [fromAccount] = await this.validateTransferAccounts(
       userId,
-      fromAccountId!,
-      toAccountId!,
+      fromAccountId,
+      toAccountId,
     );
 
     if (fromAccount.type !== 'CARD' && fromAccount.balance < amount) {
@@ -206,7 +211,7 @@ export class TransactionsTransferService {
     }
 
     const { amount, fromAccountId, toAccountId, date, note, description } = dto;
-    const [fromAccount, toAccount] = await this.validateTransferAccounts(
+    const [fromAccount] = await this.validateTransferAccounts(
       userId,
       fromAccountId!,
       toAccountId!,

@@ -19,7 +19,7 @@ export class RecurringDataService {
       transactions: { id: string; amount: number; date: Date }[];
     })[]
   > {
-    const { startDate, endDate, timeframe } = query;
+    const { startDate, endDate } = query;
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new Error('User not found');
 
@@ -49,13 +49,13 @@ export class RecurringDataService {
     userId: string,
     query: InsightQueryDTO,
   ): Promise<ChartDataItem> {
-    const { startDate, endDate, timeframe } = query;
+    const { endDate } = query;
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new Error('User not found');
 
     const timezone = getUserTimezone(user);
 
-    const utcStart = getUTCStartDate(startDate, timezone);
+    // const utcStart = getUTCStartDate(startDate, timezone);
     const utcEnd = getUTCEndDate(endDate, timezone);
 
     const recurrings = await this.prisma.recurringTransaction.findMany({

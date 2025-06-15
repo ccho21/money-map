@@ -12,17 +12,19 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
 
     super({
       jwtFromRequest: ExtractJwt.fromExtractors([
-        (req) => req.cookies.access_token,
+        (req: Request & { cookies: Record<string, string> }) =>
+          req.cookies.access_token,
       ]),
       secretOrKey: secret,
     });
   }
 
   validate(payload: JwtPayload): UserPayload {
-    return {
+    const user: UserPayload = {
       id: payload.sub,
       email: payload.email,
       timezone: payload.timezone,
     };
+    return user;
   }
 }

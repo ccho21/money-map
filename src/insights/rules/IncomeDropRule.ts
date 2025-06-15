@@ -18,7 +18,8 @@ export class IncomeDropRule extends InsightRuleBase {
 
   async generate(userId: string): Promise<InsightDTO[]> {
     console.log('### IncomeDropRule ###');
-    const { current, previous } = await this.transactionDataService.getIncomeTotalsForTwoMonths(userId);
+    const { current, previous } =
+      await this.transactionDataService.getIncomeTotalsForTwoMonths(userId);
 
     if (previous === 0 || current >= previous * 0.5) return [];
 

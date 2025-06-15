@@ -1,5 +1,5 @@
-import { Timeframe } from "@/transactions/dto/params/transaction-group-query.dto";
-import { IsEnum, IsISO8601, ValidateIf } from "class-validator";
+import { Timeframe } from '@/transactions/dto/params/transaction-group-query.dto';
+import { IsEnum, IsISO8601 } from 'class-validator';
 
 export class InsightQueryDTO {
   @IsEnum(['daily', 'weekly', 'monthly', 'yearly', 'custom'])
@@ -8,7 +8,7 @@ export class InsightQueryDTO {
   @IsISO8601()
   startDate: string;
 
-  @ValidateIf((o) => o.timeframe === 'custom')
+  // @ValidateIf((o) => o.timeframe === 'custom')
   @IsISO8601()
   endDate: string;
 }

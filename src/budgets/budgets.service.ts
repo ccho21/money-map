@@ -251,7 +251,7 @@ export class BudgetsService {
     const ranges = getDateRangeList(baseDate, timeframe, timezone);
 
     const start = getUTCStartDate(ranges[0].startDate, timezone);
-    const end = getUTCStartDate(ranges[ranges.length - 1].endDate, timezone);
+    const end = getUTCEndDate(ranges[ranges.length - 1].endDate, timezone);
 
     const allBudgetCategories = await this.prisma.budgetCategory.findMany({
       where: {

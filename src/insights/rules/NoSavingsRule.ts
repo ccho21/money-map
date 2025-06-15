@@ -17,8 +17,9 @@ export class NoSavingsRule extends InsightRuleBase {
   }
 
   async generate(userId: string): Promise<InsightDTO[]> {
-    console.log('### NoSavingsRule ###')
-    const { income, expense } = await this.transactionDataService.getMonthlyIncomeExpenseTotals(userId);
+    console.log('### NoSavingsRule ###');
+    const { income, expense } =
+      await this.transactionDataService.getMonthlyIncomeExpenseTotals(userId);
 
     if (income === 0 || expense < income) return [];
 
