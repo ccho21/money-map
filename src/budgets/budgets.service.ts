@@ -138,6 +138,7 @@ export class BudgetsService {
   ): Promise<{ budgetId: string; message: string }> {
     const { categoryId, amount, startDate, endDate } = dto;
 
+    // 🔍 유저 확인
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new NotFoundException('User not found');
 
@@ -145,13 +146,22 @@ export class BudgetsService {
     const start = getUTCStartDate(startDate, timezone);
     const end = getUTCEndDate(endDate, timezone);
 
-    const [budget] = await this.prisma.budget.findMany({
+    // 📦 budget이 없으면 생성
+    const [existingBudget] = await this.prisma.budget.findMany({
       where: { userId },
       take: 1,
     });
-    if (!budget)
-      throw new NotFoundException('No budget record found for user.');
 
+    const budget =
+      existingBudget ??
+      (await this.prisma.budget.create({
+        data: {
+          userId,
+          total: 0,
+        },
+      }));
+
+    // ✅ category 유효성 검사 및 권한 확인
     const category = await this.prisma.category.findUnique({
       where: { id: categoryId },
     });
@@ -159,6 +169,7 @@ export class BudgetsService {
       throw new NotFoundException('Invalid category or access denied.');
     }
 
+    // ❌ 중복 체크
     const exists = await this.prisma.budgetCategory.findFirst({
       where: {
         budgetId: budget.id,
@@ -167,12 +178,14 @@ export class BudgetsService {
         endDate: end,
       },
     });
+
     if (exists) {
       throw new ConflictException(
         'Budget already exists for this category and period.',
       );
     }
 
+    // ✅ 생성
     const created = await this.prisma.budgetCategory.create({
       data: {
         budgetId: budget.id,
@@ -180,7 +193,7 @@ export class BudgetsService {
         amount,
         startDate: start,
         endDate: end,
-        type: category.type,
+        type: category.type, // category에서 직접 가져옴
       },
     });
 

@@ -84,7 +84,8 @@ export class TransactionsAnalysisService {
         account: true,
         toAccount: true,
       },
-      orderBy: { date: 'asc' },
+      orderBy: { date: 'desc' },
+      ...(query.limit && { take: Number(query.limit) }),
     });
 
     const grouped = new Map<string, TransactionItemDTO[]>();
@@ -375,7 +376,7 @@ export class TransactionsAnalysisService {
           date: { lt: start },
           deletedAt: null,
         },
-        orderBy: [{ date: 'asc' }, { id: 'asc' }],
+        orderBy: [{ date: 'desc' }, { id: 'desc' }],
       });
 
       const initialBalance = priorTxs.reduce((acc, tx) => {
@@ -397,7 +398,7 @@ export class TransactionsAnalysisService {
           date: { gte: start, lte: end },
           deletedAt: null,
         },
-        orderBy: [{ date: 'asc' }, { id: 'asc' }],
+        orderBy: [{ date: 'desc' }, { id: 'desc' }],
         include: { account: true },
       });
 

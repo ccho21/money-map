@@ -4,15 +4,19 @@ import { Request } from 'express';
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtPayload, UserPayload } from '../types/user-payload.type';
 import { ConfigService } from '@nestjs/config';
+import { PrismaService } from '@/prisma/prisma.service';
 
 @Injectable()
 export class RefreshTokenStrategy extends PassportStrategy(
   Strategy,
   'jwt-refresh',
 ) {
-  constructor(config: ConfigService) {
+  constructor(
+    config: ConfigService,
+    private readonly prisma: PrismaService, // ✅ 유저 확인용 의존성 주입
+  ) {
     const secret = config.get<string>('JWT_REFRESH_SECRET');
-    if (!secret) throw new Error('JWT_REFRESH_SECRET is not defined');
+    if (!secret) throw new Error('JWT_REFRESH_SECRET not defined');
 
     super({
       jwtFromRequest: (req: Request): string => {
@@ -22,19 +26,27 @@ export class RefreshTokenStrategy extends PassportStrategy(
           throw new UnauthorizedException('Refresh token not found');
         }
 
-        console.log('✅ Refresh Token in cookie:', token);
         return token;
       },
-      secretOrKey: secret, // ✅ 이제 undefined가 아님
+      secretOrKey: secret,
       passReqToCallback: true,
     });
   }
 
-  validate(req: Request, payload: JwtPayload): UserPayload {
+  async validate(req: Request, payload: JwtPayload): Promise<UserPayload> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: payload.sub },
+      select: { id: true, email: true, timezone: true },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('User no longer exists');
+    }
+
     return {
-      id: payload.sub,
-      email: payload.email,
-      timezone: payload.timezone,
+      id: user.id,
+      email: user.email,
+      timezone: user.timezone,
     };
   }
 }

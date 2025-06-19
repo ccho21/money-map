@@ -1,4 +1,5 @@
-import { ApiExtraModels, ApiProperty, PartialType } from '@nestjs/swagger';
+import { ApiProperty, PartialType } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 import { IsDateString, IsInt, IsUUID } from 'class-validator';
 
 export class BaseBudgetCategoryRequestDTO {
@@ -8,6 +9,7 @@ export class BaseBudgetCategoryRequestDTO {
 
   @ApiProperty()
   @IsInt()
+  @Type(() => Number)
   amount: number;
 
   @ApiProperty()
@@ -19,7 +21,6 @@ export class BaseBudgetCategoryRequestDTO {
   endDate: string;
 }
 
-@ApiExtraModels()
 export class BudgetCategoryCreateRequestDTO extends BaseBudgetCategoryRequestDTO {}
 
 export class BudgetCategoryUpdateRequestDTO extends PartialType(

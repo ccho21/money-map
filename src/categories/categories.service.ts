@@ -15,16 +15,16 @@ export class CategoriesService {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  // 카테고리 생성
   async create(userId: string, dto: CategoryCreateRequestDTO) {
     this.logger.debug(`📂 Creating category: ${dto.name} for user: ${userId}`);
 
-    const category = await this.prisma.category.create({
-      data: {
-        ...dto,
-        userId,
-      },
-    });
+    const data = {
+      ...dto,
+      icon: dto.icon ?? 'will be changed', // ✅ 기본값 설정
+      userId,
+    };
+
+    const category = await this.prisma.category.create({ data });
 
     this.logger.log(`✅ Created category: ${category.id}`);
     return category;
